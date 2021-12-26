@@ -1,0 +1,20 @@
+#+TITLE: About This Site
+
+Let me explain the context a bit more. I am new to Haskell, and decided to learn
+more about it while porting my website from nanoc to ema. Besides learning for
+fun, my motivation in moving to Haskell has been the ability to interact with
+and transform the Pandoc data in ways that would let me do stuff like
+zettelkastens with org-roam.
+
+One thing that I do in my website is automatically compiling LaTeX figures (e.g.
+tikz) and inlining them in the resulting html. This was simple to reimplement
+and is working file, the compilation happens when building the model 🙂.
+
+But now my issue: since compiling with LaTeX takes such a long time, it gets
+impractical to do it every time the file changes. In nanoc I worked around this
+by hashing the figures' source text and saving the resulting images named by
+their hash. Before compiling it again, the script would look for a file with the
+same hash and use it instead. This works but I thought I could do this sort of
+caching better and in more generality with Ema.
+
+

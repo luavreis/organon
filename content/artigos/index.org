@@ -1,0 +1,3 @@
+#+TITLE: Artigos
+
+- [[./diagramas-de-tensores.org][Diagramas de Tensores]]

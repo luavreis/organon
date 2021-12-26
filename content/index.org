@@ -1,0 +1,16 @@
+#+title: Olá
+:properties:
+:uuid: principal
+:emoji: t
+:end:
+
+Bem vindos! 🙂
+
+Algumas coisas para se fazer aqui:
+- [[http:blog][Postagens do blog]]
+
+Alguns links de fora:
+- [[https://github.com/lucasvreis][Meu Github]]
+
+Orgulhosamente feito com Haskell.
+

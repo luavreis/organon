@@ -1,0 +1,32 @@
+# TODO: automatize
+#+begin_export html
+<div style="display: none">
+\[
+\renewcommand{\R}{\mathbb{R}}
+\newcommand{\car}{\operatorname{car}}
+\newcommand{\id}{\operatorname{id}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\Hom}{\operatorname{Hom}}
+\newcommand\comp{\mathrel{\triangleright}}
+\newcommand{\ev}[1]{\varepsilon_{#1}}
+\newcommand{\coev}[1]{\eta_{#1}}
+\newcommand{\ass}[3]{\alpha_{#1,#2,#3}}
+\newcommand{\ot}{\otimes}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\Cx}{\mathbb{C}}
+\newcommand{\cat}{\mathcal}
+\newcommand{\bcat}{\mathrm}
+\newcommand{\HomF}{\Hom_\F}
+\newcommand{\Ob}{\mathrm{Ob}}
+\newcommand{\Mor}{\mathrm{Mor}}
+\newcommand{\dom}{\mathrm{dom}}
+\newcommand{\cod}{\mathrm{cod}}
+\newcommand{\C}{\cat{C}}
+\newcommand{\ObC}{\Ob_\cat{C}}
+\newcommand{\MorC}{\Mor_\cat{C}}
+\newcommand{\Vect}{\bcat{Vect}}
+\newcommand{\VectF}{\Vect_\F}
+\newcommand{\bk}[1]{\langle #1 \rangle}
+\]
+</div>
+#+end_export

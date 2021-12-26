@@ -1,0 +1,56 @@
+% Created 2021-12-21 ter 19:20
+% Intended LaTeX compiler: pdflatex
+\documentclass[varwidth=\maxdimen]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\input{imports/diagramas-de-tensores-preamble}
+\author{Lucas Reis}
+\date{\today}
+\title{Diagramas de tensores}
+\hypersetup{
+ pdfauthor={Lucas Reis},
+ pdftitle={Diagramas de tensores},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 28.0.90 (Org mode 9.6)}, 
+ pdflang={English}}
+\begin{document}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[disp]
+    \centering
+    \matrix (c) {
+        \coordinate (s); \\
+        \node[below= .6 of s,box] (f) {$f$};
+        \coordinate[below= .6 of f] (e); \\
+        };
+    \draw[oes={->-}]
+    (s) -- node[vs] {$V$}
+    (f) -- node[vs] {$W$} (e);
+
+    \matrix[right= 3 of f] (c) {
+        \node[box] (f) {$g$};
+        \heads[2]{f}{0}
+        \tails[2]{f}{2}\\
+    };
+    \node[vs,left= of f-hs-1] {$V_1$};
+    \node[vs,right=of f-hs-2] {$V_n$};
+    \node[vs,between= f-hs-1 and f-hs-2,yshift=1mm,xshift=.7mm]
+    {$...$};
+    \node[vs,left= of f-ts-2] {$W_1$};
+    \node[vs,right=of f-ts-1] {$W_m$};
+    \node[vs,between= f-ts-1 and f-ts-2,yshift=1mm,xshift=.7mm]
+    {$...$};
+    \end{tikzpicture}
+\end{figure}
+\end{document}

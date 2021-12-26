@@ -1,0 +1,299 @@
+#+title: Minha Configuração do Emacs
+
+Vamos usar o binding léxico:
+
+#+begin_src emacs-lisp
+;;; -*- lexical-binding: t; -*-
+#+end_src
+
+* O básico
+** Tema
+*** Escolha
+#+begin_src emacs-lisp
+(setq doom-theme 'doom-material)
+
+;; Deixa a seleção menos distrativa
+(defvar custom-themes-exclude
+  '(doom-acario-light
+    doom-acario-dark
+    doom-badger
+    doom-dark+
+    doom-henna
+    doom-homage-white
+    doom-Iosvkem
+    doom-1337
+    doom-molokai
+    doom-sourcerer
+    doom-peacock
+    doom-wilmersdorf
+    doom-manegarm
+    doom-ephemeral))
+
+(advice-add 'custom-available-themes :filter-return
+            (lambda (l)
+              (seq-difference
+               (seq-filter (lambda (x) (s-prefix? "doom-" (symbol-name x))) l)
+               custom-themes-exclude #'eq)))
+#+end_src
+*** Fontes
+
+#+begin_src emacs-lisp
+(setq doom-font                (font-spec :family "JetBrains Mono" :size 19)
+      doom-variable-pitch-font (font-spec :family "Overpass" :size 19)
+      doom-serif-font          (font-spec :family "IBM Plex Mono" :weight 'light)
+      doom-unicode-font        (font-spec :family "JuliaMono" :weight 'normal))
+
+;; Colocamos uma ordem de prioridade para tentar ter todos os unicodes e emojis.
+(add-hook! 'after-setting-font-hook
+  (set-fontset-font t 'unicode (font-spec :family "JuliaMono"))
+  (set-fontset-font t 'unicode "Twemoji" nil 'prepend))
+#+end_src
+
+*** Faces e ícones
+
+Deixamos os comentários itálicas, e os ~keywords~ oblíquos.
+
+#+begin_src emacs-lisp
+(custom-set-faces!
+  '(font-lock-comment-face :slant italic)
+  '(font-lock-keyword-face :slant oblique)
+
+  '(yas-field-highlight-face :box (:color "dark green") :inherit nil)
+
+  '(doom-modeline-buffer-modified :foreground "orange")
+  '(doom-modeline-info :foreground "white"))
+#+end_src
+
+Ajusta o tamanho dos ícones.
+
+#+begin_src emacs-lisp
+(setq all-the-icons-scale-factor 0.88)
+#+end_src
+
+** Dashboard
+*** Estético
+
+Pequenas modificações ao dashboard:
+
+#+begin_src emacs-lisp
+;; Desabilita o modeline
+(add-hook! '+doom-dashboard-mode-hook (hide-mode-line-mode 1))
+
+;; Desabilita o "benchmark"
+(remove-hook 'window-setup-hook #'doom-display-benchmark-h)
+#+end_src
+
+*** Banner
+
+Pequenos acrobatas, que tal?
+
+#+begin_src emacs-lisp
+(defun doom-dashboard-draw-ascii-emacs-banner-fn ()
+  (let* ((banner
+          '("" ""
+            "   o__  __o   \\o__ __o__ __o      o__ __o/      __o__      __o__"
+            "  /v      |>   |     |     |>    /v     |      />  \\      />  \\ "
+            " />      //   / \\   / \\   / \\   />     / \\   o/           \\o    "
+            " \\o    o/     \\o/   \\o/   \\o/   \\      \\o/  <|             v\\   "
+            "  v\\  /v __o   |     |     |     o      |    \\\\             <\\  "
+            "   <\\/> __/>  / \\   / \\   / \\    <\\__  / \\    _\\o__</  _\\o__</  "
+            ""))
+         (longest-line (apply #'max (mapcar #'length banner))))
+    (put-text-property
+     (point)
+     (dolist (line banner (point))
+       (insert (+doom-dashboard--center
+                +doom-dashboard--width
+                (concat
+                 line (make-string (max 0 (- longest-line (length line)))
+                                   32)))
+               "\n"))
+     'face 'doom-dashboard-banner)))
+(setq +doom-dashboard-ascii-banner-fn #'doom-dashboard-draw-ascii-emacs-banner-fn)
+#+end_src
+
+A fonte padrão é itálica e deixa os acrobatas tortos, vamos resolver isso:
+
+#+begin_src emacs-lisp
+(custom-set-faces!
+  '(doom-dashboard-banner
+    :inherit font-lock-comment-face
+    :slant normal))
+#+end_src
+
+* Minha biblioteca elisp
+** Pasta-bibioteca
+
+Com algumas bibliotecas externas, por exemplo.
+
+#+begin_src emacs-lisp
+(add-load-path! "lisp/lib")
+#+end_src
+
+** Excluir todos os conselhos
+#+begin_src emacs-lisp
+(defun advice-unadvice (sym)
+  "Remove all advices from symbol SYM."
+  (interactive "aFunction symbol: ")
+  (advice-mapc (lambda (advice _props) (advice-remove sym advice)) sym))
+#+end_src
+** "Conselhos" úteis
+
+Para desabilitar as mensagens chatas:
+
+#+begin_src emacs-lisp
+(defun advice--inhibit-message (f &rest r) (let ((inhibit-message t)) (apply f r)))
+#+end_src
+
+* Emacs em geral
+** Edição
+*** Variáveis comuns
+#+begin_src emacs-lisp
+(setq-default fill-column 80)
+#+end_src
+*** Salvando
+
+Desabilita uma mensagem que rapidamente aparece na tela e some.
+
+Era para resolver algo que aparece com o ~literate~, mas não resolve e não sei
+como resolver.
+
+#+begin_src emacs-lisp
+;; FIXME
+(advice-add 'save-buffer :around #'advice--inhibit-message)
+#+end_src
+
+** ME ORGANIZE!
+
+Coisas que precisam ir para algum lugar...
+
+#+begin_src emacs-lisp
+(remove-hook! '(org-mode-hook text-mode-hook) #'flyspell-mode)
+
+(when (display-graphic-p)
+  (setq good-scroll-duration 0.08)
+  (good-scroll-mode 1))
+
+(setq window-divider-default-bottom-width 2  ; default is 1
+      window-divider-default-right-width 2  ; default is 1
+
+      vterm-shell "fish"
+      ispell-dictionary "brasileiro"
+      delete-by-moving-to-trash t
+      mouse-autoselect-window nil
+      lsp-idle-delay 0.1
+      company-idle-delay 0.1
+
+      mouse-wheel-scroll-amount '(1 ((shift) . 1)) ;; one line at a time
+      mouse-wheel-progressive-speed nil ;; don't accelerate scrolling
+      scroll-step 1) ;; keyboard scroll one line at a time
+
+(pcre-mode +1)
+#+end_src
+
+** Maximizar a janela?
+
+Maximizar a janela ao iniciar?
+
+#+begin_src emacs-lisp
+;; (add-to-list 'initial-frame-alist '(fullscreen . maximized))
+#+end_src
+
+* Atalhos de teclado
+** Deixando o Emacs mais familiar
+
+Porque ninguém merece tantos atalhos diferentes...
+
+#+begin_src emacs-lisp
+(map! "C-S-s" 'isearch-forward)
+(map! :egni "C-s" 'save-buffer)
+(map! :egni "C-/" 'evilnc-comment-or-uncomment-lines)
+
+(map! :i "C-v" 'yank)
+(map! :i "C-z" 'evil-undo)
+(map! :i "C-S-z" 'evil-redo)
+(map! :i "C-x" 'evil-delete)
+#+end_src
+
+** Evil brazuca
+
+Nossos teclados têm uma tecla a mais no melhor lugar possível, não podemos
+desperdiçar a oportunidade de usar =jklç=:
+
+#+begin_src emacs-lisp
+;; no dia em que eu precisar usar teclado americano, eu vou me arrepender...
+(map! :map evil-motion-state-map
+      "j" 'evil-backward-char
+      "k" 'evil-next-line
+      "l" 'evil-previous-line
+      "ç" 'evil-forward-char)
+
+(map! :map evil-window-map
+      ;; Navigation
+      "j"       #'evil-window-left
+      "k"       #'evil-window-down
+      "l"       #'evil-window-up
+      "ç"       #'evil-window-right
+      "C-j"     #'evil-window-left
+      "C-k"     #'evil-window-down
+      "C-l"     #'evil-window-up
+      "C-ç"     #'evil-window-right
+      ;; Swapping windows
+      "J"       #'+evil/window-move-left
+      "K"       #'+evil/window-move-down
+      "L"       #'+evil/window-move-up
+      "Ç"       #'+evil/window-move-right)
+
+(map! :i "M-J" 'evil-backward-char
+      :i "M-K" 'evil-next-line
+      :i "M-L" 'evil-previous-line
+      :i "M-Ç" 'evil-forward-char)
+
+(after! treemacs (evil-define-key 'treemacs treemacs-mode-map "l" nil "h" nil))
+
+;; (evil-define-key '(visual normal) Info-mode-map "l" nil)
+(map! :map Info-mode-map :vn "l" nil)
+
+(map! :after treemacs
+      :map evil-treemacs-state-map
+      "j"      #'treemacs-COLLAPSE-action
+      "k"      #'treemacs-next-line
+      "l"      #'treemacs-previous-line
+      "ç"      #'treemacs-RET-action)
+#+end_src
+
+** Outros
+
+#+begin_src emacs-lisp
+(map! "M-S-<right>" 'windsize-right
+      "M-S-<left>" 'windsize-left
+      "M-S-<down>" 'windsize-down
+      "M-S-<up>" 'windsize-up)
+
+(map! "M-j" 'drag-stuff-down
+      "M-k" 'drag-stuff-up)
+
+(map! :leader :desc "Centered mode" "t e" 'olivetti-mode)
+
+(map! :map lean-mode-map "M-." 'lean-find-definition)
+
+(map! :map TeX-mode-map "C-S-s" 'TeX-command-run-all)
+#+end_src
+
+* Configurações de pacotes
+
+Primeiro, alguns pacotes configurados com o =use-package=:
+#+begin_src emacs-lisp
+(load! "lisp/use-packages")
+#+end_src
+
+O trecho a seguir carrega os arquivos de configurações nos diretórios
+=lisp/major= e =lisp/minor=, e faz com que cada arquivo seja carregado apenas
+depois do módulo de mesmo nome ser carregado (com a função =after!=).
+#+begin_src emacs-lisp
+(dolist (type '(major minor))
+  (let ((folder (format "~/.doom.d/lisp/%s/" type)))
+    (dolist (file (file-expand-wildcards (concat folder "*.el")))
+      (let ((f (file-name-sans-extension (file-name-nondirectory file))))
+        (eval `(after! ,(intern f) (load! ,f ,folder)))))))
+#+end_src

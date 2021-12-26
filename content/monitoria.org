@@ -1,0 +1,22 @@
+#+title: Monitoria
+:properties:
+:created_at: 2021-08-15
+:comments: t
+:uuid: monitoria-2s2021
+:tags: [monitoria]
+:end:
+
+Neste semestre estarei dando monitoria de MA327 nas quartas-feiras, 13-14h.
+
+- link do meet: [[http://meet.google.com/nym-eguz-bjg][nym-eguz-bjg]]
+- página do curso coordenado, com o horário de todas as monitorias: [[http://www.ime.unicamp.br/~tafazolian/node/44][aqui]]
+- meu e-mail: [[mailto:l240191@dac.unicamp.br][l240191@dac.unicamp.br]]
+- lista de exercícios recomendados para a disciplina: [[./lista.pdf][baixar aqui]]
+# - sugerir outros exercícios (forms): [[https://forms.gle/k9ukkv2hETaagQkm7][clique aqui]] \\
+
+* Monitorias:
+- 18 de agosto, [[./monitoria1.pdf][pdf anotado]]
+- 25 de agosto, [[./monitoria2.pdf][pdf anotado]]
+- 1 de setembro, [[./monitoria3.pdf][pdf anotado]]
+- 8 de setembro, [[./monitoria4.pdf][pdf anotado]]
+- 22 de setembro, [[./monitoria6.pdf][pdf anotado]]

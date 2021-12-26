@@ -1,0 +1,202 @@
+\usepackage{float}
+\usepackage{adjustbox}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{extarrows}
+\usepackage{xcolor-material}
+\usepackage{tikz}
+\usepackage{tikz-cd}
+\usepackage{pgfplots}
+\usetikzlibrary{arrows,decorations.markings}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{babel,positioning,calc,fit,math}
+\newtheorem{proposition}{Proposição}
+\makeatletter
+\newcommand*\mysize{%
+   \@setfontsize\mysize{7}{9.0}%
+}
+\makeatother
+
+\tikzset{
+  oes/.style={
+    decorate,
+    decoration={
+      show path construction,
+      moveto code={},
+      lineto code={
+        \path [#1]
+        (\tikzinputsegmentfirst) -- (\tikzinputsegmentlast);},
+      curveto code={
+        \path [#1]
+        (\tikzinputsegmentfirst) .. controls
+        (\tikzinputsegmentsupporta) and (\tikzinputsegmentsupportb)
+        .. (\tikzinputsegmentlast);},
+      closepath code={
+        \path [#1]
+        (\tikzinputsegmentfirst) -- (\tikzinputsegmentlast);},},
+  },
+  between/.style args={#1 and #2}{
+    anchor=base, yshift=-1mm,
+    at = ($(#1)!0.5!(#2)$)
+  },
+  vs/.style={
+    left=.8mm,font=\mysize
+  },
+  box/.style={
+    minimum size=.6cm,draw
+  },
+  tbox/.style={
+    minimum size=.6cm,draw,
+    trapezium,trapezium left angle=80,trapezium right angle=0
+  },
+  ttbox/.style={
+    minimum size=.6cm,draw,
+    trapezium,trapezium left angle=90,trapezium right angle=-80
+  },
+  vec/.style={
+    circle,
+    draw,
+    minimum size=.5cm,
+    inner sep=0.1mm
+  },
+  bv/.style={
+    regular polygon, regular polygon sides = 3,
+    draw, font=\scriptsize,
+    minimum size=0.4,
+    inner sep=0.2mm
+  },
+  bf/.style={
+    regular polygon, regular polygon sides = 3,
+    draw, font=\scriptsize,
+    shape border rotate=180,
+    minimum size=0.4,
+    inner sep=0.2mm
+  },
+  ->-/.style={draw,
+    decoration={
+    markings,
+    mark=at position .6 with {\arrow{>[scale=1,width=4]}}},
+    postaction={decorate}
+  },
+  ->-l/.style={draw,
+  decoration={
+  markings,
+  mark=at position .4 with {\arrow{>[scale=1,width=4]}}},
+  postaction={decorate}
+  },
+  -<-l/.style={draw,
+  decoration={
+  markings,
+  mark=at position .7 with {\arrow{<[scale=1,width=4]}}},
+  postaction={decorate}
+  },
+  disp/.style={
+    node distance=0cm,
+    font=\normalsize,
+    thick,
+    baseline=-0.65ex
+  },
+  rofeq/.style={
+    right=.25 of eq,
+  },
+  matd/.style={
+    matrix of nodes,
+    row sep=.7cm,
+    column sep=.7cm,
+    every node/.style={coordinate},
+    nodes in empty cells
+  }
+}
+\newcommand{\eq}[2][.2]{\node[right= #1 of #2] (eq) {$=$}}
+\newcommand{\defeq}[2][.2]{\node[right= #1 of #2] (eq) {$:=$}}
+
+\newcommand{\tails}[3][1]{%
+\foreach \i in {1,...,#1} {
+  \def\x{\i-#1/2-1/2}
+  \def\a{-50*\i + 50*#1/2 + 50/2 - 90}
+  \coordinate (#2-t-\i) at ($(#2.south)-(\x,.45)$);
+  \ifnum \i > #3
+    \draw[->-] (#2-t-\i) to[out=90,in=\a]
+    coordinate (#2-ts-\i) (#2);
+  \else
+    \draw[->-] (#2) to[out=\a,in=90]
+    coordinate (#2-ts-\i) (#2-t-\i);
+  \fi
+}}
+\newcommand{\heads}[3][1]{%
+\foreach \i in {1,...,#1} {
+  \def\x{\i-#1/2-1/2}
+  \def\a{-50*\i + 50*#1/2 + 50/2 + 90}
+  \coordinate (#2-h-\i) at ($(#2.north)+(\x,.45)$);
+  \ifnum \i > #3
+    \draw[->-] (#2-h-\i) to[out=-90,in=\a]
+    coordinate (#2-hs-\i) (#2);
+  \else
+    \draw[->-] (#2) to[out=\a,in=-90]
+    coordinate (#2-hs-\i) (#2-h-\i);
+  \fi
+}}
+\newcommand{\ftails}[3][1]{%
+\foreach \i in {1,...,#1} {
+  \def\x{-\i+#1/2+1/2}
+  \def\a{-50*\i + 50*#1/2 + 50/2 - 90}
+  \coordinate (#2-t-\i) at ($(#2.south)-(\x,.45)$);
+  \ifnum \i > #3
+    \draw[->-] (#2-t-\i) to[out=90,in=\a]
+    coordinate (#2-ts-\i) (#2);
+  \else
+    \draw[->-] (#2) to[out=\a,in=90]
+    coordinate (#2-ts-\i) (#2-t-\i);
+  \fi
+}}
+\newcommand{\fheads}[3][1]{%
+\foreach \i in {1,...,#1} {
+  \def\x{-\i+#1/2+1/2}
+  \def\a{50*\i - 50*#1/2 - 50/2 + 90}
+  \coordinate (#2-h-\i) at ($(#2.north)+(\x,.45)$);
+  \ifnum \i > #3
+    \draw[->-] (#2-h-\i) to[out=-90,in=\a]
+    coordinate (#2-hs-\i) (#2);
+  \else
+    \draw[->-] (#2) to[out=\a,in=-90]
+    coordinate (#2-hs-\i) (#2-h-\i);
+  \fi
+}}
+
+\newcommand{\tev}[2][0,0]{%
+  \draw[->-] (#1)
+  .. controls ($(#1)-(0,.5)$)
+     and ($(#2)-(0,.5)$) .. (#2);}
+
+\newcommand{\tcoev}[2][0,0]{%
+  \draw[->-] (#1)
+  .. controls ($(#1)+(0,.5)$)
+     and ($(#2)+(0,.5)$) .. (#2);}
+
+\DeclareMathOperator{\car}{car}
+\DeclareMathOperator{\id}{id}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\Hom}{Hom}
+\newcommand\comp{\mathrel{ \triangleright }}
+\newcommand{\ev}[1]{\varepsilon_{\scriptscriptstyle #1}}
+\newcommand{\coev}[1]{\eta_{\scriptscriptstyle #1}}
+\newcommand{\ass}[3]{\alpha_{\scriptscriptstyle #1,#2,#3}}
+\newcommand{\ot}{\otimes}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\Cx}{\mathbb{C}}
+\newcommand{\cat}{\mathcal}
+\newcommand{\bcat}{\mathrm}
+\newcommand{\HomF}{\Hom_\F}
+\newcommand{\Ob}{\mathrm{Ob}}
+\newcommand{\Mor}{\mathrm{Mor}}
+\newcommand{\dom}{\mathrm{dom}}
+\newcommand{\cod}{\mathrm{cod}}
+\newcommand{\Cc}{\cat{C}}
+\newcommand{\ObC}{\Ob_\cat{C}}
+\newcommand{\MorC}{\Mor_\cat{C}}
+\newcommand{\Vect}{\bcat{Vect}}
+\newcommand{\VectF}{\Vect_\F}
+\newcommand{\bk}[1]{\langle #1 \rangle}
