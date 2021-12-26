@@ -34,9 +34,6 @@ data MarkupFormat
   | Md
   deriving (Eq,Ord,Show)
 
-texToSvg :: Text -> Text -> IO Text
-texToSvg header txt = pure ""
-
 -- | Utilities
 
 stripFilePrefix :: FilePath -> FilePath -> Maybe FilePath
@@ -75,16 +72,6 @@ isMathEnvironment s = "\\begin{" `T.isPrefixOf` s &&
                      , "vmatrix" ]
 
 -- | Concurrent walkM
-
--- class PooledWalkable a b where
---   pooledWalk :: MonadUnliftIO m => Int -> (a -> m a) -> b -> m b
-
--- TODO here we must decide, e.g. map the n threads over blocks, over each block's inlines, or n² over both?
--- instance (PooledWalkable a b, Traversable t) => PooledWalkable a (t b) where
---   pooledWalk n f = UIO.pooledMapConcurrentlyN n (pooledWalk n f)
-
--- FIXME for me this is enough, but maybe not
--- instance (Walkable a b, Traversable t) => PooledWalkable a (t b) where
 
 pooledWalk
   :: (MonadUnliftIO m, Walkable a b, Traversable t)
@@ -305,8 +292,8 @@ convertIO fp ext fileText = do
       impDir' = dir </> takeBaseName fp
       linkDir = maybe dir takeDirectory (stripFilePrefix "content" fp)
 
-  dirExists <- liftIO $ doesDirectoryExist impDir
-  originalDir <- liftIO getCurrentDirectory
+  dirExists <- doesDirectoryExist impDir
+  originalDir <- getCurrentDirectory
 
   tree <- liftIO $ do
           t <- addToFileTree mempty "data/citstyle.csl"
@@ -325,7 +312,7 @@ convertIO fp ext fileText = do
         then processCitations parsed
         else pure parsed
 
-  liftIO $ setCurrentDirectory originalDir
+  setCurrentDirectory originalDir
 
   let result = do
         let meta = getMeta doc
