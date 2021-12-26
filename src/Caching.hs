@@ -1,29 +1,31 @@
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE BangPatterns #-}
 -- |
 
 module Caching where
-import Data.Binary
+import Data.Binary (Binary, encode, decode)
 import Control.Monad.Logger
 import Control.Monad.IO.Unlift
 import Control.Concurrent.STM.TVar (modifyTVar)
 import UnliftIO (MonadUnliftIO)
-import Data.LVar as LVar
+import Data.LVar (LVar)
+import qualified Data.LVar as LVar
 import System.UnionMount
 import System.FilePattern (FilePattern)
 import Data.Binary.Instances.UnorderedContainers
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Control.Monad.Trans.Writer
 import UnliftIO.Directory (doesFileExist)
 
 type Cache = (HashMap LByteString LByteString, Set LByteString)
 
-newtype CacheT m a = CacheT { runCacheT :: TVar Cache -> m a }
+type CacheT model m = WriterT (Endo model) (StateT Cache m)
 
-getCache :: Applicative m => CacheT m (TVar Cache)
-getCache = CacheT pure
+getCache :: forall m k. Monad m => CacheT k m Cache
+getCache = get
 
-lookupCache :: (MonadIO m, Binary b, Binary a) => b -> CacheT m (Maybe a)
+lookupCache :: (MonadIO m, Binary b, Binary a) => b -> CacheT k m (Maybe a)
 lookupCache k = do
   let kbs = encode k
   cVar <- getCache
@@ -35,8 +37,8 @@ lookupCache k = do
     mapSnd f (x, y) = (x, f y)
 
 fromCacheOrCompute
-  :: forall a b m. (Binary a, Binary b, MonadLogger m, MonadIO m)
-  => (a -> m b) -> a -> CacheT m b
+  :: forall a b k m. (Binary a, Binary b, MonadLogger m, MonadIO m)
+  => (a -> m b) -> a -> CacheT k m b
 fromCacheOrCompute f x = do
   my <- lookupCache x
   case my of
@@ -51,34 +53,6 @@ fromCacheOrCompute f x = do
   where
     mapFst f (x, y) = (f x, y)
 
-instance MonadTrans CacheT where
-  lift = CacheT . const
-
-instance Functor m => Functor (CacheT m) where
-  fmap f c = CacheT $ fmap f . runCacheT c
-
-instance Monad m => Applicative (CacheT m) where
-    pure = CacheT . const . pure
-    cf <*> ca = CacheT $ \s -> do
-      a <- runCacheT ca s
-      f <- runCacheT cf s
-      pure $ f a
-
-instance Monad m => Monad (CacheT m) where
-  c >>= k = CacheT $ \s -> do
-    a <- runCacheT c s
-    runCacheT (k a) s
-
-instance MonadIO m => MonadIO (CacheT m) where
-  liftIO = CacheT . const . liftIO
-
-instance MonadUnliftIO m => MonadUnliftIO (CacheT m) where
-  withRunInIO inner =
-    CacheT $ \s ->
-    withRunInIO $ \run ->
-    inner (run . flip runCacheT s)
-
-
 cachedUnionMountOnLVar
   :: ( MonadIO m
      , MonadUnliftIO m
@@ -91,11 +65,10 @@ cachedUnionMountOnLVar
   -> [(tag, FilePattern)]
   -> [FilePattern]
   -> model
-  -> (Change source tag -> model -> CacheT m model)
+  -> (Change source tag -> CacheT model m ())
   -> LVar model
   -> m (Maybe Cmd)
 cachedUnionMountOnLVar sources pats ignore model0 handleAction modelLVar = do
-  let initialModel = model0
   initialized <- newTMVarIO False
 
   cacheFileExists <- doesFileExist "website.cache"
@@ -113,12 +86,14 @@ cachedUnionMountOnLVar sources pats ignore model0 handleAction modelLVar = do
       pure mempty
 
   unionMount sources pats ignore $ \changes -> do
-    let updateModel = handleAction changes
+    updateModel <-
+      interceptExceptions id $
+      runReaderT (handleAction changes) cacheVar
     atomically (takeTMVar initialized) >>= \case
       False -> do
-        LVar.set modelLVar =<< runCacheT (updateModel initialModel) cacheVar
+        LVar.set modelLVar $ updateModel model0
       True -> do
-        LVar.set modelLVar =<< runCacheT (updateModel =<< LVar.get modelLVar) cacheVar
+        LVar.modify modelLVar updateModel
 
     cache <- atomically $ do
       modifyTVar cacheVar $ \(x, set) ->
@@ -144,7 +119,7 @@ cachedMountOnLVar
   -> [(b, FilePattern)]
   -> [FilePattern]
   -> model
-  -> (b -> FilePath -> FileAction () -> model -> CacheT m model)
+  -> (b -> FilePath -> FileAction () -> CacheT model m ())
   -> LVar model
   -> m (Maybe Cmd)
 cachedMountOnLVar folder pats ignore var0 toAction' =
@@ -154,9 +129,8 @@ cachedMountOnLVar folder pats ignore var0 toAction' =
     let fsSet = (fmap . fmap . fmap . fmap) void $ fmap Map.toList <$> Map.toList ch
     (\(tag, xs) -> uncurry (toAction' tag) `chainM` xs) `chainM` fsSet
   where
-    chainM :: Monad n => (x -> a -> n a) -> [x] -> a -> n a
-    chainM f xs =
-      composeM $ map f xs
+    chainM :: Monad n => (x -> n (a -> a)) -> [x] -> n (a -> a)
+    chainM f = fmap chain . mapM f
       where
-        composeM :: Monad n => [a -> n a] -> a -> n a
-        composeM = foldr (<=<) pure
+        chain ::  [a -> a] -> a -> a
+        chain = flip (foldr ($))

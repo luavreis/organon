@@ -38,13 +38,17 @@ newtype RawAssetId
   = RawHtmlId Slug
   deriving (Show,Eq,Ord,Generic)
 
+-- | (map uuid -> page, map (uuid of page x) -> list of (uuid, excerpt) of x's backlinks)
+-- The reason I'm using two maps is because they are built in somewhat different contexts
+type RoamDatabase = (Map UUID BlogPost, Map UUID [(UUID, Text)])
+
 data Model = Model
   { name :: Text,
     fileStructure :: Tree Slug,
     structuralPages :: Map Path StructuralPage,
     blogPosts :: Map Slug BlogPost,
     rawAssets :: Map RawAssetId Text,
-    roamDatabase :: Map UUID BlogPost }
+    roamDatabase :: RoamDatabase }
   deriving (Show, Generic)
 
 instance Binary Slug
@@ -53,7 +57,7 @@ instance Binary StructuralPage
 instance Binary BlogPost
 instance Binary Model
 
-defaultModel :: Model = Model "interseções" rootNode empty empty empty empty
+defaultModel :: Model = Model "interseções" rootNode empty empty empty (empty, empty)
   where
     rootNode = Node (decodeSlug "") []
     empty = DM.empty

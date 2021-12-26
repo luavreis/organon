@@ -17,8 +17,7 @@ import Render (render)
 import Path (urlToPath)
 import Models (StructuralPage(StructuralPage))
 import Lucid (Html)
-import PandocUtils
-import Caching
+import PandocTransforms
 import Caching (cachedMountOnLVar)
 
 warn msg = putStrLn ("\ESC[33m\ESC[1m[Warn] " <> msg <> "\ESC[0m")
@@ -57,7 +56,7 @@ main = -- Main loop!
       filesToInclude
       filesToExclude
       M.defaultModel -- This is my defautl model in Models
-      \ tag fp fa model -> case fa of
+      \ tag fp fa -> case fa of
           FS.Refresh _ () ->
             case tag of
               ContentTag ext -> do
@@ -73,11 +72,11 @@ main = -- Main loop!
                                       then fp -<.> "html"
                                       else dropExtension fp </> "index.html")
 
-                return (insertSP path page model)
+                return (insertSP path page)
 
               AssetTag tag -> do
                 txt <- readFileText fp
-                return (insertRA (assetKey tag fp) txt model)
+                return (insertRA (assetKey tag fp) txt)
 
               BlogTag ext -> do
                 fileText <- readFileText fp
@@ -101,15 +100,15 @@ main = -- Main loop!
 
                 let post = M.BlogPost title body date
 
-                return (insertBP (slug fp) post model)
+                return (insertBP (slug fp) post)
 
           FS.Delete -> case tag of
             AssetTag tag ->
-              return (deleteRA (assetKey tag fp) model)
+              return (deleteRA (assetKey tag fp))
             BlogTag _ ->
-              return (deleteBP (slug fp) model)
+              return (deleteBP (slug fp))
             ContentTag _ ->
-              return (deleteSP (urlToPath fp) model)
+              return (deleteSP (urlToPath fp))
   where
     rawTagToKey RawHtmlTag = M.RawHtmlId
     slug = E.decodeSlug . toText . takeBaseName

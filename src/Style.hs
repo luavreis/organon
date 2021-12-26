@@ -56,6 +56,17 @@ sidebar = do
       bottom (px 50)
       left (px 50)
 
+katex :: Css
+katex = do
+  span # ".math" ? do
+    letterSpacing (px (-10))
+    visibility hidden
+
+  span # ".math" ** ".katex" ? do
+    letterSpacing (px 0)
+    visibility visible
+    overflowX auto
+    overflowY hidden
 
 mainStyle :: Css
 mainStyle = do
@@ -100,14 +111,6 @@ mainStyle = do
     fontSize (pct 85)
     color "#777"
     fontStyle italic
-
-  span # ".math" ? do
-    letterSpacing (px (-10))
-    visibility hidden
-
-  span # ".math" ** ".katex" ? do
-    letterSpacing (px 0)
-    visibility visible
 
   "#main" ? do
     fontSize (px 17)
@@ -274,5 +277,6 @@ styleT = renderWith compact [] $ do
   mainStyle
   foot
   sidebar
+  katex
   citationsCss
   darkStyle

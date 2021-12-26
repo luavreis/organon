@@ -27,6 +27,7 @@ executable site
                   , stm
                   , text
                   , time
+                  , transformers
                   , unliftio
                   , unliftio-core
                   , unionmount
@@ -62,4 +63,8 @@ executable site
     Style
     Path
     Locale
-    PandocUtils
+    PandocTransforms
+    PandocTransforms.Utilities
+    PandocTransforms.LaTeX
+    PandocTransforms.Org
+    PandocTransforms.Roam
