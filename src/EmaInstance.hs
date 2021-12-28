@@ -4,6 +4,7 @@ module EmaInstance where
 
 import Ema
 import qualified Routes as R
+import qualified Data.UUID.Types as UUID
 import Models
 import System.FilePath
 import System.FilePattern ((?==), match)
@@ -15,7 +16,7 @@ instance Ema Model R.Route where
     R.TagsListing         -> "tags/index.html"
     R.TagPage t           -> "tags/" ++ t ++ ".html"
     R.RoamEntryPoint      -> "zettelkasten/index.html"
-    R.RoamPage _          -> ""
+    R.RoamPage uuid       -> "zettelkasten/" ++ UUID.toString uuid ++ "/index.html"
     R.StructuralPage path -> pathToUrl path <> ".html"
     R.BlogPage s          -> toString $ "blog/" <> unSlug s
     R.BlogAsset s i       -> toString $ "blog/" <> unSlug s <> "/" <> unSlug i
@@ -29,17 +30,20 @@ instance Ema Model R.Route where
     in case fixedFp of
       "blog/index.html" -> Just R.BlogIndex
       "tags/index.html" -> Just R.TagsListing
-      fp
-        | "assets/css/*.css" ?== fp ->
-          Just $ R.Css (decodeSlug $ toText $ takeBaseName fp)
-        | "blog/*/index.html" ?== fp ->
-          Just $ R.BlogPage (decodeSlug $ toText $ takeBaseName $ takeDirectory fp)
-        | "blog/*/*" ?== fp ->
-          case "blog/*/*" `match` fp of
+      "zettelkasten/index.html" -> Just R.RoamEntryPoint
+      _
+        | "assets/css/*.css" ?== fixedFp ->
+          Just $ R.Css (decodeSlug $ toText $ takeBaseName fixedFp)
+        | "zettelkasten/*/index.html" ?== fixedFp ->
+          R.RoamPage <$> (UUID.fromString $ takeBaseName $ takeDirectory fixedFp)
+        | "blog/*/index.html" ?== fixedFp ->
+          Just $ R.BlogPage (decodeSlug $ toText $ takeBaseName $ takeDirectory fixedFp)
+        | "blog/*/*" ?== fixedFp ->
+          case "blog/*/*" `match` fixedFp of
             Just [x,y] ->
               Just $ R.BlogAsset (decodeSlug $ toText x) (decodeSlug $ toText y)
             _ -> Nothing
-        | "**/index.html" ?== fp ->
-          Just $ R.StructuralPage $ urlToPath fp
+        | "**/index.html" ?== fixedFp ->
+          Just $ R.StructuralPage $ urlToPath fixedFp
         | otherwise -> Nothing
   allRoutes _model = []

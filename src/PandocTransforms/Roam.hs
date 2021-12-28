@@ -6,10 +6,14 @@ import Text.Pandoc.Shared
 import qualified Data.Text as T
 import Control.Monad.Trans.Writer
 import Data.UUID.Types as UUID (UUID, fromText)
+import Caching
 
-processRoam :: [Block] -> ([Block], [(UUID, Block)])
-processRoam blocks = error ""
+processRoam :: Pandoc -> CacheT model m Pandoc
+processRoam = error ""
   where
+    processBlocks :: [Block] -> Writer [(UUID, Block)] [Block]
+    processBlocks = mapM processBlock
+
     processBlock :: Block -> Writer [(UUID, Block)] Block
     processBlock block =
       mapWriter mapper (walkM processLink block)
@@ -22,11 +26,11 @@ processRoam blocks = error ""
       let same = pure $ Link attr alt (url, title)
       in if isURI url
       then case T.breakOn ":" url of
-        ("id", id) -> case UUID.fromText id of
+        ("id", uid) -> case UUID.fromText uid of
           Just uuid -> do
             tell [uuid]
-            return $ Link attr alt ("/zettelkasten/" <> id, title)
+            return $ Link attr alt ("/zettelkasten/" <> uid, title)
           Nothing -> same
-        otherwise -> same
+        _ -> same
       else same
     processLink x = pure x

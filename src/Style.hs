@@ -4,15 +4,22 @@ module Style where
 
 import Clay
 import Prelude hiding ((**),empty)
-import Clay.Media (minWidth)
 import qualified Clay.Media as M
 
+darkTduration :: Double
 darkTduration = 0.2
 
-sAttr n s = n <> " " <> show s <> "s"
-margin_ s = margin s s s s
-margin__ u v = margin u v u v
-padding_ s = padding s s s s
+sAttr :: (Semigroup a1, IsString a1, Show a2) => a1 -> a2 -> a1
+sAttr n x = n <> " " <> show x <> "s"
+
+margin_ :: Size a -> Css
+margin_ x = margin x x x x
+
+margin__ :: Size a -> Size a -> Css
+margin__ x y = margin x y x y
+
+padding_ :: Size a -> Css
+padding_ x = padding x x x x
 
 citationsCss :: Css
 citationsCss = do
@@ -81,7 +88,7 @@ mainStyle = do
   html ?
     height (pct 100)
 
-  let transP s p m = s ? (do transitionProperty p; transitionDelay $ sec (m * darkTduration))
+  let transP sel prop m = sel ? (do transitionProperty prop; transitionDelay $ sec (m * darkTduration))
 
   transP hr "background-color" 1
   transP (body <> pre) "background" 1
@@ -269,8 +276,8 @@ darkStyle = do
     where
       bgdark :: Color
       bgdark = "#171716"
-      paper :: Color
-      paper = "#efefef"
+      -- paper :: Color
+      -- paper = "#efefef"
 
 styleT :: LText
 styleT = renderWith compact [] $ do

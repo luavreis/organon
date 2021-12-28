@@ -2,25 +2,20 @@
 
 module Main where
 
+import Models hiding (date, title, body)
 import qualified Ema.Helper.FileSystem as FS
-import qualified Text.Pandoc as P
-import qualified Text.Pandoc.Walk as PW
 import qualified Data.Time as DT
-import qualified Models as M
 import qualified Ema as E
 import qualified Data.Text as T
-import Relude.Extra.Map (delete, insert)
 import System.FilePath (takeBaseName, (</>), dropExtension, (-<.>))
 import Text.Regex.TDFA ((=~))
 import Locale (ptTimeLocale)
 import Render (render)
 import Path (urlToPath)
-import Models (StructuralPage(StructuralPage))
-import Lucid (Html)
 import PandocTransforms
 import Caching (cachedMountOnLVar)
-
-warn msg = putStrLn ("\ESC[33m\ESC[1m[Warn] " <> msg <> "\ESC[0m")
+import Control.Monad.Trans.Writer
+import Control.Monad.Logger
 
 data FileTag
   = AssetTag RawTag
@@ -33,10 +28,9 @@ data RawTag
   deriving (Eq,Ord,Show)
 
 main :: IO ()
-main = -- Main loop!
-  E.runEma render $ \_action -> do -- This integrates the whole thing.
-
-    -- First, we need to tell Ema the files that should be watched for changes.
+main =
+  E.runEma render $ \_action -> do
+  -- FIXME get rid of this. reuse routing logic
     let filesToInclude =
           [ (AssetTag RawHtmlTag, "assets/html/*.html")
           , (BlogTag Org, "blog/*.org")
@@ -49,14 +43,12 @@ main = -- Main loop!
           , "**/.*/*"
           ]
 
-    -- Now we set things up.
-    -- "void" means we discart the return value.
     void . cachedMountOnLVar
       "."
       filesToInclude
       filesToExclude
-      M.defaultModel -- This is my defautl model in Models
-      \ tag fp fa -> case fa of
+      defaultModel
+      \ tag fp -> \ case
           FS.Refresh _ () ->
             case tag of
               ContentTag ext -> do
@@ -64,58 +56,76 @@ main = -- Main loop!
                 (title, body) <- convertIO fp ext fileText
 
                 when (T.null title) $
-                  warn $ "File " <> fp <> " has empty title."
+                  logWarnN $ "File " <> (toText fp) <> " has empty title."
 
-                let page = M.StructuralPage title body
-                    path = urlToPath (drop (length "content/") $
+                let page = StructuralPage title body
+                    path = urlToPath (drop (T.length "content/") $
                                       if takeBaseName fp == "index"
                                       then fp -<.> "html"
                                       else dropExtension fp </> "index.html")
 
-                return (insertSP path page)
+                tell $ insertSP path page
 
-              AssetTag tag -> do
+              AssetTag atag -> do
                 txt <- readFileText fp
-                return (insertRA (assetKey tag fp) txt)
+                tell $ insertRA (assetKey atag fp) txt
 
               BlogTag ext -> do
                 fileText <- readFileText fp
 
                 let baseName = takeBaseName fp
-                    hasDate = baseName =~ "^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-"
+                    hasDate = baseName =~ ("^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-" :: String)
 
                 unless hasDate $ do
-                  warn $ "Blog file " <> baseName <> " has no date in its name."
+                  logWarnN $ "Blog file " <> (toText baseName) <> " has no date in its name."
 
                 let date =
                       if hasDate
                       then DT.parseTimeOrError False ptTimeLocale "%Y-%m-%d" (take 10 baseName)
                       else DT.ModifiedJulianDay 1 -- TODO read date metadata from Pandoc
-                let s = if hasDate then drop 11 baseName else baseName
+                -- let s = if hasDate then drop 11 baseName else baseName
 
                 (title, body) <- convertIO fp ext fileText
 
                 when (T.null title) $
-                  warn $ "File " <> fp <> " has empty title."
+                  logWarnN $ "File " <> (toText fp) <> " has empty title."
 
-                let post = M.BlogPost title body date
+                let post = BlogPost title body date
 
-                return (insertBP (slug fp) post)
+                tell $ insertBP (slug fp) post
+
+              BlogTag ext -> do
+                fileText <- readFileText fp
+
+                let baseName = takeBaseName fp
+                    hasDate = baseName =~ ("^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-" :: String)
+
+                unless hasDate $ do
+                  logWarnN $ "Blog file " <> (toText baseName) <> " has no date in its name."
+
+                let date =
+                      if hasDate
+                      then DT.parseTimeOrError False ptTimeLocale "%Y-%m-%d" (take 10 baseName)
+                      else DT.ModifiedJulianDay 1 -- TODO read date metadata from Pandoc
+                -- let s = if hasDate then drop 11 baseName else baseName
+
+                (title, body) <- convertIO fp ext fileText
+
+                when (T.null title) $
+                  logWarnN $ "File " <> (toText fp) <> " has empty title."
+
+                let post = BlogPost title body date
+
+                tell $ insertBP (slug fp) post
 
           FS.Delete -> case tag of
-            AssetTag tag ->
-              return (deleteRA (assetKey tag fp))
+            AssetTag atag ->
+              tell $ deleteRA (assetKey atag fp)
             BlogTag _ ->
-              return (deleteBP (slug fp))
+              tell $ deleteBP (slug fp)
             ContentTag _ ->
-              return (deleteSP (urlToPath fp))
+              tell $ deleteSP (urlToPath fp)
   where
-    rawTagToKey RawHtmlTag = M.RawHtmlId
+    rawTagToKey RawHtmlTag = RawHtmlId
     slug = E.decodeSlug . toText . takeBaseName
     assetKey tag fp = rawTagToKey tag (slug fp)
-    deleteRA k m = m { M.rawAssets = delete k (M.rawAssets m) }
-    deleteBP k m = m { M.blogPosts = delete k (M.blogPosts m) }
-    deleteSP k m = m { M.structuralPages = delete k (M.structuralPages m) }
-    insertRA k v m = m { M.rawAssets = insert k v (M.rawAssets m) }
-    insertBP k v m = m { M.blogPosts = insert k v (M.blogPosts m) }
-    insertSP k v m = m { M.structuralPages = insert k v (M.structuralPages m) }

@@ -2,59 +2,65 @@
 -- |
 
 module Caching where
-import Data.Binary (Binary, encode, decode)
+import Data.Binary (Binary, encode, decode, decodeFileOrFail, encodeFile)
 import Control.Monad.Logger
 import Control.Monad.IO.Unlift
-import Control.Concurrent.STM.TVar (modifyTVar)
-import UnliftIO (MonadUnliftIO)
 import Data.LVar (LVar)
 import qualified Data.LVar as LVar
 import System.UnionMount
 import System.FilePattern (FilePattern)
-import Data.Binary.Instances.UnorderedContainers
+import Data.Binary.Instances.UnorderedContainers ()
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.Trans.Writer
 import UnliftIO.Directory (doesFileExist)
 
-type Cache = (HashMap LByteString LByteString, Set LByteString)
+type CacheMap = HashMap LByteString LByteString
+
+type Cache = (CacheMap, Set LByteString)
 
 type CacheT model m = WriterT (Endo model) (StateT Cache m)
 
-getCache :: forall m k. Monad m => CacheT k m Cache
-getCache = get
+runCacheT :: Monad m => CacheT model m a -> Cache -> m (model -> model, Cache)
+runCacheT mc c = mapFst appEndo <$> runStateT (execWriterT mc) c
+  where
+    mapFst f ~(x, y) = (f x, y)
 
-lookupCache :: (MonadIO m, Binary b, Binary a) => b -> CacheT k m (Maybe a)
+lookupCache
+  :: forall a b m.
+     ( Binary a
+     , Binary b
+     , MonadState Cache m
+     )
+  => a -> m (Maybe b)
 lookupCache k = do
   let kbs = encode k
-  cVar <- getCache
-  atomically $ do
-    (hmap, set) <- readTVar cVar
-    modifyTVar cVar (mapSnd (Set.insert kbs))
-    return $ fmap decode (HMap.lookup kbs hmap)
-  where
-    mapSnd f (x, y) = (x, f y)
+  ~(hmap, _) <- get
+  modify (\ ~(x,y) -> (x, Set.insert kbs y))
+  return $ fmap decode (HMap.lookup kbs hmap)
 
 fromCacheOrCompute
-  :: forall a b k m. (Binary a, Binary b, MonadLogger m, MonadIO m)
-  => (a -> m b) -> a -> CacheT k m b
+  :: forall a b m.
+     ( Binary a
+     , Binary b
+     , MonadLogger m
+     , MonadState Cache m
+     )
+  => (a -> m b) -> a -> m b
 fromCacheOrCompute f x = do
-  my <- lookupCache x
-  case my of
-    Just (y :: b) -> pure y
+  lookupCache x >>= \case
+    Just (y :: b) -> do
+      pure y
     Nothing -> do
-      lift $ logInfoNS "fromCache" "Computing values."
-      y <- lift (f x)
-      cVar <- getCache
-      atomically $
-        modifyTVar cVar $ mapFst (HMap.insert (encode x) (encode y))
+      logInfoNS "fromCache" "Computing values."
+      y <- f x
+      modify (\ ~(c, set) -> (HMap.insert (encode x) (encode y) c, set))
       return y
-  where
-    mapFst f (x, y) = (f x, y)
 
 cachedUnionMountOnLVar
-  :: ( MonadIO m
+  :: forall m model source tag.
+     ( MonadIO m
      , MonadUnliftIO m
      , MonadLogger m
      , Binary model
@@ -74,36 +80,48 @@ cachedUnionMountOnLVar sources pats ignore model0 handleAction modelLVar = do
   cacheFileExists <- doesFileExist "website.cache"
   cacheVar <- newTVarIO =<<
     if cacheFileExists
-    then do
-      decoded <- liftIO $ decodeFileOrFail "website.cache"
-      case decoded of
-        Left (_, e) -> do
-          logErrorNS "Caching" "Failed to decode website.cache"
-          pure mempty
-        Right (c :: Cache) -> pure c
+    then (liftIO $ decodeFileOrFail "website.cache")
+        >>= \case
+          Left (_, e) -> do
+            logErrorNS "Caching" $ "Failed to decode website.cache:\n" <> (toText e)
+            pure mempty
+          Right (c :: CacheMap) -> pure c
     else do
       logInfoNS "Caching" "website.cache does not exist. A new one will be created"
       pure mempty
 
   unionMount sources pats ignore $ \changes -> do
-    updateModel <-
-      interceptExceptions id $
-      runReaderT (handleAction changes) cacheVar
+
+    previousCache <- readTVarIO cacheVar
+
+    (updateModel, unfilteredCache) <-
+      runCacheT (handleAction changes) (previousCache, mempty)
+      & interceptExc
+
+    let filteredCache = filterCache unfilteredCache
+
     atomically (takeTMVar initialized) >>= \case
       False -> do
         LVar.set modelLVar $ updateModel model0
       True -> do
         LVar.modify modelLVar updateModel
 
-    cache <- atomically $ do
-      modifyTVar cacheVar $ \(x, set) ->
-        (HMap.filterWithKey (const . flip Set.member set) x, Set.empty)
-      readTVar cacheVar
-    when (not $ null (snd cache)) $
-      liftIO $ encodeFile "website.cache" cache
+    atomically $ writeTVar cacheVar filteredCache
+
+    when (not $ null (snd unfilteredCache)) $
+      liftIO $ encodeFile "website.cache" filteredCache
 
     atomically $ putTMVar initialized True
     pure Nothing
+    where
+      filterCache :: Cache -> CacheMap
+      filterCache (hmap, set) = HMap.filterWithKey (const . flip Set.member set) hmap
+
+      interceptExc :: m (a -> a, b) -> m (a -> a, b)
+      interceptExc mt = do
+        ~(f, c) <- mt
+        f' <- interceptExceptions id (pure f)
+        return (f', c)
 
 -- | Simplified variation of `cachedUnionMountOnLVar` with exactly one source.
 cachedMountOnLVar
@@ -112,7 +130,6 @@ cachedMountOnLVar
      , Binary model
      , MonadUnliftIO m
      , MonadLogger m
-     , Show b
      , Ord b
      )
   => FilePath
@@ -129,8 +146,5 @@ cachedMountOnLVar folder pats ignore var0 toAction' =
     let fsSet = (fmap . fmap . fmap . fmap) void $ fmap Map.toList <$> Map.toList ch
     (\(tag, xs) -> uncurry (toAction' tag) `chainM` xs) `chainM` fsSet
   where
-    chainM :: Monad n => (x -> n (a -> a)) -> [x] -> n (a -> a)
-    chainM f = fmap chain . mapM f
-      where
-        chain ::  [a -> a] -> a -> a
-        chain = flip (foldr ($))
+    chainM :: forall a x n. Monad n => (x -> WriterT (Endo a) n ()) -> [x] -> WriterT (Endo a) n ()
+    chainM f x = foldr (>>) (pure ()) $ map f x

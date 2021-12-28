@@ -125,7 +125,7 @@ convertIO
   => FilePath
   -> MarkupFormat
   -> Text
-  -> CacheT m (Text, Text)
+  -> CacheT model m (Text, Text)
 convertIO fp ext fileText = do
   let dir = takeDirectory fp
       -- We use those two directories by convention.

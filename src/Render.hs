@@ -10,13 +10,10 @@ import qualified Layouts as L
 import qualified Style as S
 import qualified Ema as E
 import qualified Ema.CLI as ECli
-import qualified Data.Map
-import qualified Relude.Extra.Map as Map
+import Data.Map (lookup, assocs)
 import Data.Time (formatTime)
-import Data.Maybe (fromMaybe)
 import Locale (ptTimeLocale)
 import Lucid
-import Path
 import Models (StructuralPage(StructuralPage))
 
 data SimplePage = SimplePage { simpleTitle :: Text, simpleBody :: Html () }
@@ -28,6 +25,7 @@ instance M.HtmlPage SimplePage where
 applyDefaultLayout :: M.HtmlPage a => M.Model -> a -> E.Asset LByteString
 applyDefaultLayout m = E.AssetGenerated E.Html . renderBS . L.primary m (L.head m) . M.body
 
+pageOrnotFound :: M.HtmlPage a => M.Model -> Maybe a -> E.Asset LByteString
 pageOrnotFound m (Just page) = applyDefaultLayout m page
 pageOrnotFound m Nothing     = applyDefaultLayout m $ StructuralPage "404" "Esta página não existe :("
 
@@ -41,11 +39,23 @@ blogIndex m = SimplePage "Blog" do
     toHtmlRaw $ M.postBody p
     hr_ []
 
+roamIndex :: M.Model -> SimplePage
+roamIndex m = SimplePage "Zettelkasten" do
+  h1_ "Zettelkasten"
+  aside_ "My knowledge vault."
+  forM_ (reverse $ Data.Map.assocs $ M.roamPosts m) \(uuid,p) -> do
+    h2_ $ a_ [href_ $ E.routeUrl m (R.RoamPage uuid)] (toHtmlRaw $ M.postTitle p)
+    aside_ $ toHtml $ formatTime ptTimeLocale "%A, %e de %B de %Y" $ M.date p
+    hr_ []
+
 render :: ECli.Action -> M.Model -> R.Route -> E.Asset LByteString
 render _ _ (R.Css "stylesheet")    = E.AssetGenerated E.Other (encodeUtf8 S.styleT)
 render _ m (R.Css s)               = E.AssetStatic $ E.encodeRoute m (R.Css s)
 render _ m (R.Js s)                = E.AssetStatic $ E.encodeRoute m (R.Js s)
 render _ m (R.BlogAsset s i)       = E.AssetStatic $ E.encodeRoute m (R.BlogAsset s i)
-render _ m (R.StructuralPage path) = pageOrnotFound m $ Map.lookup path $ M.structuralPages m
-render _ m (R.BlogPage slug)       = pageOrnotFound m $ Map.lookup slug $ M.blogPosts m
+render _ m (R.StructuralPage path) = pageOrnotFound m $ lookup path $ M.structuralPages m
+render _ m (R.RoamPage uuid)       = pageOrnotFound m $ liftA2 (,)
+                                                        (lookup uuid $ M.roamPosts m)
+                                                        (lookup uuid $ M.roamDatabase m)
+render _ m (R.BlogPage slug)       = pageOrnotFound m $ lookup slug $ M.blogPosts m
 render _ m  R.BlogIndex            = applyDefaultLayout m $ blogIndex m

@@ -5,7 +5,7 @@ module PandocTransforms.LaTeX where
 import PandocTransforms.Utilities
 import Caching
 import Text.Pandoc.SelfContained (makeDataURI)
-import System.FilePath (FilePath, (</>))
+import System.FilePath ((</>))
 import UnliftIO
 import UnliftIO.Process (readCreateProcessWithExitCode, shell)
 import Control.Monad.Logger
@@ -58,14 +58,14 @@ defLaTeXpackages =
 svgLaTeX
   :: forall m. (MonadUnliftIO m, MonadLogger m)
   => Text -> Text -> m ByteString
-svgLaTeX preamble c = do
+svgLaTeX preamble body = do
   let code =
         [text|
           \documentclass[varwidth]{standalone}
           $packages
           $preamble
           \begin{document}
-          $c
+          $body
           \end{document}
         |]
       packages = foldr (\(p,o) ->
@@ -77,7 +77,7 @@ svgLaTeX preamble c = do
       process :: FilePath -> m ByteString
       process tempDir = do
         let outpath = tempDir </> "out.svg"
-        (c,_,e) <- readCreateProcessWithExitCode
+        (exitc, _, e) <- readCreateProcessWithExitCode
           (shell
            $ "tectonic -r 0 -o "
            <> tempDir
@@ -86,7 +86,7 @@ svgLaTeX preamble c = do
            <> " "
            <> outpath)
           (toString code)
-        case c of
+        case exitc of
           ExitSuccess ->
             readFileBS outpath
           ExitFailure _ -> do
@@ -100,32 +100,32 @@ svgImage s = Image nullAttr [] (uri, "")
     uri = makeDataURI ("image/svg+xml", s)
 
 renderLaTeX :: (MonadUnliftIO m, MonadLogger m)
-  => Pandoc -> CacheT m Pandoc
+  => Pandoc -> CacheT model m Pandoc
 renderLaTeX (Pandoc meta blocks) =
-  Pandoc meta <$> pooledWalk 6 (wBlocks preamble) blocks
+  Pandoc meta <$> (lift $ pooledWalk 8 wBlocks blocks)
   where
     preamble =
       lookupMeta "header-includes" meta
-      & maybe "" (queryMetaValue query)
+      & maybe "" (queryMetaValue queryPreamble)
       where
-        query :: Inline -> Text
-        query (RawInline (Format "latex") s) = s <> "\n"
-        query _ = T.empty
+        queryPreamble :: Inline -> Text
+        queryPreamble (RawInline (Format "latex") s) = s <> "\n"
+        queryPreamble _ = T.empty
 
     cachedSvgLaTeX :: (MonadLogger m, MonadUnliftIO m)
-      => Text -> CacheT m ByteString
-    cachedSvgLaTeX = fromCacheOrCompute (svgLaTeX preamble)
+      => Text -> MReaderT Cache m ByteString
+    cachedSvgLaTeX = fromCacheOrCompute (lift . svgLaTeX preamble)
 
     wInlines :: (MonadUnliftIO m, MonadLogger m)
-      => Text -> Inline -> CacheT m Inline
-    wInlines preamble (RawInline (Format "latex") s) =
+      => Inline -> MReaderT Cache m Inline
+    wInlines (RawInline (Format "latex") s) =
       svgImage <$> cachedSvgLaTeX s
-    wInlines _ x = pure x
+    wInlines x = pure x
 
     wBlocks :: (MonadUnliftIO m, MonadLogger m)
-      => Text -> Block -> CacheT m Block
-    wBlocks preamble (RawBlock (Format "latex") s) =
+      => Block -> MReaderT Cache m Block
+    wBlocks (RawBlock (Format "latex") s) =
       if isMathEnvironment s
       then pure $ RawBlock (Format "latex") s
       else Para . one . svgImage <$> cachedSvgLaTeX s
-    wBlocks preamble x = walkM (wInlines preamble) x
+    wBlocks x = walkM wInlines x

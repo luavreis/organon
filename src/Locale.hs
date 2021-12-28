@@ -2,6 +2,7 @@ module Locale where
 
 import Data.Time
 
+ptTimeLocale :: TimeLocale
 ptTimeLocale =
     TimeLocale
         { wDays =

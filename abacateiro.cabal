@@ -35,6 +35,8 @@ executable site
                   , uuid-types
   ghc-options:      -threaded
                     -j8
+                    -Wall
+                    -Wno-orphans
 
   mixins:
     base hiding (Prelude),

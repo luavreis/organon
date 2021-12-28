@@ -1,8 +1,9 @@
--- | 
+-- |
 
 module PandocTransforms.Utilities
   ( module Text.Pandoc
   , module Text.Pandoc.Walk
+  , MReaderT
   , setMeta
   , pooledWalk
   , stripFilePrefix
@@ -10,22 +11,49 @@ module PandocTransforms.Utilities
 import Text.Pandoc
 import Text.Pandoc.Walk
 import Text.Pandoc.Builder (setMeta)
-import Text.Pandoc.Walk (Walkable, walk, walkM)
 import System.FilePath
 import Data.List (stripPrefix)
-import UnliftIO (MonadUnliftIO)
 import UnliftIO.Async (pooledMapConcurrentlyN)
-
+import Control.Monad.IO.Unlift
 
 -- | Concurrent walkM
 
-pooledWalk
-  :: (MonadUnliftIO m, Walkable a b, Traversable t)
-  => Int
-  -> (a -> m a)
-  -> t b -> m (t b)
-pooledWalk n f = pooledMapConcurrentlyN n (walkM f)
+type MReaderT s m = ReaderT (MVar s) m
 
+instance {-# OVERLAPPING #-} MonadIO m => MonadState s (MReaderT s m) where
+  get = do
+    sVar <- ask
+    readMVar sVar
+  put s = do
+    sVar <- ask
+    void $ swapMVar sVar s
+  state f = do
+    sVar <- ask
+    os <- takeMVar sVar
+    let (y, ns) = f os
+    putMVar sVar ns
+    pure y
+
+pooledWalk
+  :: forall a b l m s t.
+    ( Walkable a b
+    , MonadTrans l
+    , MonadUnliftIO m
+    , Monad m
+    , MonadIO (l m)
+    , MonadState s (l m)
+    , Traversable t
+    , Show s
+    )
+  => Int
+  -> (a -> MReaderT s m a)
+  -> t b -> l m (t b)
+pooledWalk n f x = do
+  var <- newMVar =<< get
+  let computation = pooledMapConcurrentlyN n (walkM f) x
+  result <- lift $ runReaderT computation var
+  put =<< readMVar var
+  pure result
 
 -- | Filepath utilities
 
