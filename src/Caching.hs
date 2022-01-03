@@ -2,23 +2,23 @@
 -- |
 
 module Caching where
-import Data.Binary (Binary, encode, decode, decodeFileOrFail, encodeFile)
-import Control.Monad.Logger
-import Control.Monad.IO.Unlift
 import Data.LVar (LVar)
-import qualified Data.LVar as LVar
-import System.UnionMount
-import System.FilePattern (FilePattern)
-import Data.Binary.Instances.UnorderedContainers ()
-import qualified Data.HashMap.Strict as HMap
-import qualified Data.Map as Map
+import Control.Monad.Logger
+import Ema.Helper.FileSystem
+import Control.Monad.IO.Unlift
 import qualified Data.Set as Set
-import Control.Monad.Trans.Writer
+import Control.Monad.Trans.Writer.Strict
+import qualified Data.LVar as LVar
 import UnliftIO.Directory (doesFileExist)
+import qualified Data.HashMap.Strict as HMap
+import System.FilePattern (FilePattern, (?==))
+import Data.Binary.Instances.UnorderedContainers ()
+import UnliftIO (readTBQueue, newTBQueueIO, race, TBQueue, BufferMode (BlockBuffering, LineBuffering), hSetBuffering, hFlush)
+import Data.Binary (Binary, encode, decode, decodeFileOrFail, encodeFile)
 
 type CacheMap = HashMap LByteString LByteString
 
-type Cache = (CacheMap, Set LByteString)
+type Cache = (CacheMap, Set LByteString, Bool)
 
 type CacheT model m = WriterT (Endo model) (StateT Cache m)
 
@@ -32,12 +32,13 @@ lookupCache
      ( Binary a
      , Binary b
      , MonadState Cache m
+     , MonadLogger m
      )
   => a -> m (Maybe b)
 lookupCache k = do
   let kbs = encode k
-  ~(hmap, _) <- get
-  modify (\ ~(x,y) -> (x, Set.insert kbs y))
+  ~(hmap, _, _) <- get
+  modify (\ ~(x,y,z) -> (x, Set.insert kbs y, z))
   return $ fmap decode (HMap.lookup kbs hmap)
 
 fromCacheOrCompute
@@ -47,23 +48,24 @@ fromCacheOrCompute
      , MonadLogger m
      , MonadState Cache m
      )
-  => (a -> m b) -> a -> m b
+  => (a -> m (Maybe b)) -> a -> m (Maybe b)
 fromCacheOrCompute f x = do
   lookupCache x >>= \case
-    Just (y :: b) -> do
-      pure y
+    Just (y :: b) -> return $ Just y
     Nothing -> do
-      logInfoNS "fromCache" "Computing values."
-      y <- f x
-      modify (\ ~(c, set) -> (HMap.insert (encode x) (encode y) c, set))
-      return y
+      logInfoNS "fromCache" "Computing value."
+      f x >>= \case
+        Nothing -> return Nothing
+        Just y -> do
+          modify (\ ~(cache, bookkeeper, _) -> (HMap.insert (encode x) (encode y) cache, bookkeeper, True))
+          return $ Just y
 
-cachedUnionMountOnLVar
+cachedMountOnLVar
   :: forall m model source tag.
-     ( MonadIO m
-     , MonadUnliftIO m
+     ( MonadUnliftIO m
      , MonadLogger m
      , Binary model
+     , Binary source
      , Ord source
      , Ord tag
      )
@@ -71,14 +73,15 @@ cachedUnionMountOnLVar
   -> [(tag, FilePattern)]
   -> [FilePattern]
   -> model
-  -> (Change source tag -> CacheT model m ())
+  -> (tag -> FilePath -> source -> FileAction () -> CacheT model m ())
   -> LVar model
-  -> m (Maybe Cmd)
-cachedUnionMountOnLVar sources pats ignore model0 handleAction modelLVar = do
+  -> m ()
+cachedMountOnLVar sources pats ignore model0 handleAction modelLVar = do
   initialized <- newTMVarIO False
 
   cacheFileExists <- doesFileExist "website.cache"
-  cacheVar <- newTVarIO =<<
+
+  cacheVar <- newMVar =<<
     if cacheFileExists
     then (liftIO $ decodeFileOrFail "website.cache")
         >>= \case
@@ -90,15 +93,19 @@ cachedUnionMountOnLVar sources pats ignore model0 handleAction modelLVar = do
       logInfoNS "Caching" "website.cache does not exist. A new one will be created"
       pure mempty
 
-  unionMount sources pats ignore $ \changes -> do
+  mcmd <- disjointUnionMount sources pats ignore $ \changes -> do
 
-    previousCache <- readTVarIO cacheVar
+    previousCache <- takeMVar cacheVar
 
     (updateModel, unfilteredCache) <-
-      runCacheT (handleAction changes) (previousCache, mempty)
+      runCacheT (mapM (\ ~(x,y,z,w) -> handleAction x y z w) changes)
+                (previousCache, mempty, False)
       & interceptExc
 
     let filteredCache = filterCache unfilteredCache
+        newCache = filteredCache
+        (hmap, _, modf) = unfilteredCache
+        modified = modf || HMap.size filteredCache < HMap.size hmap
 
     atomically (takeTMVar initialized) >>= \case
       False -> do
@@ -106,45 +113,78 @@ cachedUnionMountOnLVar sources pats ignore model0 handleAction modelLVar = do
       True -> do
         LVar.modify modelLVar updateModel
 
-    atomically $ writeTVar cacheVar filteredCache
+    putMVar cacheVar newCache
 
-    when (not $ null (snd unfilteredCache)) $
-      liftIO $ encodeFile "website.cache" filteredCache
+    when modified $
+      liftIO $ encodeFile "website.cache" newCache
 
     atomically $ putTMVar initialized True
     pure Nothing
-    where
-      filterCache :: Cache -> CacheMap
-      filterCache (hmap, set) = HMap.filterWithKey (const . flip Set.member set) hmap
 
-      interceptExc :: m (a -> a, b) -> m (a -> a, b)
-      interceptExc mt = do
-        ~(f, c) <- mt
-        f' <- interceptExceptions id (pure f)
-        return (f', c)
+  whenJust mcmd $ \Cmd_Remount -> do
+    logInfoNS "Mounting" "!! Remount suggested !!"
+    LVar.set modelLVar model0 -- Reset the model
+    cachedMountOnLVar sources pats ignore model0 handleAction modelLVar
 
--- | Simplified variation of `cachedUnionMountOnLVar` with exactly one source.
-cachedMountOnLVar
-  :: forall model m b.
+  where
+    filterCache :: Cache -> CacheMap
+    filterCache (hmap, bookkeeper, _) = HMap.filterWithKey (const . flip Set.member bookkeeper) hmap
+
+    interceptExc mt = do
+      ~(f, c) <- mt
+      f' <- interceptExceptions id (pure f)
+      return (f', c)
+
+disjointUnionMount
+  :: forall source tag m.
      ( MonadIO m
-     , Binary model
      , MonadUnliftIO m
      , MonadLogger m
-     , Ord b
+     , Ord source
+     , Ord tag
      )
-  => FilePath
-  -> [(b, FilePattern)]
+  => Set (source, FilePath)
+  -> [(tag, FilePattern)]
   -> [FilePattern]
-  -> model
-  -> (b -> FilePath -> FileAction () -> CacheT model m ())
-  -> LVar model
+  -> ([(tag, FilePath, source, FileAction ())] -> m (Maybe Cmd))
   -> m (Maybe Cmd)
-cachedMountOnLVar folder pats ignore var0 toAction' =
-  let tag0 = ()
-      sources = one (tag0, folder)
-  in cachedUnionMountOnLVar sources pats ignore var0 $ \ch -> do
-    let fsSet = (fmap . fmap . fmap . fmap) void $ fmap Map.toList <$> Map.toList ch
-    (\(tag, xs) -> uncurry (toAction' tag) `chainM` xs) `chainM` fsSet
+disjointUnionMount sources pats ignore handleAction = do
+  fmap (join . rightToMaybe) $ do
+    -- Initial traversal of sources
+    changes0 :: [(tag, FilePath, source, FileAction ())] <-
+      fmap snd . runWriterT $ do
+        forM_ sources $ \(src, folder) -> do
+          taggedFiles <- filesMatchingWithTag folder pats ignore
+          forM_ taggedFiles $ \(tag, fs) -> do
+            forM_ fs $ \fp -> do
+              tell [(tag, fp, src, Refresh Existing ())]
+    void . withBlockBuffering $ handleAction changes0
+    -- Run fsnotify on sources
+    q :: TBQueue (x, FilePath, Either (FolderAction ()) (FileAction ())) <- liftIO $ newTBQueueIO 1
+    race (onChange q (toList sources)) $ do
+      let loop = do
+            (src, fp, actE) <- atomically $ readTBQueue q
+            let shouldIgnore = any (?== fp) ignore
+            case actE of
+              Left _ -> do
+                if shouldIgnore
+                  then do
+                    log LevelWarn "Unhandled folder event on an ignored path"
+                    loop
+                  else do
+                    -- We don't know yet how to deal with folder events. Just reboot the mount.
+                    log LevelWarn "Unhandled folder event; suggesting a re-mount"
+                    pure $ Just Cmd_Remount
+              Right act -> do
+                case guard (not shouldIgnore) >> getTag pats fp of
+                  Nothing -> loop
+                  Just tag -> do
+                    mcmd <- withBlockBuffering $ handleAction [(tag, fp, src, act)]
+                    maybe loop (pure . pure) mcmd
+      loop
+
   where
-    chainM :: forall a x n. Monad n => (x -> WriterT (Endo a) n ()) -> [x] -> WriterT (Endo a) n ()
-    chainM f x = foldr (>>) (pure ()) $ map f x
+    withBlockBuffering f =
+      hSetBuffering stdout (BlockBuffering Nothing)
+        *> f
+        <* (hSetBuffering stdout LineBuffering >> hFlush stdout)

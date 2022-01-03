@@ -1,9 +1,7 @@
 ex2 = false
 
-console.log("AAA")
 document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("extra1").addEventListener('click', function(e) {
-    console.log("AAA")
     var i, s, ss = ['/assets/js/kh.js', 'https://ajax.googleapis.com/ajax/libs/jquery/1.5.1/jquery.min.js'];
     for (i = 0; i != ss.length; i++) {
       s = document.createElement('script')
@@ -11,7 +9,6 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   })
   document.getElementById("extra2").addEventListener('click', function(e) {
-    console.log("AAA")
     if (ex2) return
     ex2 = true
     var s

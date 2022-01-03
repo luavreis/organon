@@ -4,18 +4,14 @@ module PandocTransforms where
 import PandocTransforms.Utilities hiding (getModificationTime)
 import PandocTransforms.LaTeX
 import PandocTransforms.Org
+import PandocTransforms.Links
+import PandocTransforms.Emojis
 import Caching
-import Text.Pandoc.Builder as B (setMeta, image, str)
-import Text.Pandoc.Shared (headerShift, isURI)
 import Text.Pandoc.Citeproc (processCitations)
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Directory
 import System.FilePath
-import Text.Emoji
 import Control.Monad.Logger
-import Control.Monad (foldM)
-import System.Exit
-import qualified Data.Text as T
 
 -- | Types
 
@@ -23,54 +19,10 @@ data MarkupFormat
   = Org
   | Html
   | Md
+  | Raw
   deriving (Eq,Ord,Show)
 
 -- | Walkable filters
-
--- I am not sure how to implement this. The problem is that I would have to
--- implement some sort of crazy algorithm to make combining emojis work, as
--- they span multiple characters... so for now all emoji must be separated
--- by whitepace!
-convertEmojis :: Inline -> Inline
-convertEmojis (Str s) = case aliasesFromEmoji s of
-  Nothing -> Str s
-  Just [] -> Str s
-  Just (a : _) ->
-    RawInline (Format "html") ("<i class=\"twa twa-"
-                               <> fixAlias a
-                               <> "\"></i>")
-  where
-    fixAlias a = T.map (\case '_' -> '-'; x -> x) a
-convertEmojis x = x
-
-fixLink' root p =
-  if isAbsolute (toString p) || isURI p
-  then p
-  else toText (normalise $ root </> toString p)
-
-fixLink :: FilePath -> Text -> Text
-fixLink root p =
-  let p' = if liftT takeExtension p `elem` strippedFmts
-           then liftT dropExtension p
-           else p
-  in case T.stripPrefix "file:" p' of
-    Nothing -> fixLink' root p'
-    Just c -> fixLink' root c
-  where
-    strippedFmts = [".org", ".md"]
-    liftT f = toText . f . toString
-
-fixLinks :: FilePath -> Inline -> Inline
-fixLinks fp (Image f i (u,t)) = Image f i (fixLink' fp u, t)
-fixLinks fp (Link a i (u,t)) = Link a i (fixLink fp u, t)
-fixLinks fp x = x
-
-getMeta :: Pandoc -> Meta
-getMeta (Pandoc meta _) = meta
-
-setMetaP :: Text -> Text -> Pandoc -> Pandoc
-setMetaP k l (Pandoc meta blocks) =
-  Pandoc (B.setMeta k l meta) blocks
 
 transforms :: [Pandoc -> Pandoc]
 transforms =
@@ -79,46 +31,6 @@ transforms =
   , setMetaP "lang" "pt-BR"
   , setMetaP "csl" "data/citstyle.csl"
   ]
-
-readerOptions :: ReaderOptions
-readerOptions = def {
-  readerExtensions =
-      extensionsFromList
-      [ Ext_citations
-      , Ext_smart
-      ]
-  }
-
-writerOptions :: WriterOptions
-writerOptions =
-  def
-  { writerHTMLMathMethod = MathJax ""
-  -- , writerExtensions =
-  --     extensionsFromList
-  --     [ Ext_citations
-  --     ]
-  }
-
-writeHtml :: PandocMonad m => Pandoc -> m Text
-writeHtml = writeHtml5String writerOptions
-
-addToFileTree' :: FilePath -> FilePath -> FileTree -> IO FileTree
-addToFileTree' root fp tree = do
-  isdir <- doesDirectoryExist fp
-  if isdir
-     then do -- recursively add contents of directories
-       let isSpecial ".." = True
-           isSpecial "."  = True
-           isSpecial _    = False
-       fs <- map (fp </>) . filter (not . isSpecial) <$> getDirectoryContents fp
-       foldM (flip $ addToFileTree' root) tree fs
-     else do
-       contents <- readFileBS fp
-       mtime <- getModificationTime fp
-       let info = FileInfo{ infoFileMTime = mtime, infoFileContents = contents }
-       return $ case stripFilePrefix root fp of
-         Just s  -> insertInFileTree s info tree
-         Nothing -> tree
 
 convertIO
   :: (MonadUnliftIO m, MonadLogger m)

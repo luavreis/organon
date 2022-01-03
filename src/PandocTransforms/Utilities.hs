@@ -3,13 +3,13 @@
 module PandocTransforms.Utilities
   ( module Text.Pandoc
   , module Text.Pandoc.Walk
-  , MReaderT
+  , module Text.Pandoc.Shared
+  , module PandocTransforms.Utilities
   , setMeta
-  , pooledWalk
-  , stripFilePrefix
   ) where
 import Text.Pandoc
 import Text.Pandoc.Walk
+import Text.Pandoc.Shared
 import Text.Pandoc.Builder (setMeta)
 import System.FilePath
 import Data.List (stripPrefix)
@@ -59,3 +59,36 @@ pooledWalk n f x = do
 
 stripFilePrefix :: FilePath -> FilePath -> Maybe FilePath
 stripFilePrefix f g = stripPrefix (addTrailingPathSeparator $ normalise f) (normalise g)
+
+-- | Reader / writer
+
+readerOptions :: ReaderOptions
+readerOptions = def {
+  readerExtensions =
+      extensionsFromList
+      [ Ext_citations
+      , Ext_smart
+      ]
+  }
+
+writerOptions :: WriterOptions
+writerOptions =
+  def
+  { writerHTMLMathMethod = MathJax ""
+  -- , writerExtensions =
+  --     extensionsFromList
+  --     [ Ext_citations
+  --     ]
+  }
+
+writeHtml :: PandocMonad m => Pandoc -> m Text
+writeHtml = writeHtml5String writerOptions
+
+-- | AST utilities
+
+getMeta :: Pandoc -> Meta
+getMeta (Pandoc meta _) = meta
+
+setMetaP :: Text -> Text -> Pandoc -> Pandoc
+setMetaP k l (Pandoc meta blocks) =
+  Pandoc (setMeta k l meta) blocks

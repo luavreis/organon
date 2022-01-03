@@ -75,11 +75,25 @@ katex = do
     overflowX auto
     overflowY hidden
 
+definitionList :: Css
+definitionList = do
+  dt ? do
+    float floatLeft
+    clear clearLeft
+    marginRight (px 5)
+    fontWeight bold
+
+  dt # after ? do
+    content (stringContent " ::")
+
+  dd ? do
+    marginLeft (px 20)
+
+
 mainStyle :: Css
 mainStyle = do
   star ? do
     margin_  (px 0)
-    padding_ (px 0)
 
   "#fundo" ? do
     width (pct 100)
@@ -120,7 +134,7 @@ mainStyle = do
     fontStyle italic
 
   "#main" ? do
-    fontSize (px 17)
+    fontSize (px 18)
     position relative
     width (other "calc(85% - 150px)")
     minHeight (vh 80)
@@ -150,13 +164,13 @@ mainStyle = do
       margin__ (px 10) 0
       lineHeight (em 1.4)
 
-      a # link <> a # visited ? do
-        textDecoration underline
-        color (other "unset")
+    a # link <> a # visited ? do
+      textDecoration underline
+      color (other "unset")
 
     strong ? fontWeight (weight 500)
 
-    ul <> ol ? margin_ (px 0)
+    ul ? padding_ (px 0)
 
     ul ** li ? do
       lineHeight (em 1.4)
@@ -282,6 +296,7 @@ darkStyle = do
 styleT :: LText
 styleT = renderWith compact [] $ do
   mainStyle
+  definitionList
   foot
   sidebar
   katex

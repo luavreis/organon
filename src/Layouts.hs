@@ -3,13 +3,12 @@
 module Layouts where
 
 import Lucid
-import Lucid.Base (makeAttribute, ToHtml (toHtmlRaw))
-import Ema (Ema(encodeRoute), Asset)
-import Relude.Extra (lookupDefault)
+import Lucid.Base (makeAttribute)
 import Routes
 import Models
-import EmaInstance
+import EmaInstance ()
 import Data.Map ((!))
+import Data.Text as T
 import qualified Ema as E
 
 twemoji :: Text -> Html ()
@@ -22,8 +21,8 @@ obdata_ = makeAttribute "data"
 stylesheet :: Attribute
 stylesheet = rel_ "stylesheet"
 
-renderRawAsset :: Model -> RawAssetId -> Html ()
-renderRawAsset model id = toHtmlRaw $ rawAssets model ! id
+renderLayout :: Model -> String -> Html ()
+renderLayout model key = toHtmlRaw $ layouts model ! key
 
 head :: Model -> Html ()
 head m = head_ do
@@ -40,10 +39,10 @@ head m = head_ do
   link_ [rel_ "preconnect", href_ "https://fonts.gstatic.com", crossorigin_ ""]
   link_ [stylesheet, href_ "https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;1,300;1,500&display=swap"]
   link_ [stylesheet, href_ "https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"]
-  renderRawAsset m (RawHtmlId "katex")
+  renderLayout m "katex"
   where
     js :: Text -> Html ()
-    js s = script_ [src_ $ "/assets/js/" <> s <> ".js", defer_ "", type_ "text/javascript"] ""
+    js s = script_ [src_ $ "/assets/js/" <> s <> ".js", defer_ "", type_ "text/javascript"] T.empty
     css s = link_ [stylesheet, href_ $ "/assets/css/" <> s <> ".css", type_ "text/css"]
 
 foot :: Html ()
@@ -66,10 +65,10 @@ navUl m = ul_ $ forM_ topLevel \
   t -> li_ $ a_ [href_ $ toText $ E.routeUrl m $ snd t] $ toHtml $ fst t
 
 primary :: Model -> Html () -> Html () -> Html ()
-primary model head content =
+primary model docHead content =
   doctypehtml_ $
   html_ [lang_ "pt-br"] do
-    head
+    docHead
     body_ do
       canvas_ [style_ "position:fixed; top:0; left:0; z-index:-1;", id_ "fundo"] ""
       header_ do

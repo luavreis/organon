@@ -46,7 +46,6 @@ roamIndex m = SimplePage "Zettelkasten" do
   forM_ (reverse $ Data.Map.assocs $ M.roamPosts m) \(uuid,p) -> do
     h2_ $ a_ [href_ $ E.routeUrl m (R.RoamPage uuid)] (toHtmlRaw $ M.postTitle p)
     aside_ $ toHtml $ formatTime ptTimeLocale "%A, %e de %B de %Y" $ M.date p
-    hr_ []
 
 render :: ECli.Action -> M.Model -> R.Route -> E.Asset LByteString
 render _ _ (R.Css "stylesheet")    = E.AssetGenerated E.Other (encodeUtf8 S.styleT)
@@ -54,8 +53,8 @@ render _ m (R.Css s)               = E.AssetStatic $ E.encodeRoute m (R.Css s)
 render _ m (R.Js s)                = E.AssetStatic $ E.encodeRoute m (R.Js s)
 render _ m (R.BlogAsset s i)       = E.AssetStatic $ E.encodeRoute m (R.BlogAsset s i)
 render _ m (R.StructuralPage path) = pageOrnotFound m $ lookup path $ M.structuralPages m
-render _ m (R.RoamPage uuid)       = pageOrnotFound m $ liftA2 (,)
-                                                        (lookup uuid $ M.roamPosts m)
-                                                        (lookup uuid $ M.roamDatabase m)
+render _ m (R.RoamEntryPoint)      = applyDefaultLayout m $ roamIndex m
+render _ m (R.RoamPage uuid)       = pageOrnotFound m $ (,lookup uuid $ M.roamDatabase m)
+                                                        <$> lookup uuid (M.roamPosts m)
 render _ m (R.BlogPage slug)       = pageOrnotFound m $ lookup slug $ M.blogPosts m
 render _ m  R.BlogIndex            = applyDefaultLayout m $ blogIndex m

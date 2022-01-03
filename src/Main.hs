@@ -1,131 +1,111 @@
-{-# LANGUAGE OverloadedStrings, ExtendedDefaultRules, BlockArguments #-}
+{-# LANGUAGE DeriveGeneric, BlockArguments #-}
 
 module Main where
 
 import Models hiding (date, title, body)
-import qualified Ema.Helper.FileSystem as FS
 import qualified Data.Time as DT
 import qualified Ema as E
 import qualified Data.Text as T
-import System.FilePath (takeBaseName, (</>), dropExtension, (-<.>))
+import System.FilePattern
+import System.FilePath
 import Text.Regex.TDFA ((=~))
-import Locale (ptTimeLocale)
-import Render (render)
-import Path (urlToPath)
+import Locale
+import Render
+import Path
 import PandocTransforms
 import Caching (cachedMountOnLVar)
-import Control.Monad.Trans.Writer
+import Control.Monad.Trans.Writer.Strict
 import Control.Monad.Logger
+import PandocTransforms.Roam
+import qualified Data.Set as Set
+import Ema.Helper.FileSystem
+import Data.Binary
 
-data FileTag
-  = AssetTag RawTag
-  | BlogTag MarkupFormat
-  | ContentTag MarkupFormat
-  deriving (Eq,Ord,Show)
+data Source
+  = Layout
+  | Blog
+  | Content
+  | Zettel
+  deriving (Eq,Ord,Show,Enum,Bounded,Generic)
 
-data RawTag
-  = RawHtmlTag
-  deriving (Eq,Ord,Show)
+instance Binary Source
+
+mountPoint :: IsString p => Source -> p
+mountPoint Zettel = "/home/lucas/Lucas/notas"
+mountPoint Blog = "/home/lucas/Lucas/blog"
+mountPoint Content = "content"
+mountPoint Layout = "assets/html"
+
+mountSet :: Set (Source, FilePath)
+mountSet = Set.fromList [(s, mountPoint s) | s <- [minBound .. maxBound]]
+
+filesToInclude :: [(MarkupFormat, FilePattern)]
+filesToInclude =
+  [ (Html, "**/*.html")
+  , (Org, "**/*.org")
+  , (Md, "**/*.md")
+  ]
+
+filesToExclude :: [FilePattern]
+filesToExclude =
+  [ "**/imports/**/*"
+  , "**/.*/*"
+  ]
 
 main :: IO ()
 main =
-  E.runEma render $ \_action -> do
-  -- FIXME get rid of this. reuse routing logic
-    let filesToInclude =
-          [ (AssetTag RawHtmlTag, "assets/html/*.html")
-          , (BlogTag Org, "blog/*.org")
-          , (ContentTag Org, "content/**/*.org")
-          , (ContentTag Html, "content/**/*.html")
-          , (ContentTag Md, "content/**/*.md")
-          ]
-        filesToExclude =
-          [ "content/**/imports/**/*"
-          , "**/.*/*"
-          ]
+  E.runEma render $ \_action ->
+    cachedMountOnLVar
+    mountSet
+    filesToInclude
+    filesToExclude
+    defaultModel
+    \fmt fp src -> do
+      let realFp = mountPoint src </> fp
+      case src of
+        Content -> do
+          let path = urlToPath $
+                    if takeBaseName fp == "index"
+                    then fp -<.> "html"
+                    else dropExtension fp </> "index.html"
+          \case
+            Refresh _ () -> do
+              fileText <- readFileText realFp
+              (title, body) <- convertIO realFp fmt fileText
+              warnNullTitle title fp
+              tell $ insertSP path (StructuralPage title body)
+            Delete -> tell $ deleteSP path
 
-    void . cachedMountOnLVar
-      "."
-      filesToInclude
-      filesToExclude
-      defaultModel
-      \ tag fp -> \ case
-          FS.Refresh _ () ->
-            case tag of
-              ContentTag ext -> do
-                fileText <- readFileText fp
-                (title, body) <- convertIO fp ext fileText
+        Blog -> do
+          let baseName = takeBaseName fp
+              hasDate = baseName =~ ("^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-" :: String)
+              date = if hasDate
+                    then DT.parseTimeOrError False ptTimeLocale "%Y-%m-%d" (take 10 baseName)
+                    else DT.ModifiedJulianDay 1
+              slug = E.decodeSlug $ toText if hasDate
+                                          then drop 10 baseName
+                                          else baseName
+          \case
+            Refresh _ () -> do
+              fileText <- readFileText realFp
+              (title, body) <- convertIO realFp fmt fileText
+              warnNullTitle title fp
+              tell $ insertBP slug (BlogPost title body date)
+            Delete -> tell $ deleteBP slug
 
-                when (T.null title) $
-                  logWarnN $ "File " <> (toText fp) <> " has empty title."
+        Zettel -> \case
+          Refresh _ () -> do
+            fileText <- readFileText realFp
+            convertRoam realFp fileText
 
-                let page = StructuralPage title body
-                    path = urlToPath (drop (T.length "content/") $
-                                      if takeBaseName fp == "index"
-                                      then fp -<.> "html"
-                                      else dropExtension fp </> "index.html")
+          Delete -> tell $ deleteFromRD realFp
 
-                tell $ insertSP path page
-
-              AssetTag atag -> do
-                txt <- readFileText fp
-                tell $ insertRA (assetKey atag fp) txt
-
-              BlogTag ext -> do
-                fileText <- readFileText fp
-
-                let baseName = takeBaseName fp
-                    hasDate = baseName =~ ("^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-" :: String)
-
-                unless hasDate $ do
-                  logWarnN $ "Blog file " <> (toText baseName) <> " has no date in its name."
-
-                let date =
-                      if hasDate
-                      then DT.parseTimeOrError False ptTimeLocale "%Y-%m-%d" (take 10 baseName)
-                      else DT.ModifiedJulianDay 1 -- TODO read date metadata from Pandoc
-                -- let s = if hasDate then drop 11 baseName else baseName
-
-                (title, body) <- convertIO fp ext fileText
-
-                when (T.null title) $
-                  logWarnN $ "File " <> (toText fp) <> " has empty title."
-
-                let post = BlogPost title body date
-
-                tell $ insertBP (slug fp) post
-
-              BlogTag ext -> do
-                fileText <- readFileText fp
-
-                let baseName = takeBaseName fp
-                    hasDate = baseName =~ ("^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-" :: String)
-
-                unless hasDate $ do
-                  logWarnN $ "Blog file " <> (toText baseName) <> " has no date in its name."
-
-                let date =
-                      if hasDate
-                      then DT.parseTimeOrError False ptTimeLocale "%Y-%m-%d" (take 10 baseName)
-                      else DT.ModifiedJulianDay 1 -- TODO read date metadata from Pandoc
-                -- let s = if hasDate then drop 11 baseName else baseName
-
-                (title, body) <- convertIO fp ext fileText
-
-                when (T.null title) $
-                  logWarnN $ "File " <> (toText fp) <> " has empty title."
-
-                let post = BlogPost title body date
-
-                tell $ insertBP (slug fp) post
-
-          FS.Delete -> case tag of
-            AssetTag atag ->
-              tell $ deleteRA (assetKey atag fp)
-            BlogTag _ ->
-              tell $ deleteBP (slug fp)
-            ContentTag _ ->
-              tell $ deleteSP (urlToPath fp)
+        Layout -> \case
+          Refresh _ () -> do
+            txt <- readFileText realFp
+            tell $ insertL (takeBaseName fp) txt
+          Delete -> tell $ deleteL (takeBaseName fp)
   where
-    rawTagToKey RawHtmlTag = RawHtmlId
-    slug = E.decodeSlug . toText . takeBaseName
-    assetKey tag fp = rawTagToKey tag (slug fp)
+    warnNullTitle title fp =
+      when (T.null title) $
+        logWarnN $ "File " <> (toText fp) <> " has empty title."

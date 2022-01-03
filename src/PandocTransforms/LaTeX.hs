@@ -5,13 +5,14 @@ module PandocTransforms.LaTeX where
 import PandocTransforms.Utilities
 import Caching
 import Text.Pandoc.SelfContained (makeDataURI)
-import System.FilePath ((</>))
+import System.FilePath ((</>), (-<.>))
 import UnliftIO
 import UnliftIO.Process (readCreateProcessWithExitCode, shell)
 import Control.Monad.Logger
 import NeatInterpolation (text)
 import System.Exit
 import qualified Data.Text as T
+import qualified Data.ByteString as B
 
 isMathEnvironment :: Text -> Bool
 isMathEnvironment s = "\\begin{" `T.isPrefixOf` s &&
@@ -53,11 +54,22 @@ defLaTeXpackages =
   , ("ulem", ["normalem"])
   , ("amsmath", [])
   , ("amssymb", [])
+  , ("tikz", [])
+  , ("tikz-cd", [])
   ]
+
+getPreamble :: Meta -> Text
+getPreamble meta =
+  lookupMeta "header-includes" meta
+  & maybe "" (queryMetaValue queryPreamble)
+  where
+    queryPreamble :: Inline -> Text
+    queryPreamble (RawInline (Format "latex") s) = s <> "\n"
+    queryPreamble _ = T.empty
 
 svgLaTeX
   :: forall m. (MonadUnliftIO m, MonadLogger m)
-  => Text -> Text -> m ByteString
+  => Text -> Text -> m (Maybe ByteString)
 svgLaTeX preamble body = do
   let code =
         [text|
@@ -74,7 +86,7 @@ svgLaTeX preamble body = do
                            <> "]{" <> p <> "}\n"))
                  "" defLaTeXpackages
 
-      process :: FilePath -> m ByteString
+      process :: FilePath -> m (Maybe ByteString)
       process tempDir = do
         let outpath = tempDir </> "out.svg"
         (exitc, _, e) <- readCreateProcessWithExitCode
@@ -87,34 +99,36 @@ svgLaTeX preamble body = do
            <> outpath)
           (toString code)
         case exitc of
-          ExitSuccess ->
-            readFileBS outpath
+          ExitSuccess -> Just <$> readFileBS outpath
           ExitFailure _ -> do
-            logErrorNS "LaTeX Conversion" $ toText e
-            pure mempty
+            logErrorNS "LaTeX conversion" $ toText e
+            logErrorNS "LaTeX conversion" $ "Problematic file:\n" <> code
+            return Nothing
   withSystemTempDirectory "tex-conversion" process
 
 svgImage :: ByteString -> Inline
 svgImage s = Image nullAttr [] (uri, "")
   where
-    uri = makeDataURI ("image/svg+xml", s)
+    uri = makeDataURI ("image/svg+xml", scaled)
+    scaled = fromMaybe s $ do
+      let (ini, s')   = B.breakSubstring "width=\"" s
+          (w, s'')    = B.breakSubstring "pt\"" s'
+          (mid, s''') = B.breakSubstring "height=\"" s''
+          (h, rest)   = B.breakSubstring "pt\"" s'''
+          factor = 1.3
+      width  :: Float <- readMaybe $ decodeUtf8 $ B.drop 7 w
+      height :: Float <- readMaybe $ decodeUtf8 $ B.drop 8 h
+      return $ ini <> "width=\"" <> (show (width * factor))
+            <> mid <> "height=\"" <> (show (height * factor)) <> rest
 
 renderLaTeX :: (MonadUnliftIO m, MonadLogger m)
   => Pandoc -> CacheT model m Pandoc
-renderLaTeX (Pandoc meta blocks) =
-  Pandoc meta <$> (lift $ pooledWalk 8 wBlocks blocks)
+renderLaTeX (Pandoc meta blocks) = do
+  Pandoc meta <$> (lift $ pooledWalk 8 wInlines =<< pooledWalk 8 wBlocks blocks)
   where
-    preamble =
-      lookupMeta "header-includes" meta
-      & maybe "" (queryMetaValue queryPreamble)
-      where
-        queryPreamble :: Inline -> Text
-        queryPreamble (RawInline (Format "latex") s) = s <> "\n"
-        queryPreamble _ = T.empty
-
     cachedSvgLaTeX :: (MonadLogger m, MonadUnliftIO m)
       => Text -> MReaderT Cache m ByteString
-    cachedSvgLaTeX = fromCacheOrCompute (lift . svgLaTeX preamble)
+    cachedSvgLaTeX = fmap (fromMaybe mempty) . fromCacheOrCompute (lift . (svgLaTeX $ getPreamble meta))
 
     wInlines :: (MonadUnliftIO m, MonadLogger m)
       => Inline -> MReaderT Cache m Inline
@@ -128,4 +142,45 @@ renderLaTeX (Pandoc meta blocks) =
       if isMathEnvironment s
       then pure $ RawBlock (Format "latex") s
       else Para . one . svgImage <$> cachedSvgLaTeX s
-    wBlocks x = walkM wInlines x
+    wBlocks x = pure x
+
+preambilizeKaTeX :: forall m. PandocMonad m => Pandoc -> m Pandoc
+preambilizeKaTeX (Pandoc meta blks) = Pandoc meta . (: blks) <$> preamble
+  where
+    hide :: Attr
+    hide = ("", [], [("style", "display: none")])
+
+    mathOp = "\\newcommand{\\DeclareMathOperator}[2]{\\newcommand{#1}{\\operatorname{#2}}}"
+
+    preamble :: m Block
+    preamble = do
+      preamble' <- filteredPreamble
+      pure $ Div hide [RawBlock "html" preamble']
+
+    filteredPreamble :: m Text
+    filteredPreamble = do
+      lines' <- unlines . (mathOp :) . filter filt . concat
+                <$> (mapM includeInput $ lines $ getPreamble meta)
+      return $ [text|
+                  <span class="math display">
+                  \[
+                  $lines'
+                  \]
+                  </span>
+               |]
+
+    includeInput :: Text -> m [Text]
+    includeInput txt
+      | "\\input" `T.isPrefixOf` txt = do
+          file <- runMaybeT $ do
+            withNoPrefix <- hoistMaybe $ T.stripPrefix "\\input{" txt
+            file <- hoistMaybe $ T.stripSuffix "}" $ T.stripEnd withNoPrefix
+            readFileLazy (toString file -<.> "tex")
+          return $ maybe [txt] (lines . decodeUtf8) file
+      | otherwise = return [txt]
+
+    filt :: Text -> Bool
+    filt txt =  "\\newcommand" `T.isPrefixOf` txt
+             || "\\renewcommand" `T.isPrefixOf` txt
+             || "\\def" `T.isPrefixOf` txt
+             || "\\DeclareMathOperator" `T.isPrefixOf` txt

@@ -3,7 +3,9 @@ module Models where
 
 import Ema (Slug, decodeSlug)
 import Data.UUID.Types (UUID)
-import qualified Data.Map as DM
+import Data.Map ((!?))
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Lucid
 import Data.Time (Day)
 import Data.Binary.Instances.Time ()
@@ -36,48 +38,48 @@ instance HtmlPage BlogPost where
     h1_ (toHtmlRaw $ postTitle page)
     toHtmlRaw $ postBody page
 
-newtype RawAssetId
-  = RawHtmlId Slug
-  deriving (Show,Eq,Ord,Generic)
-
 data RoamBacklink = RoamBacklink
   { backlinkUUID :: UUID
   , backlinkTitle :: Text
   , backlinkExcerpt :: Text
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Ord, Generic)
 
 -- | map (uuid of page x) -> list of (uuid, excerpt) of x's backlinks
 -- The reason I'm using two maps is because they are built in somewhat different contexts
-type RoamDatabase = Map UUID [RoamBacklink]
+type RoamDatabase = Map UUID (Set RoamBacklink)
 
-instance HtmlPage (BlogPost, [RoamBacklink]) where
+instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
   title = postTitle . fst
-  body (page, backlinks) = do
+  body (page, mbacklinks) = do
     h1_ (toHtmlRaw $ postTitle page)
     toHtmlRaw $ postBody page
     hr_ []
     h2_ "Backlinks"
-    forM_ backlinks $ \bl -> do
-      a_ [href_ $ "zettelkasten/" <> UUID.toText (backlinkUUID bl)] do -- TODO link should not be hardcoded
-        toHtmlRaw $ backlinkExcerpt bl
+    case mbacklinks of
+      Just backlinks ->
+        forM_ backlinks $ \bl -> do
+          h3_ $ a_ [href_ $ "zettelkasten/" <> UUID.toText (backlinkUUID bl)] $ -- TODO link should not be hardcoded
+            toHtmlRaw $ backlinkTitle bl
+          toHtmlRaw $ backlinkExcerpt bl
+      Nothing -> p_ $ i_ "No backlinks."
 
 data Model = Model
   { name :: Text,
     fileStructure :: Tree Slug,
     structuralPages :: Map Path StructuralPage,
     blogPosts :: Map Slug BlogPost,
-    rawAssets :: Map RawAssetId Text,
+    layouts :: Map String Text,
     roamPosts :: Map UUID BlogPost,
     roamDatabase :: RoamDatabase,
-    roamAssoc :: Map Slug [UUID] }
+    roamAssoc :: Map FilePath [UUID] }
   deriving (Show, Generic)
 
 -- Probably I should use something like lens... I know nothing about it
-insertRA :: RawAssetId -> Text -> Endo Model
-insertRA k v = Endo \m -> m { rawAssets = insert k v (rawAssets m) }
-deleteRA :: RawAssetId -> Endo Model
-deleteRA k = Endo \m -> m { rawAssets = delete k (rawAssets m) }
+insertL :: String -> Text -> Endo Model
+insertL k v = Endo \m -> m { layouts = insert k v (layouts m) }
+deleteL :: String -> Endo Model
+deleteL k = Endo \m -> m { layouts = delete k (layouts m) }
 
 insertSP :: [Slug] -> StructuralPage -> Endo Model
 insertSP k v = Endo \m -> m { structuralPages = insert k v (structuralPages m) }
@@ -94,29 +96,35 @@ insertRP k v = Endo \m -> m { roamPosts = insert k v (roamPosts m) }
 deleteRP :: UUID -> Endo Model
 deleteRP k = Endo \m -> m { roamPosts = delete k (roamPosts m) }
 
+insertRA :: FilePath -> [UUID] -> Endo Model
+insertRA k v = Endo \m -> m { roamAssoc = insert k v (roamAssoc m) }
+
 mapDeleteRD :: [UUID] -> RoamDatabase -> RoamDatabase
-mapDeleteRD ks = DM.mapMaybeWithKey delFilter
+mapDeleteRD ks = Map.mapMaybeWithKey delFilter
   where
-    delFilter referent referees =
-      if referent `elem` ks
-      then Nothing
-      else case filter (flip elem ks . backlinkUUID) referees of
-        [] -> Nothing
-        xs -> Just xs
+    delFilter _referee referents =
+      case Set.filter (not . flip elem ks . backlinkUUID) referents of
+        xs | Set.null xs -> Nothing
+           | otherwise -> Just xs
 
-addToRD :: [UUID] -> [(UUID, [RoamBacklink])] -> Endo Model
-addToRD ks v =
-  Endo \m -> m { roamDatabase = roamDatabase m
-                                & mapDeleteRD ks
-                                & DM.unionWith (++) (DM.fromListWith (++) v) }
+addToRD :: UUID -> [(UUID, [RoamBacklink])] -> Endo Model
+addToRD k v =
+  let mappedv = Map.map Set.fromList $ Map.fromListWith (++) v
+  in Endo \m -> m { roamDatabase = roamDatabase m
+                                   & mapDeleteRD [k]
+                                   & Map.unionWith (Set.union) mappedv}
 
-deleteRD :: [UUID] -> Endo Model
-deleteRD ks =
+deleteFromRD :: FilePath -> Endo Model
+deleteFromRD fp =
   Endo \m ->
-    m { roamDatabase = mapDeleteRD ks (roamDatabase m) }
+    case roamAssoc m !? fp of
+      Just ks -> m { roamDatabase = mapDeleteRD ks (roamDatabase m)
+                   , roamPosts = foldr delete (roamPosts m) ks
+                   , roamAssoc = delete fp (roamAssoc m)
+                   }
+      Nothing -> m
 
 instance Binary Slug
-instance Binary RawAssetId
 instance Binary StructuralPage
 instance Binary BlogPost
 instance Binary RoamBacklink
@@ -125,7 +133,7 @@ instance Binary Model
 defaultModel :: Model
 defaultModel =
   Model
-    "interseções"
+    ""
     rootNode
     emptyMap
     emptyMap
@@ -135,4 +143,4 @@ defaultModel =
     emptyMap
   where
     rootNode = Node (decodeSlug "") []
-    emptyMap = DM.empty
+    emptyMap = Map.empty

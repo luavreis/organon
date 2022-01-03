@@ -1,3 +1,6 @@
+:PROPERTIES:
+:ID:       0f3ca58f-77ba-4c59-8a6f-985ceb05705d
+:END:
 #+TITLE: About This Site
 
 Let me explain the context a bit more. I am new to Haskell, and decided to learn

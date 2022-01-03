@@ -8,6 +8,7 @@ executable site
   build-depends:    binary
                   , binary-instances
                   , base
+                  , bytestring
                   , clay
                   , containers
                   , ema >=0.3
@@ -30,7 +31,6 @@ executable site
                   , transformers
                   , unliftio
                   , unliftio-core
-                  , unionmount
                   , unordered-containers
                   , uuid-types
   ghc-options:      -threaded
@@ -69,4 +69,6 @@ executable site
     PandocTransforms.Utilities
     PandocTransforms.LaTeX
     PandocTransforms.Org
+    PandocTransforms.Links
+    PandocTransforms.Emojis
     PandocTransforms.Roam

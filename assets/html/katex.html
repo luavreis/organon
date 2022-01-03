@@ -9,13 +9,30 @@
              {left: '\\(', right: '\\)', display: false},
              {left: '\\[', right: '\\]', display: true}
          ],
-         macros: {
-             "\\RR": "{\\mathbb R}",
-             "\\ZZ": "{\\mathbb R}",
-             "\\QQ": "{\\mathbb Q}",
-             "\\NN": "{\\mathbb N}",
-         },
-         globalGroup: true,
+       macros: {
+         "\\interval": context => {
+           let arg = context.consumeArg(["]"]);
+           let argtext = arg.tokens
+                            .reduce((p, c) => c.text + p, "")
+                            .slice(1);
+           let a = "["
+           let b = "]"
+           switch (argtext) {
+               case 'open':
+                 a = "("
+                 b = ")"
+                 break;
+               case 'open left':
+                 a = "("
+                 break;
+               case 'open right':
+                 b = ")"
+                 break;
+           }
+           return a + "#1,#2" + b;
+         }
+       },
+       globalGroup: true,
      })
  }
 </script>
