@@ -13,6 +13,7 @@ import NeatInterpolation (text)
 import System.Exit
 import qualified Data.Text as T
 import qualified Data.ByteString as B
+import UnliftIO.Directory (withCurrentDirectory)
 
 isMathEnvironment :: Text -> Bool
 isMathEnvironment s = "\\begin{" `T.isPrefixOf` s &&
@@ -69,8 +70,8 @@ getPreamble meta =
 
 svgLaTeX
   :: forall m. (MonadUnliftIO m, MonadLogger m)
-  => Text -> Text -> m (Maybe ByteString)
-svgLaTeX preamble body = do
+  => FilePath -> Text -> Text -> m (Maybe ByteString)
+svgLaTeX dir preamble body = do
   let code =
         [text|
           \documentclass[varwidth]{standalone}
@@ -87,7 +88,7 @@ svgLaTeX preamble body = do
                  "" defLaTeXpackages
 
       process :: FilePath -> m (Maybe ByteString)
-      process tempDir = do
+      process tempDir = withCurrentDirectory dir $ do
         let outpath = tempDir </> "out.svg"
         (exitc, _, e) <- readCreateProcessWithExitCode
           (shell
@@ -118,17 +119,19 @@ svgImage s = Image nullAttr [] (uri, "")
           factor = 1.3
       width  :: Float <- readMaybe $ decodeUtf8 $ B.drop 7 w
       height :: Float <- readMaybe $ decodeUtf8 $ B.drop 8 h
-      return $ ini <> "width=\"" <> (show (width * factor))
-            <> mid <> "height=\"" <> (show (height * factor)) <> rest
+      return $ ini <> "width=\"" <> show (width * factor)
+            <> mid <> "height=\"" <> show (height * factor) <> rest
 
 renderLaTeX :: (MonadUnliftIO m, MonadLogger m)
-  => Pandoc -> CacheT model m Pandoc
-renderLaTeX (Pandoc meta blocks) = do
-  Pandoc meta <$> (lift $ pooledWalk 8 wInlines =<< pooledWalk 8 wBlocks blocks)
+  => FilePath -> Pandoc -> CacheT model m Pandoc
+renderLaTeX dir (Pandoc meta blocks) = do
+  Pandoc meta <$> lift (pooledWalk 8 wInlines =<< pooledWalk 8 wBlocks blocks)
   where
     cachedSvgLaTeX :: (MonadLogger m, MonadUnliftIO m)
       => Text -> MReaderT Cache m ByteString
-    cachedSvgLaTeX = fmap (fromMaybe mempty) . fromCacheOrCompute (lift . (svgLaTeX $ getPreamble meta))
+    cachedSvgLaTeX = fmap (fromMaybe mempty)
+                     . fromCacheOrCompute
+                     (lift . svgLaTeX dir (getPreamble meta))
 
     wInlines :: (MonadUnliftIO m, MonadLogger m)
       => Inline -> MReaderT Cache m Inline
@@ -160,14 +163,14 @@ preambilizeKaTeX (Pandoc meta blks) = Pandoc meta . (: blks) <$> preamble
     filteredPreamble :: m Text
     filteredPreamble = do
       lines' <- unlines . (mathOp :) . filter filt . concat
-                <$> (mapM includeInput $ lines $ getPreamble meta)
-      return $ [text|
-                  <span class="math display">
-                  \[
-                  $lines'
-                  \]
-                  </span>
-               |]
+                <$> mapM includeInput (lines $ getPreamble meta)
+      return [text|
+                <span class="math display">
+                \[
+                $lines'
+                \]
+                </span>
+             |]
 
     includeInput :: Text -> m [Text]
     includeInput txt
@@ -175,8 +178,9 @@ preambilizeKaTeX (Pandoc meta blks) = Pandoc meta . (: blks) <$> preamble
           file <- runMaybeT $ do
             withNoPrefix <- hoistMaybe $ T.stripPrefix "\\input{" txt
             file <- hoistMaybe $ T.stripSuffix "}" $ T.stripEnd withNoPrefix
-            readFileLazy (toString file -<.> "tex")
-          return $ maybe [txt] (lines . decodeUtf8) file
+            dirs <- getResourcePath
+            hoistMaybe =<< readFileFromDirs dirs (toString file -<.> "tex")
+          return $ maybe [] lines file
       | otherwise = return [txt]
 
     filt :: Text -> Bool

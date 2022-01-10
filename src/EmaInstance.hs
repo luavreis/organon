@@ -9,6 +9,7 @@ import Models
 import System.FilePath
 import System.FilePattern ((?==), match)
 import Path
+import Locale
 
 modelIndependentDecoder :: FilePath -> Maybe R.Route
 modelIndependentDecoder fp =
@@ -20,7 +21,7 @@ modelIndependentDecoder fp =
       | "assets/css/*.css" ?== fixedFp ->
         Just $ R.Css (decodeSlug $ toText $ takeBaseName fixedFp)
       | "zettelkasten/*/index.html" ?== fixedFp ->
-        R.RoamPage <$> (UUID.fromString $ takeBaseName $ takeDirectory fixedFp)
+        R.RoamPage <$> UUID.fromString (takeBaseName $ takeDirectory fixedFp)
       | "blog/*/index.html" ?== fixedFp ->
         Just $ R.BlogPage (decodeSlug $ toText $ takeBaseName $ takeDirectory fixedFp)
       | "blog/*/*" ?== fixedFp ->
@@ -29,7 +30,11 @@ modelIndependentDecoder fp =
             Just $ R.BlogAsset (decodeSlug $ toText x) (decodeSlug $ toText y)
           _ -> Nothing
       | "**/index.html" ?== fixedFp ->
-        Just $ R.StructuralPage $ urlToPath fixedFp
+        let (mbLocale, fp') = break (== '/') fixedFp
+            page loc p = Just $ R.StructuralPage loc (urlToPath p)
+        in case toLocale mbLocale of
+          Just l -> page l (drop 1 fp')
+          Nothing -> page defLocale fixedFp
       | otherwise -> Nothing
   where
     fixedFp = if hasExtension fp
@@ -37,16 +42,24 @@ modelIndependentDecoder fp =
               else fp </> "index.html"
 
 instance Ema Model R.Route where
-  encodeRoute _model = \case
+
+  encodeRoute _l = \case
     R.BlogIndex           -> "blog/index.html"
     R.TagsListing         -> "tags/index.html"
-    R.TagPage t           -> "tags/" ++ t ++ ".html"
+    R.TagPage t           -> "tags" /> t <.> "html"
     R.RoamEntryPoint      -> "zettelkasten/index.html"
-    R.RoamPage uuid       -> "zettelkasten/" ++ UUID.toString uuid ++ "/index.html"
-    R.StructuralPage path -> pathToUrl path <> ".html"
-    R.BlogPage s          -> toString $ "blog/" <> unSlug s
-    R.BlogAsset s i       -> toString $ "blog/" <> unSlug s <> "/" <> unSlug i
-    R.Js s                -> toString $ "assets/js/"  <> unSlug s <> ".js"
-    R.Css s               -> toString $ "assets/css/" <> unSlug s <> ".css"
+    R.RoamPage uuid       -> "zettelkasten" /> UUID.toString uuid /> "index.html"
+    R.StructuralPage loc path
+      | loc == defLocale  -> pathToUrl path <.> "html"
+      | otherwise         -> localeAbbrev loc /> pathToUrl path <.> "html"
+    R.BlogPage s          -> "blog" /> tUnSlug s
+    R.BlogAsset s i       -> servingDir Blog /> tUnSlug s /> tUnSlug i
+    R.Js s                -> "assets/js"  /> tUnSlug s <.> "js"
+    R.Css s               -> "assets/css" /> tUnSlug s <.> "css"
+    where
+      tUnSlug = toString . unSlug
+      r /> s = r ++ "/" ++ s
+
   decodeRoute _ = modelIndependentDecoder
+
   allRoutes _model = []

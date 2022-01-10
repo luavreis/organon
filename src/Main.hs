@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, BlockArguments #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Main where
 
@@ -17,27 +17,7 @@ import Caching (cachedMountOnLVar)
 import Control.Monad.Trans.Writer.Strict
 import Control.Monad.Logger
 import PandocTransforms.Roam
-import qualified Data.Set as Set
 import Ema.Helper.FileSystem
-import Data.Binary
-
-data Source
-  = Layout
-  | Blog
-  | Content
-  | Zettel
-  deriving (Eq,Ord,Show,Enum,Bounded,Generic)
-
-instance Binary Source
-
-mountPoint :: IsString p => Source -> p
-mountPoint Zettel = "/home/lucas/Lucas/notas"
-mountPoint Blog = "/home/lucas/Lucas/blog"
-mountPoint Content = "content"
-mountPoint Layout = "assets/html"
-
-mountSet :: Set (Source, FilePath)
-mountSet = Set.fromList [(s, mountPoint s) | s <- [minBound .. maxBound]]
 
 filesToInclude :: [(MarkupFormat, FilePattern)]
 filesToInclude =
@@ -65,34 +45,38 @@ main =
       case src of
         Content -> do
           let path = urlToPath $
-                    if takeBaseName fp == "index"
-                    then fp -<.> "html"
-                    else dropExtension fp </> "index.html"
+                    if twice takeBaseName fp == "index"
+                    then dropExtensions fp <.> "html"
+                    else dropExtensions fp </> "index.html"
+              locale = drop 1 (takeExtensions fp)
+                       & takeWhile (/= '.')
+                       & fromMaybe defLocale . toLocale
           \case
             Refresh _ () -> do
               fileText <- readFileText realFp
-              (title, body) <- convertIO realFp fmt fileText
+              (title, body) <- convertIO realFp Content fmt fileText
               warnNullTitle title fp
-              tell $ insertSP path (StructuralPage title body)
-            Delete -> tell $ deleteSP path
+              tell $ insertSP path locale (StructuralPage title body)
+            Delete -> tell $ deleteSP path locale
 
         Blog -> do
-          let baseName = takeBaseName fp
-              hasDate = baseName =~ ("^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-" :: String)
-              date = if hasDate
-                    then DT.parseTimeOrError False ptTimeLocale "%Y-%m-%d" (take 10 baseName)
-                    else DT.ModifiedJulianDay 1
-              slug = E.decodeSlug $ toText if hasDate
-                                          then drop 10 baseName
-                                          else baseName
-          \case
-            Refresh _ () -> do
-              fileText <- readFileText realFp
-              (title, body) <- convertIO realFp fmt fileText
-              warnNullTitle title fp
-              tell $ insertBP slug (BlogPost title body date)
-            Delete -> tell $ deleteBP slug
-
+          if fmt /= Html then do
+            let baseName = takeBaseName fp
+                hasDate = baseName =~ ("^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}-" :: String)
+                date = if hasDate
+                      then DT.parseTimeOrError False ptTimeLocale "%Y-%m-%d" (take 10 baseName)
+                      else DT.ModifiedJulianDay 1
+                slug = E.decodeSlug $ toText if hasDate
+                                            then drop 11 baseName
+                                            else baseName
+            \case
+              Refresh _ () -> do
+                fileText <- readFileText realFp
+                (title, body) <- convertIO realFp Blog fmt fileText
+                warnNullTitle title fp
+                tell $ insertBP slug (BlogPost title body date)
+              Delete -> tell $ deleteBP slug
+          else \_ -> pure ()
         Zettel -> \case
           Refresh _ () -> do
             fileText <- readFileText realFp
@@ -106,6 +90,7 @@ main =
             tell $ insertL (takeBaseName fp) txt
           Delete -> tell $ deleteL (takeBaseName fp)
   where
+    twice f = f . f
     warnNullTitle title fp =
       when (T.null title) $
-        logWarnN $ "File " <> (toText fp) <> " has empty title."
+        logWarnN $ "File " <> toText fp <> " has empty title."

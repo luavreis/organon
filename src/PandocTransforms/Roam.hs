@@ -10,7 +10,6 @@ import PandocTransforms.Links
 import Control.Monad.Trans.Writer.Strict
 import Data.UUID.Types as UUID (UUID, fromText)
 import System.FilePath
-import UnliftIO.Directory
 import Caching
 import Text.Pandoc.Citeproc
 import qualified Data.Text as T
@@ -22,10 +21,11 @@ processRoam
   :: forall m. (MonadLogger m)
   => Pandoc -> CacheT Model m ()
 processRoam (Pandoc meta blocks) = do
-  foldMapM processDiv $ makeSections False Nothing blocks
+  let blocks' = makeSections False Nothing blocks
+  foldMapM processDiv blocks'
   case lookupMeta "id" meta of
     Just (MetaString uuid) ->
-      uuidOrUnit (addToModel blocks) $ Just uuid
+      uuidOrUnit (addToModel blocks') $ Just uuid
     _ -> pure ()
 
   where
@@ -53,7 +53,7 @@ processRoam (Pandoc meta blocks) = do
 
     processLinks :: [Block] -> Writer [(UUID, Text)] [Block]
     processLinks =
-      mapM (mapWriter mapper . (walkM processLink))
+      mapM (mapWriter mapper . walkM processLink)
       where
         mapper :: (Block, [UUID]) -> (Block, [(UUID, Text)])
         mapper ~(b, xs) =
@@ -80,28 +80,18 @@ convertRoam
 convertRoam fp txt = do
   let dir = takeDirectory fp
 
-  originalDir <- getCurrentDirectory
+  doc <- liftIO $ runIOorExplode $ do
+    setResourcePath [".", dir]
+    parsed <- readOrg readerOptions [(dir, txt)]
+              <&> applyTransforms
+              <&> setOrgVars
+              <&> walk (fixLinks dir) -- Maybe we should move this out of this function and instead take a list of transforms
+              >>= preambilizeKaTeX
+    if isJust . lookupMeta "bibliography" . getMeta $ parsed
+    then processCitations parsed
+    else pure parsed
 
-  tree <- liftIO $ do
-    addToFileTree mempty "data/citstyle.csl"
-    <* setCurrentDirectory dir
-    >>= flip addToFileTree "."
-
-  let doc = runPure $ do
-        modifyPureState $ \ps -> ps { stFiles = tree }
-        parsed <- readOrg readerOptions txt
-                  <&> applyTransforms
-                  <&> setOrgVars
-                  <&> walk (fixLinks dir) -- Maybe we should move this out of this function and instead take a list of transforms
-                  >>= preambilizeKaTeX
-        if isJust . lookupMeta "bibliography" . getMeta $ parsed
-        then processCitations parsed
-        else pure parsed
-  case doc of
-    Left e -> logErrorNS "Pandoc conversion" (renderError e)
-    Right p -> processRoam =<< renderLaTeX p
-
-  setCurrentDirectory originalDir
+  processRoam =<< renderLaTeX dir doc
 
   where
     applyTransforms p = foldr ($) p transforms

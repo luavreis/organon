@@ -4,3 +4,13 @@ source-repository-package
     type: git
     location: https://github.com/srid/ema.git
     tag: cf511420d164b8e663314a51d03749d93d347c84
+
+source-repository-package
+    type: git
+    location: https://github.com/jgm/pandoc.git
+    tag: a0f9467b907c68e66a26a704b34ee7732b8145d0
+
+source-repository-package
+    type: git
+    location: https://github.com/jgm/ipynb.git
+    tag: 00246af10885c2ad4413ace4f69a7e6c88297a08

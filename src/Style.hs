@@ -42,27 +42,6 @@ foot = do
     borderStyle none
     textDecoration underline
 
-sidebar :: Css
-sidebar = do
-  "#sidebar" ? do
-    position absolute
-    top (px 40)
-    width (other "calc(max(150px, 80px + 10%))") -- TODO transformar em haskell
-    padding (px 20) 20 0 0
-    borderRight solid (px 1) "#ccc"
-    textAlign end
-    ul ? do
-      listStyleType none
-      margin (px 20) 0 20 0
-      lineHeight (px 30)
-      a ? do
-        fontSize (px 18)
-        fontWeight (weight 500)
-    ".dark-mode" ? do
-      position fixed
-      bottom (px 50)
-      left (px 50)
-
 katex :: Css
 katex = do
   span # ".math" ? do
@@ -81,14 +60,34 @@ definitionList = do
     float floatLeft
     clear clearLeft
     marginRight (px 5)
-    fontWeight bold
+    fontWeight (weight 500)
+    background beige
+    color (setA 0.8 black)
+
+  dl ? do
+    marginLeft (em 1)
+    marginTop (em 0.5)
+    marginBottom (em 0.5)
 
   dt # after ? do
     content (stringContent " ::")
 
   dd ? do
     marginLeft (px 20)
+    marginBottom (em 0.4)
 
+images :: Css
+images = do
+  img ? do
+    marginLeft auto
+    marginRight auto
+    maxWidth (pct 70)
+
+  p ** img # onlyChild ? do
+    display block
+
+  figure ** img ?
+    display block
 
 mainStyle :: Css
 mainStyle = do
@@ -107,7 +106,6 @@ mainStyle = do
   transP hr "background-color" 1
   transP (body <> pre) "background" 1
   transP (img # ("src" @= "svg")) "filter" 2
-  transP ("#sidebar" <> ".comment") "border-color" 1
 
   ".center" ? do
     textAlign center
@@ -124,9 +122,13 @@ mainStyle = do
   a ? do
     textDecoration none
     fontWeight (weight 400)
-  a # link <> a # visited ?
-    color "#7fa31a"
-  a # hover ? color "#df8427"
+  a # link <> a # visited <> a # hover ? do
+    background (setA 0.8 moccasin)
+    color (setA 0.8 black)
+
+  ".block" ? do
+    display inlineBlock
+    maxWidth (px 340)
 
   aside ? do
     fontSize (pct 85)
@@ -136,13 +138,16 @@ mainStyle = do
   "#main" ? do
     fontSize (px 18)
     position relative
-    width (other "calc(85% - 150px)")
+    width (pct 90)
+    maxWidth (px 700)
     minHeight (vh 80)
+    paddingLeft (pct 5)
+    paddingRight (pct 5)
     top (px 40)
-    left (other "calc(100px + 15%)")
+    margin__ (px 0) auto
 
     h1 ? do
-      fontSize (px 46)
+      fontSize (px 36)
       fontWeight normal
       fontStyle italic
       letterSpacing (px (-0.2))
@@ -160,13 +165,17 @@ mainStyle = do
       fontSize (px 22)
       fontWeight (weight 500)
 
+    h4 ? do
+      marginTop (px 10)
+      fontSize (px 20)
+      fontWeight (weight 500)
+
     p ? do
       margin__ (px 10) 0
       lineHeight (em 1.4)
 
     a # link <> a # visited ? do
       textDecoration underline
-      color (other "unset")
 
     strong ? fontWeight (weight 500)
 
@@ -182,13 +191,8 @@ mainStyle = do
       content (stringContent "~")
       margin__ 0 (px 8)
 
-    img ? do
-      maxWidth (pct 100)
-      marginLeft auto
-      marginRight auto
-
-    p ** img # onlyChild ? do
-      display block
+    ol ** li ? do
+      marginBottom (em 0.4)
 
     figcaption ? textAlign center
 
@@ -260,20 +264,7 @@ mainStyle = do
       background (other "none" :: Color)
     button # hover ? background ("#ccc3" :: Color)
 
-  query Clay.all [M.minWidth (other "calc(720px / 0.85)")] do
-    "#main" ? width (px 600)
-
   query Clay.all [M.maxWidth (px 700)] do
-    "#main" ? do
-      width (other "unset")
-      left (px 0)
-      top (px 10)
-      paddingLeft (pct 5)
-      paddingRight (pct 5)
-
-    "#sidebar" ? do
-      display none
-
     header ? do
       display flex
 
@@ -297,8 +288,8 @@ styleT :: LText
 styleT = renderWith compact [] $ do
   mainStyle
   definitionList
+  images
   foot
-  sidebar
   katex
   citationsCss
   darkStyle

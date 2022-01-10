@@ -37,6 +37,9 @@ executable site
                     -j8
                     -Wall
                     -Wno-orphans
+                    -- -prof
+                    -- -fprof-auto
+                    -- -fprof-cafs
 
   mixins:
     base hiding (Prelude),
@@ -72,3 +75,4 @@ executable site
     PandocTransforms.Links
     PandocTransforms.Emojis
     PandocTransforms.Roam
+    PandocTransforms.Widgets

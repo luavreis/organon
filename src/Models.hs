@@ -13,15 +13,41 @@ import Data.Binary
 import Data.Tree
 import Relude.Extra.Map (delete, insert)
 import qualified Data.UUID.Types as UUID
+import Locale
 
 type Path = [Slug]
+
+data Source
+  = Layout
+  | Blog
+  | Content
+  | Zettel
+  deriving (Eq,Ord,Show,Enum,Bounded,Generic)
+
+instance Binary Source
+
+mountPoint :: IsString p => Source -> p
+mountPoint Zettel = "/home/lucas/Lucas/notas"
+mountPoint Blog = "/home/lucas/Lucas/blog"
+mountPoint Content = "content"
+mountPoint Layout = "assets/html"
+
+servingDir :: IsString p => Source -> p
+servingDir Zettel = "zettelkasten"
+servingDir Blog = "blog"
+servingDir Content = ""
+servingDir Layout = ""
+
+mountSet :: Set (Source, FilePath)
+mountSet = Set.fromList [(s, mountPoint s) | s <- [Layout, Content, Blog, Zettel]]
+
 
 class HtmlPage a where
   title :: a -> Text
   body  :: a -> Html ()
 
 data StructuralPage = StructuralPage { pageTitle :: Text, pageBody :: Text }
-  deriving (Show, Generic)
+  deriving (Generic, Eq, Ord)
 
 instance HtmlPage StructuralPage where
   title = pageTitle
@@ -30,7 +56,7 @@ instance HtmlPage StructuralPage where
     toHtmlRaw $ pageBody page
 
 data BlogPost = BlogPost { postTitle :: Text, postBody :: Text, date :: Day }
-  deriving (Show, Generic)
+  deriving (Generic, Eq, Ord)
 
 instance HtmlPage BlogPost where
   title = postTitle
@@ -43,10 +69,9 @@ data RoamBacklink = RoamBacklink
   , backlinkTitle :: Text
   , backlinkExcerpt :: Text
   }
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Eq, Ord, Generic)
 
 -- | map (uuid of page x) -> list of (uuid, excerpt) of x's backlinks
--- The reason I'm using two maps is because they are built in somewhat different contexts
 type RoamDatabase = Map UUID (Set RoamBacklink)
 
 instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
@@ -54,7 +79,6 @@ instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
   body (page, mbacklinks) = do
     h1_ (toHtmlRaw $ postTitle page)
     toHtmlRaw $ postBody page
-    hr_ []
     h2_ "Backlinks"
     case mbacklinks of
       Just backlinks ->
@@ -67,13 +91,13 @@ instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
 data Model = Model
   { name :: Text,
     fileStructure :: Tree Slug,
-    structuralPages :: Map Path StructuralPage,
+    structuralPages :: Map Path (Localized StructuralPage),
     blogPosts :: Map Slug BlogPost,
     layouts :: Map String Text,
     roamPosts :: Map UUID BlogPost,
     roamDatabase :: RoamDatabase,
     roamAssoc :: Map FilePath [UUID] }
-  deriving (Show, Generic)
+  deriving (Generic)
 
 -- Probably I should use something like lens... I know nothing about it
 insertL :: String -> Text -> Endo Model
@@ -81,10 +105,10 @@ insertL k v = Endo \m -> m { layouts = insert k v (layouts m) }
 deleteL :: String -> Endo Model
 deleteL k = Endo \m -> m { layouts = delete k (layouts m) }
 
-insertSP :: [Slug] -> StructuralPage -> Endo Model
-insertSP k v = Endo \m -> m { structuralPages = insert k v (structuralPages m) }
-deleteSP :: [Slug] -> Endo Model
-deleteSP k = Endo \m -> m { structuralPages = delete k (structuralPages m) }
+insertSP :: Path -> Locale -> StructuralPage -> Endo Model
+insertSP k l v = Endo \m -> m { structuralPages = Map.insertWith Map.union k (Map.singleton l v) (structuralPages m) }
+deleteSP :: Path -> Locale -> Endo Model
+deleteSP k l = Endo \m -> m { structuralPages = Map.adjust (delete l) k (structuralPages m) }
 
 insertBP :: Slug -> BlogPost -> Endo Model
 insertBP k v = Endo \m -> m { blogPosts = insert k v (blogPosts m) }
@@ -112,7 +136,7 @@ addToRD k v =
   let mappedv = Map.map Set.fromList $ Map.fromListWith (++) v
   in Endo \m -> m { roamDatabase = roamDatabase m
                                    & mapDeleteRD [k]
-                                   & Map.unionWith (Set.union) mappedv}
+                                   & Map.unionWith Set.union mappedv}
 
 deleteFromRD :: FilePath -> Endo Model
 deleteFromRD fp =
@@ -128,6 +152,7 @@ instance Binary Slug
 instance Binary StructuralPage
 instance Binary BlogPost
 instance Binary RoamBacklink
+instance Binary Locale
 instance Binary Model
 
 defaultModel :: Model

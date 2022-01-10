@@ -68,6 +68,7 @@ readerOptions = def {
       extensionsFromList
       [ Ext_citations
       , Ext_smart
+      , Ext_fancy_lists
       ]
   }
 

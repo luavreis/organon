@@ -7,7 +7,7 @@ import qualified Data.Text as T
 
 fixLink' :: FilePath -> Text -> Text
 fixLink' root p =
-  if isAbsolute (toString p)
+  if isAbsolute (toString p) || isURI p
   then p
   else toText (normalise $ root </> toString p)
 

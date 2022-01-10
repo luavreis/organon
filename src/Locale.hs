@@ -1,6 +1,29 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Locale where
 
 import Data.Time
+
+data Locale
+  = Portuguese
+  | English
+  deriving (Show, Enum, Bounded, Eq, Ord, Generic)
+
+localeAbbrev :: Locale -> String
+localeAbbrev Portuguese = "pt"
+localeAbbrev English = "en"
+
+defLocale :: Locale
+defLocale = Portuguese
+
+toLocale :: String -> Maybe Locale
+toLocale "pt" = Just Portuguese
+toLocale "en" = Just English
+toLocale _ = Nothing
+
+allValues :: (Bounded a, Enum a) => [a]
+allValues = [minBound..maxBound]
+
+type Localized a = Map Locale a
 
 ptTimeLocale :: TimeLocale
 ptTimeLocale =

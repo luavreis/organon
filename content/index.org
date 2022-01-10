@@ -1,10 +1,6 @@
-#+title: Olá
-:properties:
-:uuid: principal
-:emoji: t
-:end:
+#+title: lucasvreis
 
-Bem vindos! 🙂
+Essa é a minha página pessoal. Bem vindos! 🙂
 
 Algumas coisas para se fazer aqui:
 - [[http:blog][Postagens do blog]]
@@ -14,3 +10,24 @@ Alguns links de fora:
 
 Orgulhosamente feito com Haskell.
 
+#+begin_block
+Joined late in the project loined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+#+end_block
+
+#+begin_block
+Joined late in the project loined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+Joined late in the project
+#+end_block

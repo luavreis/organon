@@ -13,12 +13,12 @@ import UnliftIO.Directory (doesFileExist)
 import qualified Data.HashMap.Strict as HMap
 import System.FilePattern (FilePattern, (?==))
 import Data.Binary.Instances.UnorderedContainers ()
-import UnliftIO (readTBQueue, newTBQueueIO, race, TBQueue, BufferMode (BlockBuffering, LineBuffering), hSetBuffering, hFlush)
+import UnliftIO (readTBQueue, newTBQueueIO, race, TBQueue, BufferMode (BlockBuffering, LineBuffering), hSetBuffering, hFlush, finally)
 import Data.Binary (Binary, encode, decode, decodeFileOrFail, encodeFile)
 
 type CacheMap = HashMap LByteString LByteString
 
-type Cache = (CacheMap, Set LByteString, Bool)
+type Cache = (CacheMap, Set LByteString)
 
 type CacheT model m = WriterT (Endo model) (StateT Cache m)
 
@@ -37,8 +37,8 @@ lookupCache
   => a -> m (Maybe b)
 lookupCache k = do
   let kbs = encode k
-  ~(hmap, _, _) <- get
-  modify (\ ~(x,y,z) -> (x, Set.insert kbs y, z))
+  ~(hmap, _) <- get
+  modify (\ ~(x,y) -> (x, Set.insert kbs y))
   return $ fmap decode (HMap.lookup kbs hmap)
 
 fromCacheOrCompute
@@ -57,7 +57,7 @@ fromCacheOrCompute f x = do
       f x >>= \case
         Nothing -> return Nothing
         Just y -> do
-          modify (\ ~(cache, bookkeeper, _) -> (HMap.insert (encode x) (encode y) cache, bookkeeper, True))
+          modify (\ ~(cache, bookkeeper) -> (HMap.insert (encode x) (encode y) cache, bookkeeper))
           return $ Just y
 
 cachedMountOnLVar
@@ -88,38 +88,44 @@ cachedMountOnLVar sources pats ignore model0 handleAction modelLVar = do
           Left (_, e) -> do
             logErrorNS "Caching" $ "Failed to decode website.cache:\n" <> (toText e)
             pure mempty
-          Right (c :: CacheMap) -> pure c
+          Right (c :: (CacheMap, Set (LByteString, FilePath))) -> pure c
     else do
       logInfoNS "Caching" "website.cache does not exist. A new one will be created"
       pure mempty
 
-  mcmd <- disjointUnionMount sources pats ignore $ \changes -> do
+  let loop = disjointUnionMount sources pats ignore $ \changes -> do
 
-    previousCache <- takeMVar cacheVar
+        previousCache <- takeMVar cacheVar
 
-    (updateModel, unfilteredCache) <-
-      runCacheT (mapM (\ ~(x,y,z,w) -> handleAction x y z w) changes)
-                (previousCache, mempty, False)
-      & interceptExc
+        (updateModel, unfilteredCache) <-
+          runCacheT (mapM (\ ~(x,y,z,w) -> handleAction x y z w) changes)
+                    (fst previousCache, mempty)
+          & interceptExc
 
-    let filteredCache = filterCache unfilteredCache
-        newCache = filteredCache
-        (hmap, _, modf) = unfilteredCache
-        modified = modf || HMap.size filteredCache < HMap.size hmap
+        let updatedFilepaths = map (\ ~(_,y,_,_) -> y) changes
+            (hmap, usedKeys) = unfilteredCache
+            newBookeeper = snd previousCache
+                          & Set.filter (\ ~(k, fp) ->
+                                            fp `notElem` updatedFilepaths
+                                            || k `Set.member` usedKeys)
+                          & Set.union (Set.cartesianProduct usedKeys (fromList updatedFilepaths))
+            filteredCache = HMap.filterWithKey (\ ~ k _ -> any (\ ~(bk, _) -> k == bk) newBookeeper) hmap
+            newCache = (filteredCache, newBookeeper)
 
-    atomically (takeTMVar initialized) >>= \case
-      False -> do
-        LVar.set modelLVar $ updateModel model0
-      True -> do
-        LVar.modify modelLVar updateModel
+        atomically (takeTMVar initialized) >>= \case
+          False -> do
+            LVar.set modelLVar $ updateModel model0
+          True -> do
+            LVar.modify modelLVar updateModel
 
-    putMVar cacheVar newCache
+        putMVar cacheVar newCache
 
-    when modified $
-      liftIO $ encodeFile "website.cache" newCache
+        atomically $ putTMVar initialized True
+        pure Nothing
 
-    atomically $ putTMVar initialized True
-    pure Nothing
+  mcmd <- finally loop $ do
+    logInfoN "Saving cache..."
+    liftIO $ encodeFile "website.cache" =<< readMVar cacheVar
 
   whenJust mcmd $ \Cmd_Remount -> do
     logInfoNS "Mounting" "!! Remount suggested !!"
@@ -127,9 +133,6 @@ cachedMountOnLVar sources pats ignore model0 handleAction modelLVar = do
     cachedMountOnLVar sources pats ignore model0 handleAction modelLVar
 
   where
-    filterCache :: Cache -> CacheMap
-    filterCache (hmap, bookkeeper, _) = HMap.filterWithKey (const . flip Set.member bookkeeper) hmap
-
     interceptExc mt = do
       ~(f, c) <- mt
       f' <- interceptExceptions id (pure f)

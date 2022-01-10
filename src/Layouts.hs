@@ -4,12 +4,10 @@ module Layouts where
 
 import Lucid
 import Lucid.Base (makeAttribute)
-import Routes
 import Models
 import EmaInstance ()
 import Data.Map ((!))
 import Data.Text as T
-import qualified Ema as E
 
 twemoji :: Text -> Html ()
 twemoji t = i_ [class_ $ "twa twa-" <> t] ""
@@ -59,26 +57,11 @@ foot =
       "Boids"
       twemoji "bird"
 
-
-navUl :: Model -> Html ()
-navUl m = ul_ $ forM_ topLevel \
-  t -> li_ $ a_ [href_ $ toText $ E.routeUrl m $ snd t] $ toHtml $ fst t
-
 primary :: Model -> Html () -> Html () -> Html ()
-primary model docHead content =
+primary _ docHead content =
   doctypehtml_ $
   html_ [lang_ "pt-br"] do
     docHead
     body_ do
       canvas_ [style_ "position:fixed; top:0; left:0; z-index:-1;", id_ "fundo"] ""
-      header_ do
-        blogname
-        darkbutton
-        nav_ (navUl model <> object_ [id_ "menu-icon", obdata_ "/assets/icons/hamburger.svg", type_ "image/svg+xml"] "Menu")
       div_ [id_ "main"] (content <> foot)
-      div_ [id_ "sidebar"] (blogname <> navUl model <> darkbutton)
-  where
-    blogname = h2_ [class_ "blog-name"] (a_ [href_ "/"] (toHtml (name model)))
-    darkbutton = div_ [class_ "dark-mode"] $
-                 button_ [onclick_ "darkToggle()"] $
-                   object_ [obdata_ "/assets/icons/darkmode.svg", type_ "image/svg+xml"] "Dark"

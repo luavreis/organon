@@ -5,13 +5,12 @@ import PandocTransforms.Utilities hiding (getModificationTime)
 import PandocTransforms.LaTeX
 import PandocTransforms.Org
 import PandocTransforms.Links
-import PandocTransforms.Emojis
 import Caching
 import Text.Pandoc.Citeproc (processCitations)
 import UnliftIO (MonadUnliftIO)
-import UnliftIO.Directory
 import System.FilePath
 import Control.Monad.Logger
+import qualified Models as M
 
 -- | Types
 
@@ -26,8 +25,7 @@ data MarkupFormat
 
 transforms :: [Pandoc -> Pandoc]
 transforms =
-  [ walk convertEmojis
-  , headerShift 1
+  [ headerShift 1
   , setMetaP "lang" "pt-BR"
   , setMetaP "csl" "data/citstyle.csl"
   ]
@@ -35,37 +33,24 @@ transforms =
 convertIO
   :: (MonadUnliftIO m, MonadLogger m)
   => FilePath
+  -> M.Source
   -> MarkupFormat
   -> Text
   -> CacheT model m (Text, Text)
-convertIO fp ext fileText = do
+convertIO fp src _ fileText = do
   let dir = takeDirectory fp
-      -- We use those two directories by convention.
-      impDir = dir </> "imports"
-      impDir' = dir </> takeBaseName fp
-      linkDir = maybe dir takeDirectory (stripFilePrefix "content" fp)
 
-  dirExists <- doesDirectoryExist impDir
-  originalDir <- getCurrentDirectory
+  doc' <- liftIO $ runIOorExplode $ do
+    setResourcePath [".", dir]
+    parsed <- readOrg readerOptions [(fp, fileText)]
+              <&> applyTransforms
+              <&> setOrgVars
+              <&> walk (fixLinks $ M.servingDir src)
+    if isJust . lookupMeta "bibliography" . getMeta $ parsed
+    then processCitations parsed
+    else pure parsed
 
-  tree <- liftIO $ do
-          t <- addToFileTree mempty "data/citstyle.csl"
-          setCurrentDirectory dir
-          if dirExists
-          then addToFileTree t "imports"
-          else pure t
-
-  doc <- renderLaTeX $ fromRight (error "") . runPure $ do
-        modifyPureState $ \ps -> ps { stFiles = tree }
-        parsed <- readOrg readerOptions fileText
-                  <&> applyTransforms
-                  <&> setOrgVars
-                  <&> walk (fixLinks linkDir) -- Maybe we should move this out of this function and instead take a list of transforms
-        if isJust . lookupMeta "bibliography" . getMeta $ parsed
-        then processCitations parsed
-        else pure parsed
-
-  setCurrentDirectory originalDir
+  doc <- renderLaTeX dir doc'
 
   let result = do
         let meta = getMeta doc
