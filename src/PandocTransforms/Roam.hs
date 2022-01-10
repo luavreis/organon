@@ -8,7 +8,6 @@ import PandocTransforms.LaTeX
 import PandocTransforms.Emojis
 import PandocTransforms.Links
 import Control.Monad.Trans.Writer.Strict
-import Data.UUID.Types as UUID (UUID, fromText)
 import System.FilePath
 import Caching
 import Text.Pandoc.Citeproc
@@ -25,12 +24,10 @@ processRoam (Pandoc meta blocks) = do
   foldMapM processDiv blocks'
   case lookupMeta "id" meta of
     Just (MetaString uuid) ->
-      uuidOrUnit (addToModel blocks') $ Just uuid
+      maybe (pure ()) (addToModel blocks') $ Just uuid
     _ -> pure ()
 
   where
-    uuidOrUnit f uuid = maybe (pure ()) f $ UUID.fromText =<< uuid
-
     addToModel blks uuid = do
       let (blks', bklinks) = runWriter $ processLinks blks
           result = do
@@ -48,7 +45,7 @@ processRoam (Pandoc meta blocks) = do
     processDiv (Div (_, "section":_, kvs) blks)
       | any ((== "id") . fst) kvs =
           viaNonEmpty head (map snd $ filter ((== "id") . fst) kvs)
-          & uuidOrUnit (addToModel blks)
+          & maybe (pure ()) (addToModel blks)
     processDiv _ = pure ()
 
     processLinks :: [Block] -> Writer [(UUID, Text)] [Block]
@@ -64,11 +61,10 @@ processRoam (Pandoc meta blocks) = do
     processLink (Link attr alt (url, titl)) =
       let same = pure $ Link attr alt (url, titl)
       in case T.breakOn ":" url of
-        ("id", uid) -> case UUID.fromText $ T.tail uid of
-          Just uuid -> do
-            tell [uuid]
-            return $ Link attr alt ("/zettelkasten/" <> T.tail uid, titl)
-          Nothing -> same
+        ("id", uid) -> do
+          let uuid = T.tail uid
+          tell [uuid]
+          return $ Link attr alt ("/zettelkasten/" <> uuid, titl)
         _ -> same
     processLink x = pure x
 

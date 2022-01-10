@@ -5,6 +5,7 @@
 module Render where
 
 import Models
+import RoamGraph
 import System.FilePath ((</>))
 import qualified Routes as R
 import qualified Layouts as L
@@ -15,6 +16,7 @@ import Data.Map (lookup, assocs)
 import Data.Time (formatTime)
 import Locale (ptTimeLocale)
 import Lucid
+import Data.Aeson
 
 data SimplePage = SimplePage { simpleTitle :: Text, simpleBody :: Html () }
 
@@ -66,4 +68,5 @@ render _ m (R.RoamPage uuid)       = pageOrnotFound m $
                                      <$> lookup uuid (roamPosts m)
 render _ m (R.BlogPage slug)       = pageOrnotFound m $ lookup slug $ blogPosts m
 render _ m  R.BlogIndex            = applyDefaultLayout m $ blogIndex m
+render _ m  R.RoamGraphJSON        = E.AssetGenerated E.Other $ encode $ buildRoamGraph m
 render _ m _ = applyDefaultLayout m $ StructuralPage "Oh no!" "Not implemented."

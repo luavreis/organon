@@ -27,7 +27,7 @@ head m = head_ do
   base_ [href_ "/"]
   meta_ [charset_ "utf-8"]
   meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
-  title_ (toHtml $ name m) -- + título do post TODO
+  title_ (toHtml $ siteName m) -- + título do post TODO
   css "twemoji"
   css "stylesheet"
   css "latex"

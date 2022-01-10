@@ -2,7 +2,6 @@
 module Models where
 
 import Ema (Slug, decodeSlug)
-import Data.UUID.Types (UUID)
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -12,8 +11,9 @@ import Data.Binary.Instances.Time ()
 import Data.Binary
 import Data.Tree
 import Relude.Extra.Map (delete, insert)
-import qualified Data.UUID.Types as UUID
 import Locale
+
+type UUID = Text
 
 type Path = [Slug]
 
@@ -83,13 +83,13 @@ instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
     case mbacklinks of
       Just backlinks ->
         forM_ backlinks $ \bl -> do
-          h3_ $ a_ [href_ $ "zettelkasten/" <> UUID.toText (backlinkUUID bl)] $ -- TODO link should not be hardcoded
+          h3_ $ a_ [href_ $ "zettelkasten/" <> backlinkUUID bl] $ -- TODO link should not be hardcoded
             toHtmlRaw $ backlinkTitle bl
           toHtmlRaw $ backlinkExcerpt bl
       Nothing -> p_ $ i_ "No backlinks."
 
 data Model = Model
-  { name :: Text,
+  { siteName :: Text,
     fileStructure :: Tree Slug,
     structuralPages :: Map Path (Localized StructuralPage),
     blogPosts :: Map Slug BlogPost,

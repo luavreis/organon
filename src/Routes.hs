@@ -1,9 +1,9 @@
 module Routes where
 
 import Ema (Slug)
-import Data.UUID.Types (UUID)
 import Path
 import Locale
+import Models (UUID)
 
 type AssetID = Slug
 
@@ -13,6 +13,7 @@ data Route
   | BlogPage Slug
   | BlogAsset Slug AssetID
   | RoamEntryPoint
+  | RoamGraphJSON
   | RoamPage UUID
   | TagsListing
   | TagPage Tag

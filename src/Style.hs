@@ -149,7 +149,7 @@ mainStyle = do
     h1 ? do
       fontSize (px 36)
       fontWeight normal
-      fontStyle italic
+      -- fontStyle italic
       letterSpacing (px (-0.2))
 
     h2 ? do

@@ -10,6 +10,49 @@ Alguns links de fora:
 
 Orgulhosamente feito com Haskell.
 
+#+begin_export html
+<script src="//unpkg.com/force-graph"></script>
+<div id="graph"></div>
+<script>
+var url = '/zettelkasten/graph.json';
+var Graph = ForceGraph()(document.getElementById('graph'))
+  .cooldownTicks(100);
+
+fetch(url)
+.then(res => res.json())
+.then(out => {
+Graph.graphData(out)
+     .d3Force('center', null)
+     .onEngineStop(() => Graph.zoomToFit(400));
+}
+);
+</script>
+#+end_export
+
+#+begin_export html
+<style>
+input[type=checkbox] {
+  display: none;
+}
+
+.container img {
+  transition: transform 0.25s ease;
+  cursor: zoom-in;
+}
+
+input[type=checkbox]:checked ~ label > img {
+  transform: scale(2);
+  cursor: zoom-out;
+}
+</style>
+<div class="container">
+  <input type="checkbox" id="zoomCheck">
+  <label for="zoomCheck">
+    <img src="https://via.placeholder.com/200">
+  </label>
+</div>
+#+end_export
+
 #+begin_block
 Joined late in the project loined late in the project
 Joined late in the project

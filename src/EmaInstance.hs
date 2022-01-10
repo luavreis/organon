@@ -4,7 +4,6 @@ module EmaInstance where
 
 import Ema
 import qualified Routes as R
-import qualified Data.UUID.Types as UUID
 import Models
 import System.FilePath
 import System.FilePattern ((?==), match)
@@ -17,11 +16,12 @@ modelIndependentDecoder fp =
     "blog/index.html" -> Just R.BlogIndex
     "tags/index.html" -> Just R.TagsListing
     "zettelkasten/index.html" -> Just R.RoamEntryPoint
+    "zettelkasten/graph.json" -> Just R.RoamGraphJSON
     _
       | "assets/css/*.css" ?== fixedFp ->
         Just $ R.Css (decodeSlug $ toText $ takeBaseName fixedFp)
       | "zettelkasten/*/index.html" ?== fixedFp ->
-        R.RoamPage <$> UUID.fromString (takeBaseName $ takeDirectory fixedFp)
+        Just $ R.RoamPage (toText $ takeBaseName $ takeDirectory fixedFp)
       | "blog/*/index.html" ?== fixedFp ->
         Just $ R.BlogPage (decodeSlug $ toText $ takeBaseName $ takeDirectory fixedFp)
       | "blog/*/*" ?== fixedFp ->
@@ -48,7 +48,8 @@ instance Ema Model R.Route where
     R.TagsListing         -> "tags/index.html"
     R.TagPage t           -> "tags" /> t <.> "html"
     R.RoamEntryPoint      -> "zettelkasten/index.html"
-    R.RoamPage uuid       -> "zettelkasten" /> UUID.toString uuid /> "index.html"
+    R.RoamGraphJSON       -> "zettelkasten/graph.json"
+    R.RoamPage uuid       -> "zettelkasten" /> toString uuid /> "index.html"
     R.StructuralPage loc path
       | loc == defLocale  -> pathToUrl path <.> "html"
       | otherwise         -> localeAbbrev loc /> pathToUrl path <.> "html"

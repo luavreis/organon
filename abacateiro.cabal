@@ -5,7 +5,8 @@ version:            0.1.0.0
 executable site
   main-is:          Main.hs
   hs-source-dirs:   src
-  build-depends:    binary
+  build-depends:    aeson
+                  , binary
                   , binary-instances
                   , base
                   , bytestring
@@ -66,6 +67,7 @@ executable site
     EmaInstance
     Layouts
     Style
+    RoamGraph
     Path
     Locale
     PandocTransforms
