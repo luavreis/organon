@@ -89,6 +89,52 @@ images = do
   figure ** img ?
     display block
 
+lists :: Css
+lists = do
+  ul <> ol ? do
+    margin__ (px 8) (px 0)
+
+  ul ? paddingLeft (px 5)
+
+  ul ** li ? do
+    listStyleType none
+    paddingLeft (px 27)
+    position relative
+
+  ul ** li # before ? do
+    content (stringContent "~")
+    left (px 8)
+    position absolute
+
+  (ol <> ul) ** li ? do
+    marginBottom (em 0.4)
+
+headings :: Css
+headings = do
+  h1 ? do
+    fontSize (px 36)
+    fontWeight normal
+    -- fontStyle italic
+    letterSpacing (px (-0.2))
+
+  h2 ? do
+    marginTop (px 20)
+    fontWeight (weight 500)
+    a # link <> a # visited ?
+      color black
+    a # hover ?
+      color (grayish 90)
+
+  h3 ? do
+    marginTop (px 10)
+    fontSize (px 22)
+    fontWeight (weight 500)
+
+  h4 ? do
+    marginTop (px 10)
+    fontSize (px 20)
+    fontWeight (weight 500)
+
 mainStyle :: Css
 mainStyle = do
   star ? do
@@ -146,53 +192,19 @@ mainStyle = do
     top (px 40)
     margin__ (px 0) auto
 
-    h1 ? do
-      fontSize (px 36)
-      fontWeight normal
-      -- fontStyle italic
-      letterSpacing (px (-0.2))
+    lists
 
-    h2 ? do
-      marginTop (px 20)
-      fontWeight (weight 500)
-      a # link <> a # visited ?
-        color black
-      a # hover ?
-        color (grayish 90)
-
-    h3 ? do
-      marginTop (px 10)
-      fontSize (px 22)
-      fontWeight (weight 500)
-
-    h4 ? do
-      marginTop (px 10)
-      fontSize (px 20)
-      fontWeight (weight 500)
+    headings
 
     p ? do
-      margin__ (px 10) 0
+      marginTop (px 10)
+      marginBottom (px 10)
       lineHeight (em 1.4)
 
     a # link <> a # visited ? do
       textDecoration underline
 
     strong ? fontWeight (weight 500)
-
-    ul ? padding_ (px 0)
-
-    ul ** li ? do
-      lineHeight (em 1.4)
-      listStyleType none
-
-      a # link <> a # visited ? textDecoration underline
-
-    ul ** li # before ? do
-      content (stringContent "~")
-      margin__ 0 (px 8)
-
-    ol ** li ? do
-      marginBottom (em 0.4)
 
     figcaption ? textAlign center
 

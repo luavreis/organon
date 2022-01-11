@@ -41,7 +41,6 @@ servingDir Layout = ""
 mountSet :: Set (Source, FilePath)
 mountSet = Set.fromList [(s, mountPoint s) | s <- [Layout, Content, Blog, Zettel]]
 
-
 class HtmlPage a where
   title :: a -> Text
   body  :: a -> Html ()
@@ -79,9 +78,9 @@ instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
   body (page, mbacklinks) = do
     h1_ (toHtmlRaw $ postTitle page)
     toHtmlRaw $ postBody page
-    h2_ "Backlinks"
     case mbacklinks of
-      Just backlinks ->
+      Just backlinks -> do
+        h2_ $ "Backlinks (" <> show (length backlinks) <> ")"
         forM_ backlinks $ \bl -> do
           h3_ $ a_ [href_ $ "zettelkasten/" <> backlinkUUID bl] $ -- TODO link should not be hardcoded
             toHtmlRaw $ backlinkTitle bl
@@ -117,23 +116,32 @@ deleteBP k = Endo \m -> m { blogPosts = delete k (blogPosts m) }
 
 insertRP :: UUID -> BlogPost -> Endo Model
 insertRP k v = Endo \m -> m { roamPosts = insert k v (roamPosts m) }
-deleteRP :: UUID -> Endo Model
-deleteRP k = Endo \m -> m { roamPosts = delete k (roamPosts m) }
-
-insertRA :: FilePath -> [UUID] -> Endo Model
-insertRA k v = Endo \m -> m { roamAssoc = insert k v (roamAssoc m) }
 
 mapDeleteRD :: [UUID] -> RoamDatabase -> RoamDatabase
 mapDeleteRD ks = Map.mapMaybeWithKey delFilter
   where
-    delFilter _referee referents =
+    delFilter _refereed referents =
       case Set.filter (not . flip elem ks . backlinkUUID) referents of
         xs | Set.null xs -> Nothing
            | otherwise -> Just xs
 
-addToRD :: UUID -> [(UUID, [RoamBacklink])] -> Endo Model
+mapFilterRD :: FilePath -> [UUID] -> Endo Model
+mapFilterRD fp ks =
+  Endo \m ->
+    case roamAssoc m !? fp of
+      Just pks ->
+        let cks = filter (`notElem` ks) pks
+        in m { roamDatabase = mapDeleteRD cks (roamDatabase m)
+             , roamPosts = foldr delete (roamPosts m) cks
+             , roamAssoc = insert fp ks (roamAssoc m)
+             }
+      Nothing -> m { roamAssoc = insert fp ks (roamAssoc m) }
+
+addToRD :: UUID -> [(UUID, RoamBacklink)] -> Endo Model
 addToRD k v =
-  let mappedv = Map.map Set.fromList $ Map.fromListWith (++) v
+  let filteredv = mapMaybe
+                  (\case (x, y) | k /= x -> Just (x, [y]); _ -> Nothing) v
+      mappedv = Map.map Set.fromList $ Map.fromListWith (++) filteredv
   in Endo \m -> m { roamDatabase = roamDatabase m
                                    & mapDeleteRD [k]
                                    & Map.unionWith Set.union mappedv}

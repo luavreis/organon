@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 -- |
 
 module PandocTransforms.Roam where
@@ -5,7 +6,6 @@ import PandocTransforms.Utilities hiding (Writer)
 import Models
 import PandocTransforms.Org
 import PandocTransforms.LaTeX
-import PandocTransforms.Emojis
 import PandocTransforms.Links
 import Control.Monad.Trans.Writer.Strict
 import System.FilePath
@@ -18,44 +18,82 @@ import Data.Time (Day(ModifiedJulianDay))
 
 processRoam
   :: forall m. (MonadLogger m)
-  => Pandoc -> CacheT Model m ()
-processRoam (Pandoc meta blocks) = do
+  => FilePath -> (Pandoc, Block) -> CacheT Model m ()
+processRoam fp (Pandoc meta blocks, preamble) = do
   let blocks' = makeSections False Nothing blocks
-  foldMapM processDiv blocks'
+
+  uuids <- query processDiv blocks'
+  tell $ mapFilterRD fp uuids
+
   case lookupMeta "id" meta of
-    Just (MetaString uuid) ->
-      maybe (pure ()) (addToModel blocks') $ Just uuid
-    _ -> pure ()
+    Just (MetaString uuid) -> addToModel blocks' (docTitle meta) uuid
+    _ -> mempty
 
   where
-    addToModel blks uuid = do
+    addToModel :: [Block] -> [Inline] -> Text -> CacheT Model m ()
+    addToModel blks rawtitle uuid = do
       let (blks', bklinks) = runWriter $ processLinks blks
           result = do
-            tit <- writeHtml $ Pandoc meta [Plain (docTitle meta)]
-            bod <- writeHtml $ Pandoc meta blks'
+            tit <- writeHtml $ Pandoc meta [Plain rawtitle]
+            bod <- writeHtml $ Pandoc meta (preamble : blks')
             pure (tit, bod)
       case runPure result of
-        Left e -> logErrorNS "Roam" ("Pandoc writer failed with:\n" <> renderError e)
+        Left e ->
+          logErrorNS "Roam" ("Pandoc writer failed with:\n" <> renderError e)
         Right (tit, bod) -> do
-          let bklinks' = map (\ ~(ruuid, excrpt) -> (ruuid, [RoamBacklink uuid tit excrpt])) bklinks
           tell $ insertRP uuid (BlogPost tit bod $ ModifiedJulianDay 1)
-          tell $ addToRD uuid bklinks'
+          tell $ addToRD uuid $
+            map (\ ~(ruuid, excrpt) -> (ruuid, RoamBacklink uuid tit excrpt))
+            bklinks
 
-    processDiv :: Block -> CacheT Model m ()
-    processDiv (Div (_, "section":_, kvs) blks)
-      | any ((== "id") . fst) kvs =
-          viaNonEmpty head (map snd $ filter ((== "id") . fst) kvs)
-          & maybe (pure ()) (addToModel blks)
-    processDiv _ = pure ()
-
-    processLinks :: [Block] -> Writer [(UUID, Text)] [Block]
-    processLinks =
-      mapM (mapWriter mapper . walkM processLink)
+    processDiv :: Block -> CacheT Model m [UUID]
+    processDiv (Div (_, "section":_, kvs) blks) =
+      viaNonEmpty head (filter ((== "id") . fst) kvs)
+      & maybe mempty \(_, uuid) -> do
+      case viaNonEmpty headTail blks of
+        Just (Header i  _ inl, t) ->
+          addToModel (walk (shift (-i + 1)) t)
+          (Span ("", [], [("style", "font-size: 90%")]) (docTitle meta)
+           : LineBreak
+           : Span ("", [], [ ( "style"
+                             , "font-family: sans; \
+                               \ font-weight: lighter; \
+                               \ font-size: 85%"
+                             ) ]) [Str "→"]
+           : Space : inl) uuid
+        _ -> addToModel blks (docTitle meta) uuid
+      pure [uuid]
       where
+        headTail (h :| t) = (h, t)
+        shift n (Header level attr inner)
+          | level + n > 0  = Header (level + n) attr inner
+          | otherwise      = Para inner
+        shift _ x            = x
+    processDiv _ = mempty
+
+    processBlock :: Block -> Writer [(UUID, Text)] Block
+    processBlock (BlockQuote blks) = BlockQuote <$> mapM processBlock blks
+    processBlock (Div attr blks) = Div attr <$> mapM processBlock blks
+    processBlock (OrderedList attrs blks) = OrderedList attrs <$> mapM (mapM processBlock) blks
+    processBlock (BulletList blks) = BulletList <$> mapM (mapM processBlock) blks
+    processBlock (DefinitionList blks) = DefinitionList <$> mapM (mapSnd $ mapM (mapM processBlock)) blks
+      where mapSnd f ~(x, y) = (x,) <$> f y
+    processBlock blk = mapWriter mapper $ walkM processLink blk
+      where
+        clearAttr :: Attr -> Attr
+        clearAttr (_, xs, _) = ("", xs, [])
+
+        clearAttrs :: Block -> Block
+        clearAttrs = bottomUp clearAttr
+
         mapper :: (Block, [UUID]) -> (Block, [(UUID, Text)])
         mapper ~(b, xs) =
-          let excerpt = fromRight "" $ runPure $ writeHtml $ Pandoc meta [b]
+          let excerpt = fromRight "" $
+                runPure $ writeHtml $ Pandoc meta [clearAttrs b]
           in (b, map (, excerpt) xs)
+
+    processLinks :: [Block] -> Writer [(UUID, Text)] [Block]
+    processLinks = mapM processBlock
 
     processLink :: Inline -> Writer [UUID] Inline
     processLink (Link attr alt (url, titl)) =
@@ -82,20 +120,21 @@ convertRoam fp txt = do
               <&> applyTransforms
               <&> setOrgVars
               <&> walk (fixLinks dir) -- Maybe we should move this out of this function and instead take a list of transforms
-              >>= preambilizeKaTeX
+    preamble <- preambilizeKaTeX $ getMeta parsed
     if isJust . lookupMeta "bibliography" . getMeta $ parsed
-    then processCitations parsed
-    else pure parsed
+    then (, preamble) <$> processCitations parsed
+    else pure (parsed, preamble)
 
-  processRoam =<< renderLaTeX dir doc
+  processRoam fp =<< mapFst (renderLaTeX dir) doc
 
   where
+    mapFst f ~(x,y) = (, y) <$> f x
+
     applyTransforms p = foldr ($) p transforms
 
     transforms :: [Pandoc -> Pandoc]
     transforms =
-      [ walk convertEmojis
-      , headerShift 1
+      [ headerShift 1
       , setMetaP "lang" "pt-BR"
       , setMetaP "csl" "data/citstyle.csl"
       ]

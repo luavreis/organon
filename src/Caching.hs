@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 -- |
 
 module Caching where
@@ -21,6 +20,12 @@ type CacheMap = HashMap LByteString LByteString
 type Cache = (CacheMap, Set LByteString)
 
 type CacheT model m = WriterT (Endo model) (StateT Cache m)
+
+instance (Monad m, Semigroup a) => Semigroup (CacheT w m a) where
+    (<>) = liftA2 (<>)
+
+instance (Monad m, Monoid a) => Monoid (CacheT w m a) where
+    mempty = pure mempty
 
 runCacheT :: Monad m => CacheT model m a -> Cache -> m (model -> model, Cache)
 runCacheT mc c = mapFst appEndo <$> runStateT (execWriterT mc) c
@@ -83,10 +88,10 @@ cachedMountOnLVar sources pats ignore model0 handleAction modelLVar = do
 
   cacheVar <- newMVar =<<
     if cacheFileExists
-    then (liftIO $ decodeFileOrFail "website.cache")
+    then liftIO (decodeFileOrFail "website.cache")
         >>= \case
           Left (_, e) -> do
-            logErrorNS "Caching" $ "Failed to decode website.cache:\n" <> (toText e)
+            logErrorNS "Caching" $ "Failed to decode website.cache:\n" <> toText e
             pure mempty
           Right (c :: (CacheMap, Set (LByteString, FilePath))) -> pure c
     else do
@@ -109,7 +114,7 @@ cachedMountOnLVar sources pats ignore model0 handleAction modelLVar = do
                                             fp `notElem` updatedFilepaths
                                             || k `Set.member` usedKeys)
                           & Set.union (Set.cartesianProduct usedKeys (fromList updatedFilepaths))
-            filteredCache = HMap.filterWithKey (\ ~ k _ -> any (\ ~(bk, _) -> k == bk) newBookeeper) hmap
+            filteredCache = HMap.filterWithKey (\ k _ -> any (\ ~(bk, _) -> k == bk) newBookeeper) hmap
             newCache = (filteredCache, newBookeeper)
 
         atomically (takeTMVar initialized) >>= \case

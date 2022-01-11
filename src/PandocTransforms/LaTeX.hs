@@ -147,8 +147,8 @@ renderLaTeX dir (Pandoc meta blocks) = do
       else Para . one . svgImage <$> cachedSvgLaTeX s
     wBlocks x = pure x
 
-preambilizeKaTeX :: forall m. PandocMonad m => Pandoc -> m Pandoc
-preambilizeKaTeX (Pandoc meta blks) = Pandoc meta . (: blks) <$> preamble
+preambilizeKaTeX :: forall m. PandocMonad m => Meta -> m Block
+preambilizeKaTeX meta = preamble
   where
     hide :: Attr
     hide = ("", [], [("style", "display: none")])

@@ -8,23 +8,47 @@ Algumas coisas para se fazer aqui:
 Alguns links de fora:
 - [[https://github.com/lucasvreis][Meu Github]]
 
-Orgulhosamente feito com Haskell.
+Feito com Haskell!
 
 #+begin_export html
 <script src="//unpkg.com/force-graph"></script>
-<div id="graph"></div>
-<script>
-var url = '/zettelkasten/graph.json';
-var Graph = ForceGraph()(document.getElementById('graph'))
-  .cooldownTicks(100);
+<script src="//cdn.jsdelivr.net/npm/element-resize-detector@1.2.4/dist/element-resize-detector.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-force-3d@3.0.2/dist/d3-force-3d.min.js"></script>
 
-fetch(url)
-.then(res => res.json())
-.then(out => {
-Graph.graphData(out)
-     .d3Force('center', null)
-     .onEngineStop(() => Graph.zoomToFit(400));
-}
+<div id="graph" style="width: 100%; height: 400px; overflow: hidden;"></div>
+<script>
+ var url = '/zettelkasten/graph.json';
+ var parser = new DOMParser();
+ var Graph = ForceGraph()(document.getElementById('graph'))
+   .zoom(2)
+   .cooldownTicks(100)
+   .enableZoomInteraction(false)
+   .nodeLabel(node => {
+     var label = parser.parseFromString("<span>" + node.name + "</span>", "text/xml");
+     renderMathInElement(label);
+     return label.firstChild.innerHTML;
+   });
+
+ fetch(url).then(res => res.json()).then(out => {
+   Graph.graphData(out)
+        .linkDirectionalParticles(1)
+        .linkCurvature('curvature')
+        .nodeRelSize(4)
+        .nodeAutoColorBy('id')
+        .onNodeClick((node, e) => window.location = '/zettelkasten/' + node.id);
+
+   Graph.d3Force('x', d3.forceX().strength(0.2));
+   Graph.d3Force('y', d3.forceY().strength(0.2));
+   Graph.d3Force('charge').strength(-40);
+   Graph.d3Force('link').strength(0.2);
+ });
+
+elementResizeDetectorMaker().listenTo(
+    document.getElementById('graph'),
+    function(element) {
+        Graph.width(element.offsetWidth)
+        Graph.height(element.offsetHeight)
+    }
 );
 </script>
 #+end_export
