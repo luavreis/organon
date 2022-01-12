@@ -7,8 +7,8 @@ import Data.Aeson
 import Models
 import Relude.Extra
 
-data Node = Node { nodeId :: Text, nodeName :: Text } deriving Generic
-data Link = Link { linkSource :: Text, linkTarget :: Text } deriving Generic
+data Node = Node { nodeId :: UUID, nodeName :: Text } deriving Generic
+data Link = Link { linkSource :: UUID, linkTarget :: UUID } deriving Generic
 data Graph = Graph [Node] [Link] deriving Generic
 
 instance ToJSON Node where

@@ -21,7 +21,7 @@ modelIndependentDecoder fp =
       | "assets/css/*.css" ?== fixedFp ->
         Just $ R.Css (decodeSlug $ toText $ takeBaseName fixedFp)
       | "zettelkasten/*/index.html" ?== fixedFp ->
-        Just $ R.RoamPage (toText $ takeBaseName $ takeDirectory fixedFp)
+        Just $ R.RoamPage (decodeSlug $ toText $ takeBaseName $ takeDirectory fixedFp)
       | "blog/*/index.html" ?== fixedFp ->
         Just $ R.BlogPage (decodeSlug $ toText $ takeBaseName $ takeDirectory fixedFp)
       | "blog/*/*" ?== fixedFp ->
@@ -49,7 +49,7 @@ instance Ema Model R.Route where
     R.TagPage t           -> "tags" /> t <.> "html"
     R.RoamEntryPoint      -> "zettelkasten/index.html"
     R.RoamGraphJSON       -> "zettelkasten/graph.json"
-    R.RoamPage uuid       -> "zettelkasten" /> toString uuid /> "index.html"
+    R.RoamPage uuid       -> "zettelkasten" /> tUnSlug uuid /> "index.html"
     R.StructuralPage loc path
       | loc == defLocale  -> pathToUrl path <.> "html"
       | otherwise         -> localeAbbrev loc /> pathToUrl path <.> "html"

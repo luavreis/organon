@@ -36,7 +36,6 @@ head m = head_ do
   link_ [rel_ "dns-prefetch", href_ "//fonts.googleapis.com"]
   link_ [rel_ "preconnect", href_ "https://fonts.gstatic.com", crossorigin_ ""]
   link_ [stylesheet, href_ "https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;1,300;1,500&display=swap"]
-  link_ [stylesheet, href_ "https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"]
   renderLayout m "katex"
   where
     js :: Text -> Html ()
@@ -64,4 +63,9 @@ primary _ docHead content =
     docHead
     body_ do
       canvas_ [style_ "position:fixed; top:0; left:0; z-index:-1;", id_ "fundo"] ""
-      div_ [id_ "main"] (content <> foot)
+      div_ [id_ "main"] do
+        header_ do
+          a_ [href_ "", style_ "background: none;"] do
+            twemoji "house" <> " início"
+        content
+        foot

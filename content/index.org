@@ -11,90 +11,63 @@ Alguns links de fora:
 Feito com Haskell!
 
 #+begin_export html
-<script src="//unpkg.com/force-graph"></script>
 <script src="//cdn.jsdelivr.net/npm/element-resize-detector@1.2.4/dist/element-resize-detector.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3-force-3d@3.0.2/dist/d3-force-3d.min.js"></script>
-
-<div id="graph" style="width: 100%; height: 400px; overflow: hidden;"></div>
-<script>
- var url = '/zettelkasten/graph.json';
- var parser = new DOMParser();
- var Graph = ForceGraph()(document.getElementById('graph'))
-   .zoom(2)
-   .cooldownTicks(100)
-   .enableZoomInteraction(false)
-   .nodeLabel(node => {
-     var label = parser.parseFromString("<span>" + node.name + "</span>", "text/xml");
-     renderMathInElement(label);
-     return label.firstChild.innerHTML;
-   });
-
- fetch(url).then(res => res.json()).then(out => {
-   Graph.graphData(out)
-        .linkDirectionalParticles(1)
-        .linkCurvature('curvature')
-        .nodeRelSize(4)
-        .nodeAutoColorBy('id')
-        .onNodeClick((node, e) => window.location = '/zettelkasten/' + node.id);
-
-   Graph.d3Force('x', d3.forceX().strength(0.2));
-   Graph.d3Force('y', d3.forceY().strength(0.2));
-   Graph.d3Force('charge').strength(-40);
-   Graph.d3Force('link').strength(0.2);
- });
-
-elementResizeDetectorMaker().listenTo(
-    document.getElementById('graph'),
-    function(element) {
-        Graph.width(element.offsetWidth)
-        Graph.height(element.offsetHeight)
-    }
-);
-</script>
-#+end_export
-
-#+begin_export html
-<style>
-input[type=checkbox] {
-  display: none;
-}
-
-.container img {
-  transition: transform 0.25s ease;
-  cursor: zoom-in;
-}
-
-input[type=checkbox]:checked ~ label > img {
-  transform: scale(2);
-  cursor: zoom-out;
-}
-</style>
-<div class="container">
-  <input type="checkbox" id="zoomCheck">
-  <label for="zoomCheck">
-    <img src="https://via.placeholder.com/200">
-  </label>
+<div id="graph"
+     style="width: 400px;
+         max-width: 90%;
+         border-radius: 100%;
+         border-style: dashed;
+         border-width: 1px;
+         margin: auto;
+         height: 400px;
+         overflow: hidden;">
 </div>
+<script>
+ function renderGraph () {
+   var url = '/zettelkasten/graph.json';
+   var parser = new DOMParser();
+   var serializer = new XMLSerializer();
+   var first = true
+   var Graph = ForceGraph()(document.getElementById('graph'))
+     .zoom(1.6)
+     .cooldownTicks(100)
+   // .enableZoomInteraction(false)
+     .nodeLabel(node => {
+       var label = parser.parseFromString("<span style=\"font-size: 11pt; font-family: sans \">" + node.name + "</span>", "text/xml");
+       renderMathInElement(label, katexOptions);
+       return serializer.serializeToString(label);
+     });
+
+   fetch(url).then(res => res.json()).then(out => {
+     Graph.graphData(out)
+          .linkDirectionalParticles(1)
+          .linkCurvature('curvature')
+          .nodeRelSize(4)
+          .nodeAutoColorBy('id')
+          .onNodeClick((node, e) => window.location = '/zettelkasten/' + node.id);
+
+     Graph.d3Force('x', d3.forceX().strength(0.2));
+     Graph.d3Force('y', d3.forceY().strength(0.2));
+     Graph.d3Force('charge').strength(-60);
+     Graph.d3Force('link').strength(0.2);
+     Graph.onEngineStop(() => {
+       if (first) {
+         Graph.zoomToFit(100, 30);
+         first = false;
+       }
+     });
+   });
+   elementResizeDetectorMaker().listenTo(
+     document.getElementById('graph'),
+     function(element) {
+       Graph.height(element.offsetHeight)
+       Graph.width(element.offsetWidth)
+     }
+   );
+}
+</script>
+<script src="//unpkg.com/force-graph"
+        onload="renderGraph();"></script>
 #+end_export
 
-#+begin_block
-Joined late in the project loined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-#+end_block
-
-#+begin_block
-Joined late in the project loined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-Joined late in the project
-#+end_block

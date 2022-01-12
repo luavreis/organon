@@ -135,6 +135,11 @@ headings = do
     fontSize (px 20)
     fontWeight (weight 500)
 
+pageHeader :: Css
+pageHeader = do
+  header ? do
+    marginBottom (px 8)
+
 mainStyle :: Css
 mainStyle = do
   star ? do
@@ -175,6 +180,8 @@ mainStyle = do
   ".block" ? do
     display inlineBlock
     maxWidth (px 340)
+    marginRight (px 40)
+    "vertical-align" -: "top"
 
   aside ? do
     fontSize (pct 85)
@@ -215,55 +222,6 @@ mainStyle = do
       width (pct 70)
       margin__ (em 4) auto
 
-  ".blog-name" ** a ? do
-    fontFamily ["Patrick Hand"] [cursive]
-    fontSize (px 22)
-    fontWeight normal
-    color "#555"
-    lineHeight (px 20)
-
-  header ? do
-    display none
-    height (px 35)
-    margin (px 10) 10 10 20
-    alignItems center
-
-    ".blog-name" ? do
-      display inlineBlock
-      width (pct 90)
-
-    ".dark-mode" ? do
-      marginRight (pct 8)
-      marginTop (px 2)
-
-    nav ? do
-      width (pct 10)
-
-      "#menu-icon" ? do
-        width (px 20)
-        display inlineBlock
-        verticalAlign middle
-
-      li ? do
-        display block
-        padding_ (px 5)
-
-    nav ** ul <> nav # active ** ul ? do
-          display none
-          position absolute
-          top (px 15)
-          right (px 10)
-          padding_ (px 5)
-          width auto
-          fontWeight (weight 400)
-          background ("#fff" :: Color)
-          border solid (px 1) "#444"
-          borderRadius (px 8) 4 8 8
-          zIndex 1
-
-    nav # hover ** ul ? do
-      display block
-
   ".dark-mode" ? do
     button ? do
       width (px 30)
@@ -275,10 +233,6 @@ mainStyle = do
       borderRadius (pct 50) (pct 50) (pct 50) (pct 50)
       background (other "none" :: Color)
     button # hover ? background ("#ccc3" :: Color)
-
-  query Clay.all [M.maxWidth (px 700)] do
-    header ? do
-      display flex
 
 darkStyle :: Css
 darkStyle = do
@@ -300,6 +254,7 @@ styleT :: LText
 styleT = renderWith compact [] $ do
   mainStyle
   definitionList
+  pageHeader
   images
   foot
   katex

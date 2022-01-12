@@ -1,7 +1,7 @@
 {-# LANGUAGE BlockArguments, DeriveGeneric #-}
 module Models where
 
-import Ema (Slug, decodeSlug)
+import Ema
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -13,7 +13,7 @@ import Data.Tree
 import Relude.Extra.Map (delete, insert)
 import Locale
 
-type UUID = Text
+type UUID = Slug
 
 type Path = [Slug]
 
@@ -82,7 +82,7 @@ instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
       Just backlinks -> do
         h2_ $ "Backlinks (" <> show (length backlinks) <> ")"
         forM_ backlinks $ \bl -> do
-          h3_ $ a_ [href_ $ "zettelkasten/" <> backlinkUUID bl] $ -- TODO link should not be hardcoded
+          h3_ $ a_ [href_ $ "zettelkasten/" <> encodeSlug (backlinkUUID bl)] $ -- TODO link should not be hardcoded
             toHtmlRaw $ backlinkTitle bl
           toHtmlRaw $ backlinkExcerpt bl
       Nothing -> p_ $ i_ "No backlinks."
@@ -166,7 +166,7 @@ instance Binary Model
 defaultModel :: Model
 defaultModel =
   Model
-    ""
+    "lucasvreis"
     rootNode
     emptyMap
     emptyMap

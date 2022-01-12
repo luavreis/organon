@@ -2,6 +2,7 @@
 -- |
 
 module PandocTransforms.Roam where
+import Ema
 import PandocTransforms.Utilities hiding (Writer)
 import Models
 import PandocTransforms.Org
@@ -26,11 +27,11 @@ processRoam fp (Pandoc meta blocks, preamble) = do
   tell $ mapFilterRD fp uuids
 
   case lookupMeta "id" meta of
-    Just (MetaString uuid) -> addToModel blocks' (docTitle meta) uuid
+    Just (MetaString uuid) -> addToModel blocks' (docTitle meta) (Slug uuid)
     _ -> mempty
 
   where
-    addToModel :: [Block] -> [Inline] -> Text -> CacheT Model m ()
+    addToModel :: [Block] -> [Inline] -> UUID -> CacheT Model m ()
     addToModel blks rawtitle uuid = do
       let (blks', bklinks) = runWriter $ processLinks blks
           result = do
@@ -50,6 +51,7 @@ processRoam fp (Pandoc meta blocks, preamble) = do
     processDiv (Div (_, "section":_, kvs) blks) =
       viaNonEmpty head (filter ((== "id") . fst) kvs)
       & maybe mempty \(_, uuid) -> do
+      let uuid' = Slug uuid
       case viaNonEmpty headTail blks of
         Just (Header i  _ inl, t) ->
           addToModel (walk (shift (-i + 1)) t)
@@ -60,9 +62,9 @@ processRoam fp (Pandoc meta blocks, preamble) = do
                                \ font-weight: lighter; \
                                \ font-size: 85%"
                              ) ]) [Str "→"]
-           : Space : inl) uuid
-        _ -> addToModel blks (docTitle meta) uuid
-      pure [uuid]
+           : Space : inl) uuid'
+        _ -> addToModel blks (docTitle meta) uuid'
+      pure [uuid']
       where
         headTail (h :| t) = (h, t)
         shift n (Header level attr inner)
@@ -100,9 +102,9 @@ processRoam fp (Pandoc meta blocks, preamble) = do
       let same = pure $ Link attr alt (url, titl)
       in case T.breakOn ":" url of
         ("id", uid) -> do
-          let uuid = T.tail uid
+          let uuid = Slug $ T.tail uid
           tell [uuid]
-          return $ Link attr alt ("/zettelkasten/" <> uuid, titl)
+          return $ Link attr alt ("/zettelkasten/" <> encodeSlug uuid, titl)
         _ -> same
     processLink x = pure x
 
