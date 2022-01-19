@@ -6,7 +6,7 @@ import Lucid
 import Lucid.Base (makeAttribute)
 import Models
 import EmaInstance ()
-import Data.Map ((!))
+import Data.Map ((!?))
 import Data.Text as T
 
 twemoji :: Text -> Html ()
@@ -20,19 +20,31 @@ stylesheet :: Attribute
 stylesheet = rel_ "stylesheet"
 
 renderLayout :: Model -> String -> Html ()
-renderLayout model key = toHtmlRaw $ layouts model ! key
+renderLayout model key = maybe mempty toHtmlRaw (layouts model !? key)
 
 head :: Model -> Html ()
 head m = head_ do
   base_ [href_ "/"]
   meta_ [charset_ "utf-8"]
-  meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
+  meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"]
   title_ (toHtml $ siteName m) -- + título do post TODO
   css "twemoji"
   css "stylesheet"
+  css "code"
   css "latex"
   js "extras"
   js "darktoggle"
+  -- flip (maybe mempty) (encodeSlug <$> wandererLocation m) $
+  --   \ loc ->
+  --     script_ [type_ "text/javascript"] $
+  --       "if (typeof wanderer === 'undefined') { var wanderer = '' }"
+  --       <> "var url = \"/zettelkasten/" <> loc <>"\";"
+  --       <> "if (window.location.pathname != url && wanderer != url) {\
+  --          \wanderer = url;\
+  --          \var link = document.createElement('a');\
+  --          \link.href = url;\
+  --          \document.body.appendChild(link);\
+  --          \link.click();}"
   link_ [rel_ "dns-prefetch", href_ "//fonts.googleapis.com"]
   link_ [rel_ "preconnect", href_ "https://fonts.gstatic.com", crossorigin_ ""]
   link_ [stylesheet, href_ "https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;1,300;1,500&display=swap"]

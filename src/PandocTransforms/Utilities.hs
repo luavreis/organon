@@ -76,6 +76,7 @@ writerOptions :: WriterOptions
 writerOptions =
   def
   { writerHTMLMathMethod = MathJax ""
+  , writerSectionDivs = True
   -- , writerExtensions =
   --     extensionsFromList
   --     [ Ext_citations

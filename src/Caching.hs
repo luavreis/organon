@@ -58,7 +58,7 @@ fromCacheOrCompute f x = do
   lookupCache x >>= \case
     Just (y :: b) -> return $ Just y
     Nothing -> do
-      logInfoNS "fromCache" "Computing value."
+      logInfoNS "fromCache" "Computing expensive value."
       f x >>= \case
         Nothing -> return Nothing
         Just y -> do
@@ -69,8 +69,6 @@ cachedMountOnLVar
   :: forall m model source tag.
      ( MonadUnliftIO m
      , MonadLogger m
-     , Binary model
-     , Binary source
      , Ord source
      , Ord tag
      )

@@ -3,22 +3,15 @@ module Routes where
 import Ema (Slug)
 import Path
 import Locale
-import Models (UUID)
-
-type AssetID = Slug
+import Models
 
 data Route
   = StructuralPage Locale Path
-  | BlogIndex
-  | BlogPage Slug
-  | BlogAsset Slug AssetID
   | RoamEntryPoint
   | RoamGraphJSON
   | RoamPage UUID
-  | TagsListing
-  | TagPage Tag
-  | Css Slug
-  | Js Slug
+  | StyleSheet
+  | StaticAsset Source [Slug]
   deriving (Show)
 
 type Tag = String

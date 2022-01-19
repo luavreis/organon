@@ -13,7 +13,6 @@ import NeatInterpolation (text)
 import System.Exit
 import qualified Data.Text as T
 import qualified Data.ByteString as B
-import UnliftIO.Directory (withCurrentDirectory)
 
 isMathEnvironment :: Text -> Bool
 isMathEnvironment s = "\\begin{" `T.isPrefixOf` s &&
@@ -88,11 +87,12 @@ svgLaTeX dir preamble body = do
                  "" defLaTeXpackages
 
       process :: FilePath -> m (Maybe ByteString)
-      process tempDir = withCurrentDirectory dir $ do
+      process tempDir = do
         let outpath = tempDir </> "out.svg"
         (exitc, _, e) <- readCreateProcessWithExitCode
           (shell
-           $ "tectonic -r 0 -o "
+           $ "cd " <> dir <> "; "
+           <> "tectonic -r 0 -o "
            <> tempDir
            <> " - > /dev/null; pdf2svg "
            <> (tempDir </> "texput.pdf")

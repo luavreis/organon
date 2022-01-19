@@ -1,12 +1,12 @@
-{-# LANGUAGE DeriveGeneric #-}
 module Locale where
 
 import Data.Time
+import Data.Binary (Binary)
 
 data Locale
   = Portuguese
   | English
-  deriving (Show, Enum, Bounded, Eq, Ord, Generic)
+  deriving (Show, Enum, Bounded, Eq, Ord, Generic, Binary)
 
 localeAbbrev :: Locale -> String
 localeAbbrev Portuguese = "pt"

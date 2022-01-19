@@ -2,72 +2,243 @@
 
 Essa é a minha página pessoal. Bem vindos! 🙂
 
-Algumas coisas para se fazer aqui:
-- [[http:blog][Postagens do blog]]
-
-Alguns links de fora:
-- [[https://github.com/lucasvreis][Meu Github]]
-
-Feito com Haskell!
-
 #+begin_export html
-<script src="//cdn.jsdelivr.net/npm/element-resize-detector@1.2.4/dist/element-resize-detector.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/d3-force-3d@3.0.2/dist/d3-force-3d.min.js"></script>
-<div id="graph"
-     style="width: 400px;
+<div id="graph" style="width: 400px;
          max-width: 90%;
          border-radius: 100%;
          border-style: dashed;
          border-width: 1px;
          margin: auto;
-         height: 400px;
+         aspect-ratio: 1;
          overflow: hidden;">
 </div>
 <script>
- function renderGraph () {
-   var url = '/zettelkasten/graph.json';
-   var parser = new DOMParser();
-   var serializer = new XMLSerializer();
-   var first = true
-   var Graph = ForceGraph()(document.getElementById('graph'))
-     .zoom(1.6)
-     .cooldownTicks(100)
-   // .enableZoomInteraction(false)
-     .nodeLabel(node => {
-       var label = parser.parseFromString("<span style=\"font-size: 11pt; font-family: sans \">" + node.name + "</span>", "text/xml");
-       renderMathInElement(label, katexOptions);
-       return serializer.serializeToString(label);
-     });
-
-   fetch(url).then(res => res.json()).then(out => {
-     Graph.graphData(out)
-          .linkDirectionalParticles(1)
-          .linkCurvature('curvature')
-          .nodeRelSize(4)
-          .nodeAutoColorBy('id')
-          .onNodeClick((node, e) => window.location = '/zettelkasten/' + node.id);
-
-     Graph.d3Force('x', d3.forceX().strength(0.2));
-     Graph.d3Force('y', d3.forceY().strength(0.2));
-     Graph.d3Force('charge').strength(-60);
-     Graph.d3Force('link').strength(0.2);
-     Graph.onEngineStop(() => {
-       if (first) {
-         Graph.zoomToFit(100, 30);
-         first = false;
-       }
-     });
-   });
-   elementResizeDetectorMaker().listenTo(
-     document.getElementById('graph'),
-     function(element) {
-       Graph.height(element.offsetHeight)
-       Graph.width(element.offsetWidth)
-     }
-   );
-}
+ function mobileAndTabletCheck() {
+   let check = false;
+   (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window.opera);
+   return check;
+ };
 </script>
-<script src="//unpkg.com/force-graph"
-        onload="renderGraph();"></script>
+<script>
+ // Copyright 2021 Observable, Inc.
+ // Released under the ISC license.
+ // https://observablehq.com/@d3/force-directed-graph
+ function ForceGraph({
+   nodes, // an iterable of node objects (typically [{id}, …])
+   links // an iterable of link objects (typically [{source, target}, …])
+ }, {
+   nodeId = d => d.id, // given d in nodes, returns a unique identifier (string)
+   nodeGroup = d => d.id, // given d in nodes, returns an (ordinal) value for color
+   nodeGroups, // an array of ordinal values representing the node groups
+   nodeTitle, // given d in nodes, a title string
+   nodeFill = "currentColor", // node stroke fill (if not using a group color encoding)
+   nodeStroke = "#fffdf8", // node stroke color
+   nodeStrokeWidth = 1.5, // node stroke width, in pixels
+   nodeStrokeOpacity = 1, // node stroke opacity
+   nodeRadius = 5, // node radius, in pixels
+   nodeStrength,
+   linkSource = ({source}) => source, // given d in links, returns a node identifier string
+   linkTarget = ({target}) => target, // given d in links, returns a node identifier string
+   linkStroke = "#999", // link stroke color
+   linkStrokeOpacity = 0.6, // link stroke opacity
+   linkStrokeWidth = 0.8, // given d in links, returns a stroke width in pixels
+   linkStrokeLinecap = "round", // link stroke linecap
+   linkStrength,
+   colors = d3.schemeTableau10, // an array of color strings, for the node groups
+   invalidation // when this promise resolves, stop the simulation
+ } = {}) {
+   // Compute values.
+   const N = d3.map(nodes, nodeId).map(intern);
+   const LS = d3.map(links, linkSource).map(intern);
+   const LT = d3.map(links, linkTarget).map(intern);
+   if (nodeTitle === undefined) nodeTitle = (_, i) => N[i];
+   const T = nodeTitle == null ? null : d3.map(nodes, nodeTitle);
+   const G = nodeGroup == null ? null : d3.map(nodes, nodeGroup).map(intern);
+   const W = typeof linkStrokeWidth !== "function" ? null : d3.map(links, linkStrokeWidth);
+   const mobile = mobileAndTabletCheck();
+
+   // Replace the input nodes and links with mutable objects for the simulation.
+   nodes = d3.map(nodes, (_, i) => ({id: N[i]}));
+   links = d3.map(links, (_, i) => ({source: LS[i], target: LT[i]}));
+
+   // Compute default domains.
+   if (G && nodeGroups === undefined) nodeGroups = d3.sort(G);
+
+   // Construct the scales.
+   const color = nodeGroup == null ? null : d3.scaleOrdinal(nodeGroups, colors);
+
+   // Construct the forces.
+   const forceNode = d3.forceManyBody();
+   const forceLink = d3.forceLink(links).id(({index: i}) => N[i]);
+   if (nodeStrength !== undefined) forceNode.strength(nodeStrength);
+   if (linkStrength !== undefined) forceLink.strength(linkStrength);
+
+   const simulation = d3.forceSimulation(nodes)
+                        .force("link", forceLink)
+                        .force("charge", forceNode)
+                        .force("center",  d3.forceCenter())
+                        .force("x", d3.forceX())
+                        .force("y", d3.forceY())
+                        .alphaTarget(0.3)
+                        .on("tick", ticked);
+
+   const gotoLink = (d) => window.location.href = "/zettelkasten/" + d.id;
+
+   const tooltip = d3.select("body")
+                     .append("div")
+                     .style("display", "none")
+                     .attr("class", "tooltip")
+                     .style("background-color", "rgba(4, 4, 4, 0.6)")
+                     .style("font-family", "sans")
+                     .style("color", "white")
+                     .style("border-radius", "5px")
+                     .style("padding", "5px")
+                     .style("position", "absolute")
+                     .style("z-index", "1000");
+
+   var dragging = false;
+
+   // Three function that change the tooltip when user hover / move / leave a cell
+   const mouseover = function () {
+     if (!dragging) {
+       tooltip.style("display", "block");
+       d3.select(this).attr("stroke", "black");
+     }
+   }
+   const mousemove = function (e, {index: i}) {
+     tooltip.html(T[i])
+            .style("left", (e.pageX + 10) + "px")
+            .style("top", (e.pageY) + "px")
+   }
+
+   const mouseleave = function () {
+     tooltip.style("display", "none");
+     d3.select(this).attr("stroke", "none");
+   }
+
+   const svg = d3.create("svg")
+                 .attr("preserveAspectRatio", "xMinYMin meet")
+                 .attr("viewBox", "-150 -150 300 300")
+                 .attr("style", "max-width: 100%; height: auto; height: intrinsic;");
+
+   const trans = svg.append("g");
+
+   const zoom = d3.zoom()
+                  .on('zoom', handleZoom);
+
+   function handleZoom(e) {
+     trans.attr('transform', e.transform);
+     if (mobile) tooltip.style("display", "none");
+   }
+
+   svg.call(zoom);
+
+   const link = trans.append("g")
+                     .attr("stroke", linkStroke)
+                     .attr("stroke-opacity", linkStrokeOpacity)
+                     .attr("stroke-width", typeof linkStrokeWidth !== "function" ? linkStrokeWidth : null)
+                     .attr("stroke-linecap", linkStrokeLinecap)
+                     .selectAll("line")
+                     .data(links)
+                     .join("line");
+
+   const node = trans.append("g")
+                     .attr("fill", nodeFill)
+                     .attr("cursor", "pointer")
+                     .selectAll("circle")
+                     .data(nodes)
+                     .join("circle")
+                     .attr("r", nodeRadius)
+                     .on("click", function (e,d) {
+                       if (!mobile || tooltip.style("display") != "none")
+                         gotoLink(d);
+                       else
+                         mouseover.call(this,e,d);
+                     })
+                     .on("mousemove", mousemove)
+                     .on("mouseleave", mouseleave)
+
+   if (!mobile) {
+     node.call(drag(simulation))
+         .on("mouseover", mouseover);
+   }
+
+   if (W) link.attr("stroke-width", ({index: i}) => W[i]);
+   if (G) node.attr("fill", ({index: i}) => color(G[i]));
+   // if (T) node.append("title").text(({index: i}) => T[i]);
+   if (invalidation != null) invalidation.then(() => simulation.stop());
+
+   function intern(value) {
+     return value !== null && typeof value === "object" ? value.valueOf() : value;
+   }
+
+   function ticked() {
+     link
+       .attr("x1", d => d.source.x)
+       .attr("y1", d => d.source.y)
+       .attr("x2", d => d.target.x)
+       .attr("y2", d => d.target.y);
+
+     node
+       .attr("cx", d => d.x)
+       .attr("cy", d => d.y);
+   }
+
+   function drag(simulation) {
+     function dragstarted(event) {
+       if (!event.active) simulation.alphaTarget(0.3).restart();
+       event.subject.fx = event.subject.x;
+       event.subject.fy = event.subject.y;
+       dragging = true;
+       tooltip.style("display", "none");
+     }
+
+     function dragged(event) {
+       event.subject.fx = event.x;
+       event.subject.fy = event.y;
+     }
+
+     function dragended(event) {
+       if (!event.active) simulation.alphaTarget(0);
+       event.subject.fx = null;
+       event.subject.fy = null;
+       dragging = false;
+     }
+
+     return d3.drag()
+              .on("start", dragstarted)
+              .on("drag", dragged)
+              .on("end", dragended);
+   }
+   for (i = 0; i < 300; i++) {
+     simulation.tick();
+   }
+   simulation.alphaDecay(0.1)
+             .alpha(0)
+             .alphaTarget(0);
+   return Object.assign(svg.node(), {scales: {color}});
+ }
+</script>
+<script>
+ function renderGraph () {
+   const url = '/zettelkasten/graph.json';
+   const parser = new DOMParser();
+   const serializer = new XMLSerializer();
+   d3.json(url).then(graph => {
+     d3.select("#graph")
+            .html(null)
+            .append(_ =>
+              ForceGraph(graph, {
+                nodeTitle: (d) => {
+                  let name = parser.parseFromString(
+                    "<span>" + d.name + "</span>", "text/xml");
+                  renderMathInElement(name, katexOptions);
+                  return serializer.serializeToString(name);
+                }
+            }));
+   });
+ }
+</script>
+<script src="https://d3js.org/d3.v7.min.js" onload="renderGraph();"></script>
 #+end_export
 

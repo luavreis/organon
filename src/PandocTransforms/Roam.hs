@@ -24,11 +24,12 @@ processRoam fp (Pandoc meta blocks, preamble) = do
   let blocks' = makeSections False Nothing blocks
 
   uuids <- query processDiv blocks'
-  tell $ mapFilterRD fp uuids
 
   case lookupMeta "id" meta of
-    Just (MetaString uuid) -> addToModel blocks' (docTitle meta) (Slug uuid)
-    _ -> mempty
+    Just (MetaString uuid) -> do
+      addToModel blocks' (docTitle meta) (Slug uuid)
+      tell $ mapFilterRD fp (Slug uuid : uuids)
+    _ -> tell $ mapFilterRD fp uuids
 
   where
     addToModel :: [Block] -> [Inline] -> UUID -> CacheT Model m ()
@@ -42,7 +43,7 @@ processRoam fp (Pandoc meta blocks, preamble) = do
         Left e ->
           logErrorNS "Roam" ("Pandoc writer failed with:\n" <> renderError e)
         Right (tit, bod) -> do
-          tell $ insertRP uuid (BlogPost tit bod $ ModifiedJulianDay 1)
+          tell $ insertRP uuid (RoamPost tit bod $ ModifiedJulianDay 1)
           tell $ addToRD uuid $
             map (\ ~(ruuid, excrpt) -> (ruuid, RoamBacklink uuid tit excrpt))
             bklinks
@@ -116,18 +117,28 @@ convertRoam
 convertRoam fp txt = do
   let dir = takeDirectory fp
 
-  doc <- liftIO $ runIOorExplode $ do
+  doc :: Maybe (Pandoc, Block) <- liftIO $ runIOorExplode $ do
     setResourcePath [".", dir]
-    parsed <- readOrg readerOptions [(dir, txt)]
-              <&> applyTransforms
-              <&> setOrgVars
-              <&> walk (fixLinks dir) -- Maybe we should move this out of this function and instead take a list of transforms
-    preamble <- preambilizeKaTeX $ getMeta parsed
-    if isJust . lookupMeta "bibliography" . getMeta $ parsed
-    then (, preamble) <$> processCitations parsed
-    else pure (parsed, preamble)
+    parsed' <- readOrg readerOptions [(dir, txt)]
+               <&> setOrgVars
 
-  processRoam fp =<< mapFst (renderLaTeX dir) doc
+    let meta = getMeta parsed'
+
+    if False -- MetaString "t" `notElem` lookupMeta "published" meta
+    then pure Nothing
+    else do
+      parsed <- parsed'
+                & applyTransforms
+                & walk (fixLinks dir)
+                & if isJust (lookupMeta "bibliography" meta)
+                  then processCitations
+                  else pure
+
+      preamble <- preambilizeKaTeX $ getMeta parsed
+      pure $ Just (parsed, preamble)
+
+  flip (maybe $ tell $ deleteFromRD fp) doc $
+    processRoam fp <=< mapFst (renderLaTeX dir)
 
   where
     mapFst f ~(x,y) = (, y) <$> f x

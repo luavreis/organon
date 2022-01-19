@@ -8,7 +8,7 @@ executable site
   build-depends:    aeson
                   , binary
                   , binary-instances
-                  , base
+                  , base >= 4.11
                   , bytestring
                   , clay
                   , containers
@@ -22,10 +22,12 @@ executable site
                   , lvar
                   , monad-logger
                   , neat-interpolation
+                  , nonempty-containers
                   , pandoc
                   , pandoc-types
                   , regex-tdfa
                   , relude
+                  , some
                   , stm
                   , text
                   , time
@@ -48,6 +50,8 @@ executable site
     relude
                     
   default-extensions:
+    DeriveGeneric
+    DeriveAnyClass
     FlexibleContexts
     FlexibleInstances
     KindSignatures

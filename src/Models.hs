@@ -1,7 +1,8 @@
-{-# LANGUAGE BlockArguments, DeriveGeneric #-}
+{-# LANGUAGE BlockArguments #-}
 module Models where
 
 import Ema
+import Path
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -9,44 +10,46 @@ import Lucid
 import Data.Time (Day)
 import Data.Binary.Instances.Time ()
 import Data.Binary
-import Data.Tree
 import Relude.Extra.Map (delete, insert)
 import Locale
 
+instance Binary Slug
+
 type UUID = Slug
 
-type Path = [Slug]
-
 data Source
-  = Layout
-  | Blog
-  | Content
+  = Asset
   | Zettel
-  deriving (Eq,Ord,Show,Enum,Bounded,Generic)
+  | Content
+  deriving ( Eq
+           , Ord
+           , Show
+           , Enum
+           , Bounded
+           , Generic
+           , Binary
+           )
 
-instance Binary Source
+data Model = Model
+  { siteName :: Text
+  , staticAssets :: Source -> Forest Slug
+  , structuralPages :: Map Path (Localized StructuralPage)
+  , layouts :: Map String Text
+  , roamPosts :: Map UUID RoamPost
+  , roamDatabase :: RoamDatabase
+  , roamAssoc :: Map FilePath [UUID]
+  } deriving (Generic)
 
-mountPoint :: IsString p => Source -> p
-mountPoint Zettel = "/home/lucas/Lucas/notas"
-mountPoint Blog = "/home/lucas/Lucas/blog"
-mountPoint Content = "content"
-mountPoint Layout = "assets/html"
-
-servingDir :: IsString p => Source -> p
-servingDir Zettel = "zettelkasten"
-servingDir Blog = "blog"
-servingDir Content = ""
-servingDir Layout = ""
-
-mountSet :: Set (Source, FilePath)
-mountSet = Set.fromList [(s, mountPoint s) | s <- [Layout, Content, Blog, Zettel]]
+type RoamDatabase = Map UUID (Set RoamBacklink)
 
 class HtmlPage a where
   title :: a -> Text
   body  :: a -> Html ()
 
-data StructuralPage = StructuralPage { pageTitle :: Text, pageBody :: Text }
-  deriving (Generic, Eq, Ord)
+data StructuralPage = StructuralPage
+  { pageTitle :: Text
+  , pageBody :: Text
+  } deriving (Generic, Eq, Ord, Binary)
 
 instance HtmlPage StructuralPage where
   title = pageTitle
@@ -54,26 +57,18 @@ instance HtmlPage StructuralPage where
     h1_ (toHtmlRaw $ pageTitle page)
     toHtmlRaw $ pageBody page
 
-data BlogPost = BlogPost { postTitle :: Text, postBody :: Text, date :: Day }
-  deriving (Generic, Eq, Ord)
-
-instance HtmlPage BlogPost where
-  title = postTitle
-  body page = do
-    h1_ (toHtmlRaw $ postTitle page)
-    toHtmlRaw $ postBody page
+data RoamPost = RoamPost
+  { postTitle :: Text
+  , postBody :: Text, date :: Day
+  } deriving (Generic, Eq, Ord, Binary)
 
 data RoamBacklink = RoamBacklink
   { backlinkUUID :: UUID
   , backlinkTitle :: Text
   , backlinkExcerpt :: Text
-  }
-  deriving (Eq, Ord, Generic)
+  } deriving (Eq, Ord, Generic, Binary)
 
--- | map (uuid of page x) -> list of (uuid, excerpt) of x's backlinks
-type RoamDatabase = Map UUID (Set RoamBacklink)
-
-instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
+instance HtmlPage (RoamPost, Maybe (Set RoamBacklink)) where
   title = postTitle . fst
   body (page, mbacklinks) = do
     h1_ (toHtmlRaw $ postTitle page)
@@ -87,16 +82,18 @@ instance HtmlPage (BlogPost, Maybe (Set RoamBacklink)) where
           toHtmlRaw $ backlinkExcerpt bl
       Nothing -> p_ $ i_ "No backlinks."
 
-data Model = Model
-  { siteName :: Text,
-    fileStructure :: Tree Slug,
-    structuralPages :: Map Path (Localized StructuralPage),
-    blogPosts :: Map Slug BlogPost,
-    layouts :: Map String Text,
-    roamPosts :: Map UUID BlogPost,
-    roamDatabase :: RoamDatabase,
-    roamAssoc :: Map FilePath [UUID] }
-  deriving (Generic)
+mountPoint :: IsString p => Source -> p
+mountPoint Zettel = "/home/lucas/Lucas/notas"
+mountPoint Asset = "assets"
+mountPoint Content = "content"
+
+servePoint :: IsString p => Source -> p
+servePoint Zettel = "zettelkasten"
+servePoint Asset = "assets"
+servePoint Content = ""
+
+mountSet :: Set (Source, FilePath)
+mountSet = Set.fromList [(s, mountPoint s) | s <- [Asset, Content, Zettel]]
 
 -- Probably I should use something like lens... I know nothing about it
 insertL :: String -> Text -> Endo Model
@@ -104,17 +101,26 @@ insertL k v = Endo \m -> m { layouts = insert k v (layouts m) }
 deleteL :: String -> Endo Model
 deleteL k = Endo \m -> m { layouts = delete k (layouts m) }
 
+insertSA :: Source -> FilePath -> Endo Model
+insertSA src fp = Endo \m ->
+  m { staticAssets =
+      \src' -> if src' == src
+               then forestInsert (urlToPath fp) (staticAssets m src)
+               else staticAssets m src }
+
+deleteSA :: Source -> FilePath -> Endo Model
+deleteSA src fp = Endo \m ->
+  m { staticAssets =
+      \src' -> if src' == src
+               then forestDelete (urlToPath fp) (staticAssets m src)
+               else staticAssets m src }
+
 insertSP :: Path -> Locale -> StructuralPage -> Endo Model
 insertSP k l v = Endo \m -> m { structuralPages = Map.insertWith Map.union k (Map.singleton l v) (structuralPages m) }
 deleteSP :: Path -> Locale -> Endo Model
 deleteSP k l = Endo \m -> m { structuralPages = Map.adjust (delete l) k (structuralPages m) }
 
-insertBP :: Slug -> BlogPost -> Endo Model
-insertBP k v = Endo \m -> m { blogPosts = insert k v (blogPosts m) }
-deleteBP :: Slug -> Endo Model
-deleteBP k = Endo \m -> m { blogPosts = delete k (blogPosts m) }
-
-insertRP :: UUID -> BlogPost -> Endo Model
+insertRP :: UUID -> RoamPost -> Endo Model
 insertRP k v = Endo \m -> m { roamPosts = insert k v (roamPosts m) }
 
 mapDeleteRD :: [UUID] -> RoamDatabase -> RoamDatabase
@@ -156,24 +162,15 @@ deleteFromRD fp =
                    }
       Nothing -> m
 
-instance Binary Slug
-instance Binary StructuralPage
-instance Binary BlogPost
-instance Binary RoamBacklink
-instance Binary Locale
-instance Binary Model
-
 defaultModel :: Model
 defaultModel =
   Model
-    "lucasvreis"
-    rootNode
-    emptyMap
+    "sempre-viva"
+    mempty
     emptyMap
     emptyMap
     emptyMap
     emptyMap
     emptyMap
   where
-    rootNode = Node (decodeSlug "") []
     emptyMap = Map.empty

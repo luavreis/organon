@@ -11,6 +11,7 @@ import UnliftIO (MonadUnliftIO)
 import System.FilePath
 import Control.Monad.Logger
 import qualified Models as M
+import PandocTransforms.Emojis (convertEmojis)
 
 -- | Types
 
@@ -28,6 +29,7 @@ transforms =
   [ headerShift 1
   , setMetaP "lang" "pt-BR"
   , setMetaP "csl" "data/citstyle.csl"
+  , walk convertEmojis
   ]
 
 convertIO
@@ -45,7 +47,7 @@ convertIO fp src _ fileText = do
     parsed <- readOrg readerOptions [(fp, fileText)]
               <&> applyTransforms
               <&> setOrgVars
-              <&> walk (fixLinks $ M.servingDir src)
+              <&> walk (fixLinks $ M.servePoint src)
     if isJust . lookupMeta "bibliography" . getMeta $ parsed
     then processCitations parsed
     else pure parsed

@@ -30,7 +30,11 @@ buildRoamGraph m = Graph nodes links
 
     nodes = map pageToNode (toPairs $ roamPosts m)
 
-    backlinksToLinks ~(target, backlinks) =
-      map (\ bl -> Link (backlinkUUID bl) target) $ toList backlinks
+    backlinksToLinks ~(target, backlinks)
+      -- Ensure target exists
+      | target `member` roamPosts m =
+          map (\ bl -> Link (backlinkUUID bl) target) $
+          toList backlinks
+      | otherwise = []
 
     links = backlinksToLinks =<< toPairs (roamDatabase m)

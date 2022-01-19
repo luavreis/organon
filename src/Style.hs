@@ -4,7 +4,7 @@ module Style where
 
 import Clay
 import Prelude hiding ((**),empty)
-import qualified Clay.Media as M
+import Text.Pandoc.Highlighting (pygments, styleToCss)
 
 darkTduration :: Double
 darkTduration = 0.2
@@ -251,12 +251,14 @@ darkStyle = do
       -- paper = "#efefef"
 
 styleT :: LText
-styleT = renderWith compact [] $ do
-  mainStyle
-  definitionList
-  pageHeader
-  images
-  foot
-  katex
-  citationsCss
-  darkStyle
+styleT = renderWith compact []
+         (do mainStyle
+             definitionList
+             pageHeader
+             images
+             foot
+             katex
+             citationsCss
+             darkStyle
+         )
+         <> toLText (styleToCss pygments)
