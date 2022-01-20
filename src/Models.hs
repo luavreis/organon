@@ -3,14 +3,13 @@ module Models where
 
 import Ema
 import Path
-import Data.Map ((!?))
+import Data.Map ( (!?), delete, insert, alter )
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Lucid
 import Data.Time (Day)
 import Data.Binary.Instances.Time ()
 import Data.Binary
-import Relude.Extra.Map (delete, insert)
 import Locale
 
 instance Binary Slug
@@ -32,7 +31,7 @@ data Source
 
 data Model = Model
   { siteName :: Text
-  , staticAssets :: Source -> Forest Slug
+  , staticAssets :: Map Source (Tree Slug)
   , structuralPages :: Map Path (Localized StructuralPage)
   , layouts :: Map String Text
   , roamPosts :: Map UUID RoamPost
@@ -103,17 +102,11 @@ deleteL k = Endo \m -> m { layouts = delete k (layouts m) }
 
 insertSA :: Source -> FilePath -> Endo Model
 insertSA src fp = Endo \m ->
-  m { staticAssets =
-      \src' -> if src' == src
-               then forestInsert (urlToPath fp) (staticAssets m src)
-               else staticAssets m src }
+  m { staticAssets = alter (forestInsert (urlToPath fp)) src (staticAssets m) }
 
 deleteSA :: Source -> FilePath -> Endo Model
 deleteSA src fp = Endo \m ->
-  m { staticAssets =
-      \src' -> if src' == src
-               then forestDelete (urlToPath fp) (staticAssets m src)
-               else staticAssets m src }
+  m { staticAssets = alter (forestDelete (urlToPath fp)) src (staticAssets m) }
 
 insertSP :: Path -> Locale -> StructuralPage -> Endo Model
 insertSP k l v = Endo \m -> m { structuralPages = Map.insertWith Map.union k (Map.singleton l v) (structuralPages m) }

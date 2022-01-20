@@ -6,6 +6,7 @@ module Render where
 import Data.Some (Some)
 import Models
 import RoamGraph
+import Debug.Pretty.Simple
 import qualified Routes as R
 import qualified Layouts as L
 import qualified Style as S
@@ -17,6 +18,7 @@ import Locale (ptTimeLocale)
 import Lucid
 import Data.Aeson
 import Path
+import System.FilePath ((</>))
 
 data SimplePage = SimplePage { simpleTitle :: Text, simpleBody :: Html () }
 
@@ -47,7 +49,7 @@ roamIndex m = SimplePage "Zettelkasten" do
 render :: Some ECli.Action -> Model -> R.Route -> E.Asset LByteString
 
 render _ _ R.StyleSheet  =
-  E.AssetGenerated E.Other (encodeUtf8 S.styleT)
+  E.AssetGenerated E.Other (encodeUtf8 S.style)
 
 render _ m (R.StructuralPage l p)  =
   pageOrnotFound m $ lookup l =<< lookup p (structuralPages m)
@@ -62,4 +64,4 @@ render _ m (R.RoamPage uuid) =
   <$> lookup uuid (roamPosts m)
 
 render _ _ (R.StaticAsset source path)  =
-  E.AssetStatic $ mountPoint source /> pathToUrl path
+  E.AssetStatic $ pTraceId $ mountPoint source </> pathToUrl path

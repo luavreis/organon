@@ -112,10 +112,13 @@ processRoam fp (Pandoc meta blocks, preamble) = do
 convertRoam
   :: (MonadUnliftIO m, MonadLogger m)
   => FilePath
+  -> Source
   -> Text
   -> CacheT Model m ()
-convertRoam fp txt = do
-  let dir = takeDirectory fp
+convertRoam relFp src txt = do
+  let fp = mountPoint src </> relFp
+      relDir = takeDirectory relFp
+      dir = takeDirectory fp
 
   doc :: Maybe (Pandoc, Block) <- liftIO $ runIOorExplode $ do
     setResourcePath [".", dir]
@@ -129,7 +132,7 @@ convertRoam fp txt = do
     else do
       parsed <- parsed'
                 & applyTransforms
-                & walk (fixLinks dir)
+                & walk (fixLinks $ servePoint src </> relDir)
                 & if isJust (lookupMeta "bibliography" meta)
                   then processCitations
                   else pure

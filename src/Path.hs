@@ -5,15 +5,16 @@ import Ema
 import Prelude hiding (fromList)
 import System.FilePath (splitDirectories)
 import qualified Data.Map.NonEmpty as Map
+import qualified Data.Text as T
 
 type Path = [Slug]
 
 newtype Ord a => Tree a
   = Tree { unTree :: Map.NEMap a (Node a)}
-  deriving (Eq)
+  deriving (Eq,Show)
 
 data Node a = Leaf | Subtree (Tree a)
-  deriving (Eq)
+  deriving (Eq,Show)
 
 type Forest a = Maybe (Tree a)
 
@@ -43,7 +44,8 @@ treeInsert [] = id
 treeInsert (x:xs) = (treeFromList (x :| xs) <>)
 
 forestInsert :: Ord a => [a] -> Forest a -> Forest a
-forestInsert xs f = treeInsert xs <$> f
+forestInsert [] = id
+forestInsert l@(x:xs) = Just . maybe (treeFromList (x :| xs)) (treeInsert l)
 
 treeDelete :: forall a. Ord a => [a] -> Tree a -> Forest a
 treeDelete [] = pure -- !! pure means we ignore directories. Should be const
@@ -57,15 +59,6 @@ treeDelete (x:xs) = fmap Tree . Map.nonEmptyMap . Map.update delIn x . unTree
 forestDelete :: Ord a => [a] -> Forest a -> Forest a
 forestDelete xs f = treeDelete xs =<< f
 
-(/>) :: (Semigroup a, IsString a) => a -> a -> a
-r /> s = r <> "/" <> s
-
-pathToUrl :: Path -> FilePath
-pathToUrl = toString . foldr (\s u -> u /> encodeSlug s) ""
-
-urlToPath :: FilePath -> Path
-urlToPath = map (decodeSlug . toText) . splitDirectories
-
 isPathOfTree :: Ord a => [a] -> Tree a -> Bool
 isPathOfTree [] _ = False
 isPathOfTree (x:xs) tree = case treeLookup x tree of
@@ -75,3 +68,16 @@ isPathOfTree (x:xs) tree = case treeLookup x tree of
 
 isPathOfForest :: Ord a => [a] -> Forest a -> Bool
 isPathOfForest xs = maybe False (isPathOfTree xs)
+
+pathToUrl :: Path -> FilePath
+pathToUrl = toString . T.intercalate "/" . map unSlug
+
+urlToPath :: FilePath -> Path
+urlToPath = map (decodeSlug . toText) . splitDirectories
+
+allLeafs :: forall a. Ord a => Tree a -> [[a]]
+allLeafs tree = nodeToList =<< toList (Map.assocs $ unTree tree)
+  where
+    nodeToList :: (a, Node a) -> [[a]]
+    nodeToList (label, Leaf) = [[label]]
+    nodeToList (label, Subtree t) = (label:) <$> allLeafs t

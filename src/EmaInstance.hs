@@ -4,12 +4,14 @@ module EmaInstance where
 
 import Ema
 import Routes
--- import qualified Models as M
 import System.FilePath
 import System.FilePattern ((?==))
 import Path
 import Locale
-import Models (Model, Source, servePoint, staticAssets)
+import Relude.Extra.Map (lookup)
+import Models hiding (StructuralPage)
+import qualified Data.Map as Map
+
 
 findAssetRoute :: Model -> FilePath -> Maybe Route
 findAssetRoute m fp = exists' minBound
@@ -17,7 +19,7 @@ findAssetRoute m fp = exists' minBound
     exists' :: Source -> Maybe Route
     exists' src
       | isPrefixOf point fp
-        && relPath `isPathOfForest` staticAssets m src =
+        && relPath `isPathOfForest` lookup src (staticAssets m) =
         Just $ StaticAsset src relPath
       | otherwise =
           if maxBound == src
@@ -29,41 +31,43 @@ findAssetRoute m fp = exists' minBound
         relPath = drop (length pointPath) (urlToPath fp)
 
 instance Ema Model Route where
-  decodeRoute m fp =
-    case fixedFp of
+  decodeRoute m fp = case fp of
       "assets/css/stylesheet.css" -> Just StyleSheet
       "zettelkasten/index.html" -> Just RoamEntryPoint
       "zettelkasten/graph.json" -> Just RoamGraphJSON
       _
-        | "zettelkasten/*/index.html" ?== fixedFp ->
-          Just $ RoamPage (slugfy $ takeBaseName $ takeDirectory fixedFp)
+        | "zettelkasten/*/index.html" ?== fp ->
+          Just $ RoamPage (slugfy $ takeBaseName $ takeDirectory fp)
         | isJust maybeAsset -> maybeAsset
-        | "**/index.html" ?== fixedFp ->
-          let (mbLocale, fp') = break (== '/') fixedFp
+        | "**/index.html" ?== fp ->
+          let (mbLocale, fp') = break (== '/') fp
               page loc p = Just $ StructuralPage loc (urlToPath p)
           in case toLocale mbLocale of
             Just l -> page l (drop 1 fp')
-            Nothing -> page defLocale fixedFp
+            Nothing -> page defLocale fp
         | otherwise -> Nothing
     where
       slugfy = decodeSlug . toText
-      fixedFp = if hasExtension fp
-                then fp
-                else fp </> "index.html"
-      maybeAsset = findAssetRoute m fixedFp
+      maybeAsset = findAssetRoute m fp
 
 
   encodeRoute _l = \case
     StyleSheet -> "assets/css/stylesheet.css"
     RoamEntryPoint -> "zettelkasten/index.html"
     RoamGraphJSON -> "zettelkasten/graph.json"
-    RoamPage uuid -> "zettelkasten" /> tUnSlug uuid /> "index.html"
+    RoamPage uuid -> "zettelkasten" </> tUnSlug uuid </> "index"
     StructuralPage loc path
-      | loc == defLocale  -> pathToUrl path <.> "html"
-      | otherwise         -> localeAbbrev loc /> pathToUrl path <.> "html"
-    StaticAsset source path -> servePoint source /> pathToUrl path
+      | loc == defLocale  -> pathToUrl path
+      | otherwise         -> localeAbbrev loc </> pathToUrl path
+    StaticAsset source path -> servePoint source </> pathToUrl path
     where
       tUnSlug = toString . unSlug
 
 
-  allRoutes _model = []
+  allRoutes m =
+    [StyleSheet, RoamEntryPoint, RoamGraphJSON]
+    <> [StaticAsset src path | (src, tree) <- Map.assocs (staticAssets m)
+                             , path <- allLeafs tree]
+    <> [RoamPage uuid | uuid <- Map.keys (roamPosts m)]
+    <> [StructuralPage loc slug | (slug, localized) <- Map.assocs (structuralPages m)
+                                , loc <- Map.keys localized ]

@@ -54,8 +54,8 @@ defLaTeXpackages =
   , ("ulem", ["normalem"])
   , ("amsmath", [])
   , ("amssymb", [])
-  , ("tikz", [])
   , ("tikz-cd", [])
+  , ("tikz", [])
   ]
 
 getPreamble :: Meta -> Text
@@ -67,13 +67,16 @@ getPreamble meta =
     queryPreamble (RawInline (Format "latex") s) = s <> "\n"
     queryPreamble _ = T.empty
 
+-- Note to self: if standalone keeps giving me headaches, one option is to
+-- conditionally use tikz external library
+-- (https://tex.stackexchange.com/questions/32127/standalone-tikz-pictures)
 svgLaTeX
   :: forall m. (MonadUnliftIO m, MonadLogger m)
   => FilePath -> Text -> Text -> m (Maybe ByteString)
 svgLaTeX dir preamble body = do
   let code =
         [text|
-          \documentclass[varwidth]{standalone}
+          \documentclass[preview]{standalone}
           $packages
           $preamble
           \begin{document}

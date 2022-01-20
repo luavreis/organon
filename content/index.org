@@ -1,6 +1,6 @@
-#+title: lucasvreis
+#+title: /sempre-viva/ 🌸
 
-Essa é a minha página pessoal. Bem vindos! 🙂
+Essa é a minha página pessoal. Bem vindos!
 
 #+begin_export html
 <div id="graph" style="width: 400px;

@@ -83,16 +83,31 @@ images = do
     marginRight auto
     maxWidth (pct 70)
 
+  p |> img ? do
+    verticalAlign vAlignBottom
+    margin__ 0 (px 3)
+
   p ** img # onlyChild ? do
     display block
+    margin_ auto
 
   figure ** img ?
     display block
 
+quotes :: Css
+quotes = do
+  blockquote ? do
+    fontStyle italic
+    margin__ (em 1) (em 3)
+
 lists :: Css
 lists = do
+  li # "::marker" ? do
+    fontWeight (weight 500)
+
   ul <> ol ? do
     margin__ (px 8) (px 0)
+    lineHeight (em 1.3)
 
   ul ? paddingLeft (px 5)
 
@@ -135,13 +150,42 @@ headings = do
     fontSize (px 20)
     fontWeight (weight 500)
 
+fonts :: Css
+fonts = do
+  fontFace do
+    fontFamily ["twemoji mozilla"] []
+    fontFaceSrc [FontFaceSrcUrl "https://xem.github.io/unicode13/Twemoji.ttf" $ Just TrueType ]
+  fontFace do
+    fontFamily ["victor mono"] []
+    fontFaceSrc [FontFaceSrcUrl "/assets/fonts/VictorMono-Medium.woff2" $ Just WOFF2]
+
+emojis :: Css
+emojis = do
+  ".emoji" ? do
+    fontFamily ["twemoji mozilla", "noto color emoji"] []
+    display inlineBlock
+
+codes :: Css
+codes = do
+  code <> ".sourceCode" ? do
+    fontFamily ["victor mono"] [monospace]
+    fontSize (px 15)
+    letterSpacing (px 0.3)
+
+tables :: Css
+tables = do
+  table ? do
+    width (pct 80)
+    marginLeft auto
+    marginRight auto
+
 pageHeader :: Css
 pageHeader = do
   header ? do
     marginBottom (px 8)
 
-mainStyle :: Css
-mainStyle = do
+main :: Css
+main = do
   star ? do
     margin_  (px 0)
 
@@ -163,7 +207,8 @@ mainStyle = do
 
   body ? do
     background         ("#fffdf8" :: Color)
-    color              "#111"
+    color              black
+    fontSize (px 19)
     fontFamily         ["Crimson Pro", "times"]  [serif]
     fontWeight         (weight 300)
     textRendering      optimizeLegibility
@@ -189,7 +234,6 @@ mainStyle = do
     fontStyle italic
 
   "#main" ? do
-    fontSize (px 18)
     position relative
     width (pct 90)
     maxWidth (px 700)
@@ -200,8 +244,12 @@ mainStyle = do
     margin__ (px 0) auto
 
     lists
-
+    tables
     headings
+    quotes
+    codes
+    images
+    definitionList
 
     p ? do
       marginTop (px 10)
@@ -250,12 +298,12 @@ darkStyle = do
       -- paper :: Color
       -- paper = "#efefef"
 
-styleT :: LText
-styleT = renderWith compact []
-         (do mainStyle
-             definitionList
+style :: LText
+style = renderWith compact []
+         (do main
+             fonts
+             emojis
              pageHeader
-             images
              foot
              katex
              citationsCss

@@ -63,7 +63,7 @@ main = void $
           Zettel -> \case
             Refresh _ () -> do
               fileText <- readFileText realFp
-              convertRoam realFp fileText
+              convertRoam fp src fileText
             Delete -> tell $ deleteFromRD realFp
           Asset ->
             case stripPrefix "html/" fp of

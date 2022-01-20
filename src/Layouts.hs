@@ -10,7 +10,7 @@ import Data.Map ((!?))
 import Data.Text as T
 
 twemoji :: Text -> Html ()
-twemoji t = i_ [class_ $ "twa twa-" <> t] ""
+twemoji e = span_ [class_ "emoji"] $ toHtmlRaw e
 
 -- Lucid definitions
 obdata_ :: Text -> Attribute
@@ -57,16 +57,16 @@ head m = head_ do
 foot :: Html ()
 foot =
   div_ [class_ "page-foot"] do
-    "Site em construção..."
-    twemoji "building-construction"
+    "Site em construção... "
+    twemoji "🏗"
     br_ []
     button_ [id_ "extra1"] do
-      "Katamari!"
-      twemoji "volleyball"
+      "Katamari! "
+      twemoji "🏐"
     " ~ "
     button_ [id_ "extra2"] do
-      "Boids"
-      twemoji "bird"
+      "Boids "
+      twemoji "🐦"
 
 primary :: Model -> Html () -> Html () -> Html ()
 primary _ docHead content =
@@ -78,6 +78,6 @@ primary _ docHead content =
       div_ [id_ "main"] do
         header_ do
           a_ [href_ "", style_ "background: none;"] do
-            twemoji "house" <> " início"
+            twemoji "🏡" <> " início"
         content
         foot
