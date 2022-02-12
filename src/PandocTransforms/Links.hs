@@ -65,7 +65,7 @@ handleOrgLink place@(src, srcFp) mID inl@(linkOrImg -> Just (cons, alt, (link, t
            then -- linkedFp is absolute (unsupported)
              log (warnAbsPath srcFp) $> inl
            else -- linkedFp is relative to `place`
-             let path = takeDirectory fp </> linkedFp
+             let path = takeDirectory srcFp </> linkedFp
                  fp = filepath (src, path)
              in tell (insertSA src fp)
                 *> fileRelative path

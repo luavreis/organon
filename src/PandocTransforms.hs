@@ -18,7 +18,10 @@ import PandocTransforms.Emojis (convertEmojis)
 data RawFormat = Image | Html | Other
   deriving (Eq,Ord,Show)
 
-data MarkupFormat = Org | Md | Raw RawFormat
+data MarkupFormat = Org | Md
+  deriving (Eq,Ord,Show)
+
+data Format = Markup MarkupFormat | Raw RawFormat
   deriving (Eq,Ord,Show)
 
 -- | Walkable filters

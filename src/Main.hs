@@ -16,11 +16,14 @@ import PandocTransforms.Roam
 import Ema.Helper.FileSystem
 import Data.List (stripPrefix)
 
-filesToInclude :: [(MarkupFormat, FilePattern)]
+mountSet :: Set (Source, FilePath)
+mountSet = fromList [(s, mountPoint s) | s <- [Asset, Content, Zettel]]
+
+filesToInclude :: [(Format, FilePattern)]
 filesToInclude =
-  [ (Org, "**/*.org")
-  , (Md, "**/*.md")
-  -- , (Raw Image, "**/*.png")
+  [ (Markup Org, "**/*.org")
+  , (Markup Md, "**/*.md")
+  , (Raw Image, "**/*.png")
   , (Raw Image, "**/*.jpg")
   , (Raw Html, "**/*.html")
   ]
@@ -40,33 +43,38 @@ main = void $
       filesToInclude
       filesToExclude
       defaultModel
-      \case
-        Raw rtype -> \ fp -> \ case
-          Asset -> undefined
-          _ -> undefined
-        fmt -> \ fp -> \ case
-            Asset ->
-              case stripPrefix "html/" fp of
-                Just fp' | fmt == Raw Html -> \case
-                  Refresh _ () -> tell . insertL (dropExtension fp')
-                                    =<< readFileText realFp
-                  Delete       -> tell $ deleteL (dropExtension fp')
-                _ -> \case
-                  Refresh _ () -> tell $ insertSA src fp
-                  Delete       -> tell $ deleteSA src fp
-            Content ->
-              let path = urlToPath $ dropExtensions fp <.> "html" -- do this bc fileserver searches for index.html (not just index)
-                  locale = drop 1 (takeExtensions fp)
-                          & takeWhile (/= '.')
-                          & fromMaybe defLocale . toLocale
-              in \case
-                  Refresh _ () -> do
-                    fileText <- readFileText realFp
-                    (title, body) <- convertIO place fmt fileText
-                    tell $ insertSP path locale (StructuralPage title body)
-                  Delete -> tell $ deleteSP path locale
-            Zettel -> \case
-              Refresh _ () -> do
-                fileText <- readFileText realFp
-                convertRoam place fileText
-              Delete -> tell $ deleteFromRD realFp
+      \ fmt fp src ->
+        let place = (src, fp)
+            realFp = filepath place
+        in case fmt of
+          Raw rtype ->
+            case src of
+              Asset ->
+                case stripPrefix "html/" fp of
+                  Just fp' | rtype == Html -> \case
+                    Refresh _ () -> tell . insertL (dropExtension fp')
+                                      =<< readFileText realFp
+                    Delete       -> tell $ deleteL (dropExtension fp')
+                  _ -> \case
+                    Refresh _ () -> tell $ insertSA src fp
+                    Delete       -> tell $ deleteSA src fp
+              _ -> const $ pure ()
+          Markup mtype ->
+            case src of
+              Content ->
+                let path = urlToPath $ dropExtensions fp <.> "html" -- do this bc fileserver searches for index.html (not just index)
+                    locale = drop 1 (takeExtensions fp)
+                            & takeWhile (/= '.')
+                            & fromMaybe defLocale . toLocale
+                in \case
+                    Refresh _ () -> do
+                      fileText <- readFileText realFp
+                      (title, body) <- convertIO place mtype fileText
+                      tell $ insertSP path locale (StructuralPage title body)
+                    Delete -> tell $ deleteSP path locale
+              Zettel -> \case
+                Refresh _ () -> do
+                  fileText <- readFileText realFp
+                  convertRoam place fileText
+                Delete -> tell $ deleteFromRD realFp
+              Asset -> const $ pure ()

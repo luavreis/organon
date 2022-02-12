@@ -40,9 +40,6 @@ servePoint Zettel = "zettelkasten"
 servePoint Asset = "assets"
 servePoint Content = ""
 
-mountSet :: Set (Source, FilePath)
-mountSet = Set.fromList [(s, mountPoint s) | s <- [Asset, Content, Zettel]]
-
 type Place = (Source, FilePath)
 
 filepath :: Place -> FilePath

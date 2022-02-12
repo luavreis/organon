@@ -6,7 +6,7 @@ artigos escritos para disciplinas, pequenas postagens no formato de blog e outro
 materiais diversos.
 
 Por enquanto, várias coisas deste site estão em desenvolvimento. Você pode ver
-algumas ideias a serem implementadas e o estado delas na página [[file:todo.org][to-do]].
+algumas ideias a serem implementadas e o estado delas na página [[file:todoa.org][to-do]].
 
 O site em si foi feito com Emacs e Haskell. As páginas são principalmente
 escritas na linguagem de markup Org 🦄, o zettelkasten é criado com a extensão
