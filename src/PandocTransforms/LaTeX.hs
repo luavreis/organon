@@ -76,7 +76,7 @@ svgLaTeX
 svgLaTeX dir preamble body = do
   let code =
         [text|
-          \documentclass[preview]{standalone}
+          \documentclass[varwidth,preview]{standalone}
           $packages
           $preamble
           \begin{document}
@@ -119,7 +119,7 @@ svgImage s = Image nullAttr [] (uri, "")
           (w, s'')    = B.breakSubstring "pt\"" s'
           (mid, s''') = B.breakSubstring "height=\"" s''
           (h, rest)   = B.breakSubstring "pt\"" s'''
-          factor = 1.3
+          factor = 1.5
       width  :: Float <- readMaybe $ decodeUtf8 $ B.drop 7 w
       height :: Float <- readMaybe $ decodeUtf8 $ B.drop 8 h
       return $ ini <> "width=\"" <> show (width * factor)

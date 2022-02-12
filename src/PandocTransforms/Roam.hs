@@ -43,29 +43,27 @@ processRoam fp (Pandoc meta blocks, preamble) = do
         Left e ->
           logErrorNS "Roam" ("Pandoc writer failed with:\n" <> renderError e)
         Right (tit, bod) -> do
-          tell $ insertRP uuid (RoamPost tit bod $ ModifiedJulianDay 1)
+          tell $ insertRP uuid (RoamPost tit bod (ModifiedJulianDay 1) [])
           tell $ addToRD uuid $
             map (\ ~(ruuid, excrpt) -> (ruuid, RoamBacklink uuid tit excrpt))
             bklinks
 
     processDiv :: Block -> CacheT Model m [UUID]
-    processDiv (Div (_, "section":_, kvs) blks) =
-      viaNonEmpty head (filter ((== "id") . fst) kvs)
-      & maybe mempty \(_, uuid) -> do
-      let uuid' = Slug uuid
-      case viaNonEmpty headTail blks of
-        Just (Header i  _ inl, t) ->
-          addToModel (walk (shift (-i + 1)) t)
-          (Span ("", [], [("style", "font-size: 90%")]) (docTitle meta)
-           : LineBreak
-           : Span ("", [], [ ( "style"
-                             , "font-family: sans; \
-                               \ font-weight: lighter; \
-                               \ font-size: 85%"
-                             ) ]) [Str "→"]
-           : Space : inl) uuid'
-        _ -> addToModel blks (docTitle meta) uuid'
-      pure [uuid']
+    processDiv (Div (_, "section":_, kvs) blks)
+      | Just uuid <- Slug . snd <$> find ((== "id") . fst) kvs = do
+          case viaNonEmpty headTail blks of
+            Just (Header i  _ inl, t) ->
+              addToModel (walk (shift (-i + 1)) t)
+              (Span ("", [], [("style", "font-size: 90%")]) (docTitle meta)
+                : LineBreak
+                : Span ("", [], [ ( "style"
+                                  , "font-family: sans; \
+                                    \ font-weight: lighter; \
+                                    \ font-size: 85%"
+                                  ) ]) [Str "→"]
+                : Space : inl) uuid
+            _ -> addToModel blks (docTitle meta) uuid
+          pure [uuid]
       where
         headTail (h :| t) = (h, t)
         shift n (Header level attr inner)
@@ -74,14 +72,23 @@ processRoam fp (Pandoc meta blocks, preamble) = do
         shift _ x            = x
     processDiv _ = mempty
 
-    processBlock :: Block -> Writer [(UUID, Text)] Block
-    processBlock (BlockQuote blks) = BlockQuote <$> mapM processBlock blks
-    processBlock (Div attr blks) = Div attr <$> mapM processBlock blks
-    processBlock (OrderedList attrs blks) = OrderedList attrs <$> mapM (mapM processBlock) blks
-    processBlock (BulletList blks) = BulletList <$> mapM (mapM processBlock) blks
-    processBlock (DefinitionList blks) = DefinitionList <$> mapM (mapSnd $ mapM (mapM processBlock)) blks
-      where mapSnd f ~(x, y) = (x,) <$> f y
-    processBlock blk = mapWriter mapper $ walkM processLink blk
+    orderedContext :: ListAttributes -> Int -> Block -> Block
+    orderedContext attr i blk = OrderedList (chgFst i attr) [[blk]]
+      where chgFst w ~(_,y,z) = (w,y,z)
+
+    defListContext :: [Inline] -> Block -> Block
+    defListContext term blk = DefinitionList [(term, [[blk]])]
+
+    bulletListContext :: Block -> Block
+    bulletListContext blk = BulletList [[blk]]
+
+    processBlock :: (Block -> Block) -> Block -> Writer [(UUID, Text)] Block
+    processBlock _ (BlockQuote blks) = BlockQuote <$> mapM (processBlock id) blks
+    processBlock _ (Div attr blks) = Div attr <$> mapM (processBlock id) blks
+    processBlock _ (OrderedList attrs blks) = OrderedList attrs <$> mapM (\(i, blk) -> mapM (processBlock (orderedContext attrs i)) blk) (zip [0..] blks)
+    processBlock _ (BulletList blks) = BulletList <$> mapM (mapM $ processBlock bulletListContext) blks
+    processBlock _ (DefinitionList blks) = DefinitionList <$> mapM (\(term, etc) -> (term,) <$> mapM (mapM $ processBlock (defListContext term)) etc) blks
+    processBlock context blk = mapWriter mapper $ walkM processLink blk
       where
         clearAttr :: Attr -> Attr
         clearAttr (_, xs, _) = ("", xs, [])
@@ -92,11 +99,11 @@ processRoam fp (Pandoc meta blocks, preamble) = do
         mapper :: (Block, [UUID]) -> (Block, [(UUID, Text)])
         mapper ~(b, xs) =
           let excerpt = fromRight "" $
-                runPure $ writeHtml $ Pandoc meta [clearAttrs b]
+                runPure $ writeHtml $ Pandoc meta [clearAttrs $ context b]
           in (b, map (, excerpt) xs)
 
     processLinks :: [Block] -> Writer [(UUID, Text)] [Block]
-    processLinks = mapM processBlock
+    processLinks = mapM $ processBlock id
 
     processLink :: Inline -> Writer [UUID] Inline
     processLink (Link attr alt (url, titl)) =
@@ -111,28 +118,26 @@ processRoam fp (Pandoc meta blocks, preamble) = do
 
 convertRoam
   :: (MonadUnliftIO m, MonadLogger m)
-  => FilePath
-  -> Source
+  => Place
   -> Text
   -> CacheT Model m ()
-convertRoam relFp src txt = do
-  let fp = mountPoint src </> relFp
-      relDir = takeDirectory relFp
-      dir = takeDirectory fp
+convertRoam place@(_,fp) txt = do
+  let
+    realFp = filepath place
+    dir = takeDirectory realFp
 
   doc :: Maybe (Pandoc, Block) <- liftIO $ runIOorExplode $ do
     setResourcePath [".", dir]
-    parsed' <- readOrg readerOptions [(dir, txt)]
+    parsed' <- readOrg readerOptions [(realFp, txt)]
                <&> setOrgVars
 
     let meta = getMeta parsed'
 
-    if False -- MetaString "t" `notElem` lookupMeta "published" meta
+    if MetaString "t" `notElem` lookupMeta "published" meta
     then pure Nothing
     else do
       parsed <- parsed'
                 & applyTransforms
-                & walk (fixLinks $ servePoint src </> relDir)
                 & if isJust (lookupMeta "bibliography" meta)
                   then processCitations
                   else pure
@@ -141,7 +146,8 @@ convertRoam relFp src txt = do
       pure $ Just (parsed, preamble)
 
   flip (maybe $ tell $ deleteFromRD fp) doc $
-    processRoam fp <=< mapFst (renderLaTeX dir)
+    mapFst (handleOrgLinks place >=> renderLaTeX dir)
+    >=> processRoam fp
 
   where
     mapFst f ~(x,y) = (, y) <$> f x

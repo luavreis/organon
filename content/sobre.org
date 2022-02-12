@@ -1,1 +1,10 @@
 Olá! Ainda preciso escrever isso melhor.
+
+@@html:<div style="float: right;">@@
+
+#+attr_html: :width 180px
+#+attr_html: :alt picture of me!
+#+caption: it me!
+[[file:data/20210909_142026.jpg]]
+
+@@html:</div>@@

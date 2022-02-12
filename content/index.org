@@ -1,6 +1,21 @@
-#+title: /sempre-viva/ 🌸
 
-Essa é a minha página pessoal. Bem vindos!
+Sou um estudante de graduação em matemática pura. Nesse site, você encontra
+principalmente notas de aula, notas da minha iniciação científica e notas sobre
+outros temas que considero interessantes. Também disponibilizo aqui alguns
+artigos escritos para disciplinas, pequenas postagens no formato de blog e outro
+materiais diversos.
+
+Por enquanto, várias coisas deste site estão em desenvolvimento. Você pode ver
+algumas ideias a serem implementadas e o estado delas na página [[file:todo.org][to-do]].
+
+O site em si foi feito com Emacs e Haskell. As páginas são principalmente
+escritas na linguagem de markup Org 🦄, o zettelkasten é criado com a extensão
+Org-roam e o gerador foi escrito por mim, fazendo uso principalmente das
+bibiliotecas =ema= e =pandoc=.
+
+#+begin_center
+*/zettelkasten/*
+#+end_center
 
 #+begin_export html
 <div id="graph" style="width: 400px;
@@ -241,4 +256,7 @@ Essa é a minha página pessoal. Bem vindos!
 </script>
 <script src="https://d3js.org/d3.v7.min.js" onload="renderGraph();"></script>
 #+end_export
+#+begin_center
+experimente navegar pelo grafo!
+#+end_center
 

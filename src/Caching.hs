@@ -4,7 +4,6 @@ module Caching where
 import Data.LVar (LVar)
 import Control.Monad.Logger
 import Ema.Helper.FileSystem
-import Control.Monad.IO.Unlift
 import qualified Data.Set as Set
 import Control.Monad.Trans.Writer.Strict
 import qualified Data.LVar as LVar
@@ -12,7 +11,7 @@ import UnliftIO.Directory (doesFileExist)
 import qualified Data.HashMap.Strict as HMap
 import System.FilePattern (FilePattern, (?==))
 import Data.Binary.Instances.UnorderedContainers ()
-import UnliftIO (readTBQueue, newTBQueueIO, race, TBQueue, BufferMode (BlockBuffering, LineBuffering), hSetBuffering, hFlush, finally)
+import UnliftIO hiding (atomically, putMVar, takeMVar, readMVar, newMVar, newTMVarIO)
 import Data.Binary (Binary, encode, decode, decodeFileOrFail, encodeFile)
 
 type CacheMap = HashMap LByteString LByteString
@@ -96,7 +95,7 @@ cachedMountOnLVar sources pats ignore model0 handleAction modelLVar = do
       logInfoNS "Caching" "website.cache does not exist. A new one will be created"
       pure mempty
 
-  let loop = disjointUnionMount sources pats ignore $ \changes -> do
+  let loop = mount sources pats ignore $ \changes -> do
 
         previousCache <- takeMVar cacheVar
 
@@ -141,7 +140,7 @@ cachedMountOnLVar sources pats ignore model0 handleAction modelLVar = do
       f' <- interceptExceptions id (pure f)
       return (f', c)
 
-disjointUnionMount
+mount
   :: forall source tag m.
      ( MonadIO m
      , MonadUnliftIO m
@@ -154,7 +153,7 @@ disjointUnionMount
   -> [FilePattern]
   -> ([(tag, FilePath, source, FileAction ())] -> m (Maybe Cmd))
   -> m (Maybe Cmd)
-disjointUnionMount sources pats ignore handleAction = do
+mount sources pats ignore handleAction = do
   fmap (join . rightToMaybe) $ do
     -- Initial traversal of sources
     changes0 :: [(tag, FilePath, source, FileAction ())] <-

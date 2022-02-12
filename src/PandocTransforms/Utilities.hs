@@ -13,8 +13,8 @@ import Text.Pandoc.Shared
 import Text.Pandoc.Builder (setMeta)
 import System.FilePath
 import Data.List (stripPrefix)
+import UnliftIO (MonadUnliftIO)
 import UnliftIO.Async (pooledMapConcurrentlyN)
-import Control.Monad.IO.Unlift
 
 -- | Concurrent walkM
 
@@ -68,6 +68,8 @@ readerOptions = def {
       extensionsFromList
       [ Ext_citations
       , Ext_smart
+      , Ext_task_lists
+      , Ext_auto_identifiers
       , Ext_fancy_lists
       ]
   }

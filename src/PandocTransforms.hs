@@ -15,11 +15,10 @@ import PandocTransforms.Emojis (convertEmojis)
 
 -- | Types
 
-data MarkupFormat
-  = Org
-  | Html
-  | Md
-  | Raw
+data RawFormat = Image | Html | Other
+  deriving (Eq,Ord,Show)
+
+data MarkupFormat = Org | Md | Raw RawFormat
   deriving (Eq,Ord,Show)
 
 -- | Walkable filters
@@ -34,25 +33,27 @@ transforms =
 
 convertIO
   :: (MonadUnliftIO m, MonadLogger m)
-  => FilePath
-  -> M.Source
+  => M.Place
   -> MarkupFormat
   -> Text
-  -> CacheT model m (Text, Text)
-convertIO fp src _ fileText = do
-  let dir = takeDirectory fp
+  -> CacheT M.Model m (Text, Text)
+convertIO place _ txt = do
+  let
+    realFp = M.filepath place
+    dir = takeDirectory realFp
 
   doc' <- liftIO $ runIOorExplode $ do
     setResourcePath [".", dir]
-    parsed <- readOrg readerOptions [(fp, fileText)]
+    parsed <- readOrg readerOptions [(realFp, txt)]
               <&> applyTransforms
               <&> setOrgVars
-              <&> walk (fixLinks $ M.servePoint src)
     if isJust . lookupMeta "bibliography" . getMeta $ parsed
     then processCitations parsed
     else pure parsed
 
-  doc <- renderLaTeX dir doc'
+  doc <- doc'
+         & renderLaTeX dir
+         >>= handleOrgLinks place
 
   let result = do
         let meta = getMeta doc

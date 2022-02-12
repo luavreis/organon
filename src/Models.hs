@@ -4,6 +4,7 @@ module Models where
 import Ema
 import Path
 import Data.Map ( (!?), delete, insert, alter )
+import System.FilePath
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Lucid
@@ -28,6 +29,27 @@ data Source
            , Generic
            , Binary
            )
+
+mountPoint :: IsString p => Source -> p
+mountPoint Zettel = "/home/lucas/dados/notas"
+mountPoint Asset = "assets"
+mountPoint Content = "content"
+
+servePoint :: IsString p => Source -> p
+servePoint Zettel = "zettelkasten"
+servePoint Asset = "assets"
+servePoint Content = ""
+
+mountSet :: Set (Source, FilePath)
+mountSet = Set.fromList [(s, mountPoint s) | s <- [Asset, Content, Zettel]]
+
+type Place = (Source, FilePath)
+
+filepath :: Place -> FilePath
+filepath (src, fp) = mountPoint src </> fp
+
+servepath :: Place -> FilePath
+servepath (src, fp) = servePoint src </> fp
 
 data Model = Model
   { siteName :: Text
@@ -56,9 +78,13 @@ instance HtmlPage StructuralPage where
     h1_ (toHtmlRaw $ pageTitle page)
     toHtmlRaw $ pageBody page
 
+type Tag = Slug
+
 data RoamPost = RoamPost
   { postTitle :: Text
-  , postBody :: Text, date :: Day
+  , postBody :: Text
+  , postDate :: Day
+  , postTags :: [Tag]
   } deriving (Generic, Eq, Ord, Binary)
 
 data RoamBacklink = RoamBacklink
@@ -74,25 +100,25 @@ instance HtmlPage (RoamPost, Maybe (Set RoamBacklink)) where
     toHtmlRaw $ postBody page
     case mbacklinks of
       Just backlinks -> do
-        h2_ $ "Backlinks (" <> show (length backlinks) <> ")"
+        hr_ []
+        h5_ $ "Páginas com referências a esta página (" <> show (length backlinks) <> "):"
         forM_ backlinks $ \bl -> do
-          h3_ $ a_ [href_ $ "zettelkasten/" <> encodeSlug (backlinkUUID bl)] $ -- TODO link should not be hardcoded
-            toHtmlRaw $ backlinkTitle bl
-          toHtmlRaw $ backlinkExcerpt bl
-      Nothing -> p_ $ i_ "No backlinks."
-
-mountPoint :: IsString p => Source -> p
-mountPoint Zettel = "/home/lucas/Lucas/notas"
-mountPoint Asset = "assets"
-mountPoint Content = "content"
-
-servePoint :: IsString p => Source -> p
-servePoint Zettel = "zettelkasten"
-servePoint Asset = "assets"
-servePoint Content = ""
-
-mountSet :: Set (Source, FilePath)
-mountSet = Set.fromList [(s, mountPoint s) | s <- [Asset, Content, Zettel]]
+          div_ [class_ "backlink",
+                onclick_ $ "window.location.href = 'zettelkasten/" <> encodeSlug (backlinkUUID bl) <> "'",
+                style_ "font-size: 90%;\
+                       \color: #444;\
+                       \border-left: solid 2px #ccc;\
+                       \cursor: pointer;\
+                       \padding-left: 0.7em;\
+                       \margin: 10px 0px;\
+                       \padding-top: 3px;\
+                       \border-radius: 5px;"] do
+            a_ [style_ "font-weight: 500; font-size: 26px; text-decoration: none; background: #dabce488", href_ $ "zettelkasten/" <> encodeSlug (backlinkUUID bl)] $ -- TODO link should not be hardcoded
+              toHtmlRaw $ backlinkTitle bl
+            toHtmlRaw $ backlinkExcerpt bl
+      Nothing -> do
+        hr_ []
+        i_ "Nenhuma outra página faz referências a esta página."
 
 -- Probably I should use something like lens... I know nothing about it
 insertL :: String -> Text -> Endo Model

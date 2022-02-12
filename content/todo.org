@@ -1,0 +1,96 @@
+#+TITLE: to-do 🥸
+#+SUBTITLE: na-da feito
+
+#+options: H:6
+
+Coisas a serem implementadas no site.
+
+* Crazy ideas 💡
+** Executar filtros lua definidos no arquivo 😈
+** Incluir arquivos com links attachment:
+
+* Gerador
+** Integração
+*** Org-roam-timestamps -- [[https://github.com/ThomasFKJorna/org-roam-timestamps][link]]
+ - Funciona com arquivos Org não-roam? E com markdown?
+** Markup customizada
+- [ ] Destacar um trecho com =!= ... =!=.
+** Layout/estilo/conteúdo
+ - [ ] Subtítulos
+ - [ ] Estilizar =[k/n]= nos cabeçalhos e listas
+ - [ ] Estilizar =TODO= nos cabeçalhos  
+ - [ ] Estilizar [[tags][tags]]
+** Links
+Os links não estão funcionando muito bem.
+
+Referência: [[https://orgmode.org/manual/Hyperlinks.html][Hiperlinks no Manual do Org]].
+*** [2/6] Links internos
++ [ ] Absolutizar: \\
+  =#anchor ~~> link/to/page#anchor=
++ [X] =[[#texto]] ~~> CUSTOM_ID: texto=
++ [ ] =[[*Texto]] ~~> ** Texto=
++ [X] =[[texto]] ~~> <<texto>>=
++ [ ] =[[texto]] ~~> #+name: texto=
++ [ ] Números, em certos contextos:
+  #+begin_src rst
+  1. one item
+  2. <<target>>another item
+  Here we refer to item [[target]].
+  #+end_src
+  o link =[[target]]= vira =2=.
++ Alvos "radiais" =<<<alvo>>>=
++ +Fuzzy: procurar aproximadamente em cabeçalhos e nomes+
+  (provavelmente não vai ser implementado)
+
+*** [0/4] Links externos
+  + [ ] "=file:=", "=./=" ou "=/="
+    + Sufixos:
+      + =::NNN= :: linha do arquivo =->= exportar algo tipo "[[http:][arquivo]]
+        (linha NNN)"
+      + =::*headline= :: cabeçalho 
+      + =::#headline= :: âncora
+  + [ ] "=attachment:=" (anexos)
+  + [ ] "=id=" --- suportar apenas =org-roam=? (para implementar em
+    geral, precisaria de um pós-processo para linkar, ou ter "páginas
+    redicionadoras" que apenas redirecionam o ID para o endereço certo...)
+  + [ ] Não-oficiais
+    + [ ] "=pdftools:=" --- ver [[https://github.com/fuxialexander/org-pdftools][org-pdftools]]
+    
+      exportar como pdf incorporado, linkando a página/local exato
+      
+    + [ ] "=arxiv:=", "=wiki:=", "=nlab:=", ...?
+** Tags <<tags>>
+:PROPERTIES:
+:CUSTOM_ID: tags
+:END:
+O org-roam acrescenta tags tanto a partir das tags associadas à nota (na forma
+~#+filetags: :tag1:tag2:~ para arquivos, ou na forma ~Título :tag1:tag2:~ para
+seções), como a partir da estrutura do diretório.
+
+Tags vão possibibilitar não só filtrar/listar assuntos relacionados, como também
+serão uma forma rudimentar de listar o conteúdo de diretórios.
+
+Detalhes:
+- caso especial para arquivos com nome =index.html=, pois eles representam todo
+  o conteúdo do diretório.
+- podemos usar o =select_tags= e =exclude_tags= para filtrar o documento (será
+  que isso já é feito pelo Pandoc? testar).
+
+*** Implementação
+
+#+begin_src haskell
+type Tag = Slug
+         
+data RoamPost = RoamPost {
+  ...
+  , postTags :: [Tag]
+  }
+#+end_src
+
+** Markdown?
+md-roam? ou compatibilidade com Obsidian?
+
+* Upstream
+** Ema
+- disponibilizar ~switchRoute~ no Haskell, para seguir o arquivo
+  aberto no Emacs.

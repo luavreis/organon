@@ -36,15 +36,15 @@ instance Ema Model Route where
       "zettelkasten/index.html" -> Just RoamEntryPoint
       "zettelkasten/graph.json" -> Just RoamGraphJSON
       _
+        | isJust maybeAsset -> maybeAsset
         | "zettelkasten/*/index.html" ?== fp ->
           Just $ RoamPage (slugfy $ takeBaseName $ takeDirectory fp)
-        | isJust maybeAsset -> maybeAsset
-        | "**/index.html" ?== fp ->
-          let (mbLocale, fp') = break (== '/') fp
-              page loc p = Just $ StructuralPage loc (urlToPath p)
-          in case toLocale mbLocale of
-            Just l -> page l (drop 1 fp')
-            Nothing -> page defLocale fp
+        | let (rootDir, fp') = break (== '/') fp
+              look f l = lookup l =<< lookup (urlToPath f) (structuralPages m)
+              mbLoc = toLocale rootDir,
+          isJust (look fp defLocale <|> (look fp' =<< mbLoc)) ->
+            let page f l = Just $ StructuralPage l (urlToPath f)
+             in maybe (page fp defLocale) (page fp') mbLoc
         | otherwise -> Nothing
     where
       slugfy = decodeSlug . toText
@@ -55,10 +55,10 @@ instance Ema Model Route where
     StyleSheet -> "assets/css/stylesheet.css"
     RoamEntryPoint -> "zettelkasten/index.html"
     RoamGraphJSON -> "zettelkasten/graph.json"
-    RoamPage uuid -> "zettelkasten" </> tUnSlug uuid </> "index"
+    RoamPage uuid -> "zettelkasten" </> tUnSlug uuid <.> "html"
     StructuralPage loc path
-      | loc == defLocale  -> pathToUrl path
-      | otherwise         -> localeAbbrev loc </> pathToUrl path
+      | loc == defLocale  -> pathToUrl path <.> "html"
+      | otherwise         -> localeAbbrev loc </> pathToUrl path <.> "html"
     StaticAsset source path -> servePoint source </> pathToUrl path
     where
       tUnSlug = toString . unSlug

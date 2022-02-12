@@ -44,7 +44,7 @@ roamIndex m = SimplePage "Zettelkasten" do
   aside_ "My knowledge vault."
   forM_ (reverse $ Data.Map.assocs $ roamPosts m) \(uuid,p) -> do
     h2_ $ a_ [href_ $ E.routeUrl m (R.RoamPage uuid)] (toHtmlRaw $ postTitle p)
-    aside_ $ toHtml $ formatTime ptTimeLocale "%A, %e de %B de %Y" $ date p
+    aside_ $ toHtml $ formatTime ptTimeLocale "%A, %e de %B de %Y" $ postDate p
 
 render :: Some ECli.Action -> Model -> R.Route -> E.Asset LByteString
 

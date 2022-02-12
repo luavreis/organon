@@ -3,8 +3,12 @@
 module Style where
 
 import Clay
-import Prelude hiding ((**),empty)
-import Text.Pandoc.Highlighting (pygments, styleToCss)
+import Prelude hiding ((**),empty,rem,div)
+import Text.Pandoc.Highlighting (tango, styleToCss)
+import qualified Clay.Media as CM
+
+backgroundWhite :: Color
+backgroundWhite = "#fffdf8"
 
 darkTduration :: Double
 darkTduration = 0.2
@@ -12,14 +16,11 @@ darkTduration = 0.2
 sAttr :: (Semigroup a1, IsString a1, Show a2) => a1 -> a2 -> a1
 sAttr n x = n <> " " <> show x <> "s"
 
-margin_ :: Size a -> Css
-margin_ x = margin x x x x
+r_ :: (Size a -> Size a -> Size a -> Size a -> Css) -> Size a -> Css
+r_ f x = f x x x x
 
-margin__ :: Size a -> Size a -> Css
-margin__ x y = margin x y x y
-
-padding_ :: Size a -> Css
-padding_ x = padding x x x x
+r__ :: (Size a -> Size a -> Size a -> Size a -> Css) -> Size a -> Size a -> Css
+r__ f x y = f x y x y
 
 citationsCss :: Css
 citationsCss = do
@@ -33,7 +34,7 @@ foot = do
     fontFamily ["Arial"] [sansSerif]
     color "#a6a2a0"
     textAlign center
-    margin__ (em 6) (em 1)
+    r__ margin (em 6) (em 1)
     lineHeight (em 2)
   button ? do
     background (none :: Color)
@@ -70,26 +71,37 @@ definitionList = do
     marginBottom (em 0.5)
 
   dt # after ? do
-    content (stringContent " ::")
+    content (stringContent "≔")
+    fontFamily [] [monospace]
+    paddingLeft (em 0.3)
+    paddingRight (em 0.2)
 
   dd ? do
     marginLeft (px 20)
     marginBottom (em 0.4)
+
+sections :: Css
+sections = do
+  queryOnly CM.screen [CM.minWidth (px 600)] do
+    section ? do
+      borderLeft solid (px 2) (darken 0.05 backgroundWhite)
+      paddingLeft (px 15)
 
 images :: Css
 images = do
   img ? do
     marginLeft auto
     marginRight auto
-    maxWidth (pct 70)
+    maxWidth (pct 100)
 
   p |> img ? do
     verticalAlign vAlignBottom
-    margin__ 0 (px 3)
+    r__ margin 0 (px 3)
 
   p ** img # onlyChild ? do
     display block
-    margin_ auto
+    marginLeft auto
+    marginRight auto
 
   figure ** img ?
     display block
@@ -98,7 +110,7 @@ quotes :: Css
 quotes = do
   blockquote ? do
     fontStyle italic
-    margin__ (em 1) (em 3)
+    r__ margin (em 1) (em 3)
 
 lists :: Css
 lists = do
@@ -106,20 +118,21 @@ lists = do
     fontWeight (weight 500)
 
   ul <> ol ? do
-    margin__ (px 8) (px 0)
+    r__ margin (px 8) (px 0)
     lineHeight (em 1.3)
 
   ul ? paddingLeft (px 5)
 
   ul ** li ? do
-    listStyleType none
-    paddingLeft (px 27)
+    -- listStyleType none
+    -- paddingLeft (px 27)
+    marginLeft (px 20)
     position relative
 
-  ul ** li # before ? do
-    content (stringContent "~")
-    left (px 8)
-    position absolute
+  -- ul ** li # before ? do
+    -- content (stringContent "~")
+    -- left (px 8)
+    -- position absolute
 
   (ol <> ul) ** li ? do
     marginBottom (em 0.4)
@@ -133,6 +146,7 @@ headings = do
     letterSpacing (px (-0.2))
 
   h2 ? do
+    fontSize (px 32)
     marginTop (px 20)
     fontWeight (weight 500)
     a # link <> a # visited ?
@@ -140,18 +154,32 @@ headings = do
     a # hover ?
       color (grayish 90)
 
-  h3 ? do
+  h3 <> h4 <> h5 <> h6 ? do
     marginTop (px 10)
-    fontSize (px 22)
     fontWeight (weight 500)
 
-  h4 ? do
-    marginTop (px 10)
-    fontSize (px 20)
-    fontWeight (weight 500)
+  h3 ? fontSize (px 26)
+  h4 <> h5 <> h6 ? fontSize (px 22)
+  -- (h2 <> h3 <> h4 <> h5 <> h6) # before ? do
+  --   fontSize (pct 45)
+  --   verticalAlign middle
+  --   letterSpacing (px 3)
+
+  -- h2 # before ? content (stringContent "▲")
+  -- h3 # before ? content (stringContent "■■")
+  -- h4 # before ? content (stringContent "⬟⬟⬟")
+  -- h5 # before ? content (stringContent "⬢⬢⬢⬢")
+  -- h6 # before ? content (stringContent "⚫⚫⚫⚫⚫")
 
 fonts :: Css
 fonts = do
+  -- fontFace do
+  --   fontFamily ["Crimson Pro"] []
+  --   fontFaceSrc [FontFaceSrcUrl "/assets/fonts/CrimsonPro.ttf" $ Just TrueType ]
+  -- fontFace do
+  --   fontFamily ["Crimson Pro"] []
+  --   fontStyle italic
+  --   fontFaceSrc [FontFaceSrcUrl "/assets/fonts/CrimsonPro-Italic.ttf" $ Just TrueType ]
   fontFace do
     fontFamily ["twemoji mozilla"] []
     fontFaceSrc [FontFaceSrcUrl "https://xem.github.io/unicode13/Twemoji.ttf" $ Just TrueType ]
@@ -169,8 +197,12 @@ codes :: Css
 codes = do
   code <> ".sourceCode" ? do
     fontFamily ["victor mono"] [monospace]
-    fontSize (px 15)
-    letterSpacing (px 0.3)
+    fontSize (px 16)
+    -- letterSpacing (px 0.3)
+
+  div # ".sourceCode" ? do
+    r__ padding (em 0.3) (em 0.5)
+    r_ borderRadius (em 1)
 
 tables :: Css
 tables = do
@@ -187,7 +219,7 @@ pageHeader = do
 main :: Css
 main = do
   star ? do
-    margin_  (px 0)
+    r_ margin (px 0)
 
   "#fundo" ? do
     width (pct 100)
@@ -206,9 +238,9 @@ main = do
     textAlign center
 
   body ? do
-    background         ("#fffdf8" :: Color)
-    color              black
-    fontSize (px 19)
+    background         backgroundWhite
+    color              ("#333" :: Color)
+    fontSize (px 19.5)
     fontFamily         ["Crimson Pro", "times"]  [serif]
     fontWeight         (weight 300)
     textRendering      optimizeLegibility
@@ -219,7 +251,7 @@ main = do
     textDecoration none
     fontWeight (weight 400)
   a # link <> a # visited <> a # hover ? do
-    background (setA 0.8 moccasin)
+    -- background (setA 0.6 moccasin)
     color (setA 0.8 black)
 
   ".block" ? do
@@ -241,7 +273,7 @@ main = do
     paddingLeft (pct 5)
     paddingRight (pct 5)
     top (px 40)
-    margin__ (px 0) auto
+    r__ margin (px 0) auto
 
     lists
     tables
@@ -264,11 +296,9 @@ main = do
     figcaption ? textAlign center
 
     hr ? do
-      backgroundColor "#bbb"
-      borderStyle none
-      height (px 0.5)
+      borderColor "#fff"
       width (pct 70)
-      margin__ (em 4) auto
+      r__ margin (em 4) auto
 
   ".dark-mode" ? do
     button ? do
@@ -303,10 +333,11 @@ style = renderWith compact []
          (do main
              fonts
              emojis
+             sections
              pageHeader
              foot
              katex
              citationsCss
              darkStyle
          )
-         <> toLText (styleToCss pygments)
+         <> toLText (styleToCss tango)
