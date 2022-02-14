@@ -6,6 +6,7 @@ module RoamGraph where
 import Data.Aeson
 import Models
 import Relude.Extra
+import Network.URI.Slug (unSlug)
 
 data Node = Node { nodeId :: UUID, nodeName :: Text } deriving Generic
 data Link = Link { linkSource :: UUID, linkTarget :: UUID } deriving Generic
@@ -13,11 +14,11 @@ data Graph = Graph [Node] [Link] deriving Generic
 
 instance ToJSON Node where
   toEncoding (Node i name) =
-    pairs ( "id" .= i <> "name" .= name )
+    pairs ( "id" .= unSlug i <> "name" .= name )
 
 instance ToJSON Link where
   toEncoding (Link source target) =
-    pairs ( "source" .= source <> "target" .= target )
+    pairs ( "source" .= unSlug source <> "target" .= unSlug target )
 
 instance ToJSON Graph where
   toEncoding (Graph nodes links) =

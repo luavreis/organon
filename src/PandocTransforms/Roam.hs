@@ -2,9 +2,9 @@
 -- |
 
 module PandocTransforms.Roam where
-import Ema
-import PandocTransforms.Utilities hiding (Writer)
 import Models
+import PandocTransforms.Utilities hiding (Writer)
+import Network.URI.Slug
 import PandocTransforms.Org
 import PandocTransforms.LaTeX
 import PandocTransforms.Links
@@ -12,23 +12,22 @@ import Control.Monad.Trans.Writer.Strict
 import System.FilePath
 import Caching
 import Text.Pandoc.Citeproc
-import qualified Data.Text as T
 import UnliftIO
 import Control.Monad.Logger
 import Data.Time (Day(ModifiedJulianDay))
+import qualified Data.Text as T
 
 processRoam
   :: forall m. (MonadLogger m)
   => FilePath -> (Pandoc, Block) -> CacheT Model m ()
 processRoam fp (Pandoc meta blocks, preamble) = do
-  let blocks' = makeSections False Nothing blocks
 
-  uuids <- query processDiv blocks'
+  uuids <- query processDiv blocks
 
   case lookupMeta "id" meta of
     Just (MetaString uuid) -> do
-      addToModel blocks' (docTitle meta) (Slug uuid)
-      tell $ mapFilterRD fp (Slug uuid : uuids)
+      addToModel blocks (docTitle meta) (decodeSlug uuid)
+      tell $ mapFilterRD fp (decodeSlug uuid : uuids)
     _ -> tell $ mapFilterRD fp uuids
 
   where
@@ -50,7 +49,7 @@ processRoam fp (Pandoc meta blocks, preamble) = do
 
     processDiv :: Block -> CacheT Model m [UUID]
     processDiv (Div (_, "section":_, kvs) blks)
-      | Just uuid <- Slug . snd <$> find ((== "id") . fst) kvs = do
+      | Just uuid <- decodeSlug . snd <$> find ((== "id") . fst) kvs = do
           case viaNonEmpty headTail blks of
             Just (Header i  _ inl, t) ->
               addToModel (walk (shift (-i + 1)) t)
@@ -110,7 +109,7 @@ processRoam fp (Pandoc meta blocks, preamble) = do
       let same = pure $ Link attr alt (url, titl)
       in case T.breakOn ":" url of
         ("id", uid) -> do
-          let uuid = Slug $ T.tail uid
+          let uuid = decodeSlug $ T.tail uid
           tell [uuid]
           return $ Link attr alt ("/zettelkasten/" <> encodeSlug uuid, titl)
         _ -> same
@@ -133,17 +132,14 @@ convertRoam place@(_,fp) txt = do
 
     let meta = getMeta parsed'
 
-    if MetaString "t" `notElem` lookupMeta "published" meta
-    then pure Nothing
-    else do
-      parsed <- parsed'
-                & applyTransforms
-                & if isJust (lookupMeta "bibliography" meta)
-                  then processCitations
-                  else pure
+    parsed <- parsed'
+              & applyTransforms
+              & if isJust (lookupMeta "bibliography" meta)
+                then processCitations
+                else pure
 
-      preamble <- preambilizeKaTeX $ getMeta parsed
-      pure $ Just (parsed, preamble)
+    preamble <- preambilizeKaTeX $ getMeta parsed
+    pure $ Just (parsed, preamble)
 
   flip (maybe $ tell $ deleteFromRD fp) doc $
     mapFst (handleOrgLinks place >=> renderLaTeX dir)

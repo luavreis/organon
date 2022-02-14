@@ -2,5 +2,5 @@ packages: .
 
 source-repository-package
     type: git
-    location: https://github.com/srid/ema.git
-    tag: 8e6a660cb3d1582577be70004dccc2321b2854e1
+    location: /home/lucas/dados/projetos/codigo/haskell/ema
+    tag: fcf066fd1163c0e076f64b5243180b48d11670ee

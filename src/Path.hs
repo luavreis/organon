@@ -1,7 +1,7 @@
 -- |
 
 module Path where
-import Ema
+import Network.URI.Slug
 import Prelude hiding (fromList)
 import System.FilePath (splitDirectories)
 import qualified Data.Map.NonEmpty as Map

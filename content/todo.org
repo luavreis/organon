@@ -1,16 +1,19 @@
-#+TITLE: to-do 🥸
+#+TITLE: to-do
 #+SUBTITLE: na-da feito
 
 #+options: H:6
 
-Coisas a serem implementadas no site.
+Projects that I'm currently working on and new ideas to be implemented in
+=manguezal=.
 
-* Crazy ideas 💡
-** Executar filtros lua definidos no arquivo 😈
-** Incluir arquivos com links attachment:
+* Generator
+** Refactor
+*** Store =Pandoc= in the model instead of text.
+:PROPERTIES:
+:CUSTOM_ID: pandoc-in-model
+:END:
 
-* Gerador
-** Integração
+** Third-party integrations
 *** Org-roam-timestamps -- [[https://github.com/ThomasFKJorna/org-roam-timestamps][link]]
  - Funciona com arquivos Org não-roam? E com markdown?
 ** Markup customizada
@@ -21,16 +24,15 @@ Coisas a serem implementadas no site.
  - [ ] Estilizar =TODO= nos cabeçalhos  
  - [ ] Estilizar [[tags][tags]]
 ** Links
-Os links não estão funcionando muito bem.
 
-Referência: [[https://orgmode.org/manual/Hyperlinks.html][Hiperlinks no Manual do Org]].
-*** [2/6] Links internos
-+ [ ] Absolutizar: \\
+Reference: [[https://orgmode.org/manual/Hyperlinks.html][Hiperlinks no Manual do Org]].
+*** [?] [5/7] Internal links
++ [X] Absolutizar: \\
   =#anchor ~~> link/to/page#anchor=
 + [X] =[[#texto]] ~~> CUSTOM_ID: texto=
-+ [ ] =[[*Texto]] ~~> ** Texto=
++ [X] =[[*Texto]] ~~> ** Texto=
 + [X] =[[texto]] ~~> <<texto>>=
-+ [ ] =[[texto]] ~~> #+name: texto=
++ [X] =[[texto]] ~~> #+name: texto=
 + [ ] Números, em certos contextos:
   #+begin_src rst
   1. one item
@@ -38,27 +40,28 @@ Referência: [[https://orgmode.org/manual/Hyperlinks.html][Hiperlinks no Manual 
   Here we refer to item [[target]].
   #+end_src
   o link =[[target]]= vira =2=.
-+ Alvos "radiais" =<<<alvo>>>=
++ [ ] Alvos "radiais" =<<<alvo>>>=
 + +Fuzzy: procurar aproximadamente em cabeçalhos e nomes+
   (provavelmente não vai ser implementado)
 
-*** [0/4] Links externos
-  + [ ] "=file:=", "=./=" ou "=/="
+*** [?] [2/4] External links
+  + [X] "=file:=", "=./=" ou "=/="
     + Sufixos:
       + =::NNN= :: linha do arquivo =->= exportar algo tipo "[[http:][arquivo]]
         (linha NNN)"
       + =::*headline= :: cabeçalho 
       + =::#headline= :: âncora
-  + [ ] "=attachment:=" (anexos)
-  + [ ] "=id=" --- suportar apenas =org-roam=? (para implementar em
-    geral, precisaria de um pós-processo para linkar, ou ter "páginas
-    redicionadoras" que apenas redirecionam o ID para o endereço certo...)
+  + [X] "=attachment:=" (anexos)
+  + [-] "=id=" --- suportar apenas =org-roam=? (para implementar em geral,
+    precisaria de um pós-processo para linkar. See [[*Process links in =render=][Process links in =render=]])
   + [ ] Não-oficiais
     + [ ] "=pdftools:=" --- ver [[https://github.com/fuxialexander/org-pdftools][org-pdftools]]
     
       exportar como pdf incorporado, linkando a página/local exato
       
     + [ ] "=arxiv:=", "=wiki:=", "=nlab:=", ...?
+*** Process links in =render=
+This could be done after [[#pandoc-in-model]].
 ** Tags <<tags>>
 :PROPERTIES:
 :CUSTOM_ID: tags
@@ -89,8 +92,11 @@ data RoamPost = RoamPost {
 
 ** Markdown?
 md-roam? ou compatibilidade com Obsidian?
-
 * Upstream
 ** Ema
 - disponibilizar ~switchRoute~ no Haskell, para seguir o arquivo
   aberto no Emacs.
+* Ideas 💡
+** Executar filtros lua definidos no arquivo 😈
+** Incluir org e preâmbulo com links attachment:
+

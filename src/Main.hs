@@ -3,17 +3,17 @@
 module Main where
 
 import Models hiding (title, body)
-import qualified Ema as E
-import System.FilePattern
-import System.FilePath
 import Locale
 import Render
 import Path
 import PandocTransforms
 import Caching (cachedMountOnLVar)
+import Ema (runEma)
+import System.UnionMount
+import System.FilePattern
+import System.FilePath
 import Control.Monad.Trans.Writer.Strict
 import PandocTransforms.Roam
-import Ema.Helper.FileSystem
 import Data.List (stripPrefix)
 
 mountSet :: Set (Source, FilePath)
@@ -37,7 +37,7 @@ filesToExclude =
 
 main :: IO ()
 main = void $
-  E.runEma render $ \ _action ->
+  runEma render $ \ _action ->
     cachedMountOnLVar
       mountSet
       filesToInclude

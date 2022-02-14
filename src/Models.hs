@@ -1,17 +1,17 @@
 {-# LANGUAGE BlockArguments #-}
 module Models where
 
-import Ema
 import Path
-import Data.Map ( (!?), delete, insert, alter )
-import System.FilePath
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Lucid
+import Locale
+import System.FilePath
+import Data.Map ( (!?), delete, insert, alter )
 import Data.Time (Day)
 import Data.Binary.Instances.Time ()
 import Data.Binary
-import Locale
+import Network.URI.Slug
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 instance Binary Slug
 

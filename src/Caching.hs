@@ -3,16 +3,16 @@
 module Caching where
 import Data.LVar (LVar)
 import Control.Monad.Logger
-import Ema.Helper.FileSystem
-import qualified Data.Set as Set
 import Control.Monad.Trans.Writer.Strict
-import qualified Data.LVar as LVar
 import UnliftIO.Directory (doesFileExist)
-import qualified Data.HashMap.Strict as HMap
+import System.UnionMount
 import System.FilePattern (FilePattern, (?==))
 import Data.Binary.Instances.UnorderedContainers ()
 import UnliftIO hiding (atomically, putMVar, takeMVar, readMVar, newMVar, newTMVarIO)
 import Data.Binary (Binary, encode, decode, decodeFileOrFail, encodeFile)
+import qualified Data.Set as Set
+import qualified Data.LVar as LVar
+import qualified Data.HashMap.Strict as HMap
 
 type CacheMap = HashMap LByteString LByteString
 

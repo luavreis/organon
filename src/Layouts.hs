@@ -5,7 +5,7 @@ module Layouts where
 import Lucid
 import Lucid.Base (makeAttribute)
 import Models
-import EmaInstance ()
+import Routes ()
 import Data.Map ((!?))
 import Data.Text as T
 

@@ -1,12 +1,14 @@
+# #+title: Lucas V. Reis
+#+title: @@html:<div style='font-size: 60px'>Lucas V. Reis</div>@@
 
-Sou um estudante de graduação em matemática pura. Nesse site, você encontra
+Olá! Sou um estudante de graduação em matemática pura. Nesse site, você encontra
 principalmente notas de aula, notas da minha iniciação científica e notas sobre
 outros temas que considero interessantes. Também disponibilizo aqui alguns
 artigos escritos para disciplinas, pequenas postagens no formato de blog e outro
 materiais diversos.
 
 Por enquanto, várias coisas deste site estão em desenvolvimento. Você pode ver
-algumas ideias a serem implementadas e o estado delas na página [[file:todoa.org][to-do]].
+algumas ideias a serem implementadas e o estado delas na página [[file:todo.org::*Tags][to-do]].
 
 O site em si foi feito com Emacs e Haskell. As páginas são principalmente
 escritas na linguagem de markup Org 🦄, o zettelkasten é criado com a extensão
@@ -38,6 +40,7 @@ bibiliotecas =ema= e =pandoc=.
  // Copyright 2021 Observable, Inc.
  // Released under the ISC license.
  // https://observablehq.com/@d3/force-directed-graph
+ // This version was modified by lvr@s-viva.xyz for working with manguezal.
  function ForceGraph({
    nodes, // an iterable of node objects (typically [{id}, …])
    links // an iterable of link objects (typically [{source, target}, …])

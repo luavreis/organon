@@ -140,7 +140,7 @@ lists = do
 headings :: Css
 headings = do
   h1 ? do
-    fontSize (px 36)
+    fontSize (px 40)
     fontWeight normal
     -- fontStyle italic
     letterSpacing (px (-0.2))
@@ -158,8 +158,8 @@ headings = do
     marginTop (px 10)
     fontWeight (weight 500)
 
-  h3 ? fontSize (px 26)
-  h4 <> h5 <> h6 ? fontSize (px 22)
+  h3 ? fontSize (px 28)
+  h4 <> h5 <> h6 ? fontSize (px 26)
   -- (h2 <> h3 <> h4 <> h5 <> h6) # before ? do
   --   fontSize (pct 45)
   --   verticalAlign middle
@@ -195,9 +195,9 @@ emojis = do
 
 codes :: Css
 codes = do
-  code <> ".sourceCode" ? do
+  code ? do
     fontFamily ["victor mono"] [monospace]
-    fontSize (px 16)
+    fontSize (pct 83)
     -- letterSpacing (px 0.3)
 
   div # ".sourceCode" ? do
@@ -214,7 +214,7 @@ tables = do
 pageHeader :: Css
 pageHeader = do
   header ? do
-    marginBottom (px 8)
+    marginBottom (px 28)
 
 main :: Css
 main = do
@@ -268,7 +268,7 @@ main = do
   "#main" ? do
     position relative
     width (pct 90)
-    maxWidth (px 700)
+    maxWidth (px 800)
     minHeight (vh 80)
     paddingLeft (pct 5)
     paddingRight (pct 5)

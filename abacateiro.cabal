@@ -12,11 +12,10 @@ executable site
                   , bytestring
                   , clay
                   , containers
-                  , ema >=0.3
+                  , ema >=0.6
                   , emojis
                   , filepath
                   , filepattern
-                  , fsnotify
                   , lucid
                   , lvar
                   , monad-logger
@@ -28,21 +27,19 @@ executable site
                   , regex-tdfa
                   , relude
                   , some
-                  , stm
                   , text
                   , time
                   , transformers
-                  , uri-encode
                   , unliftio
+                  , unionmount
                   , unordered-containers
+                  , uri-encode
+                  , url-slug
   ghc-options:      -threaded
                     -j8
                     -Wall
                     -Wno-orphans
-                    -- -prof
-                    -- -fprof-auto
-                    -- -fprof-cafs
-
+  profiling-detail: toplevel-functions
   mixins:
     base hiding (Prelude),
     relude (Relude as Prelude, Relude.Container.One),
@@ -60,6 +57,7 @@ executable site
     OverloadedStrings
     ScopedTypeVariables
     TupleSections
+    TypeFamilies
     ViewPatterns
   default-language: Haskell2010
   other-modules:
@@ -67,7 +65,6 @@ executable site
     Caching
     Models
     Routes
-    EmaInstance
     Layouts
     Style
     RoamGraph

@@ -6,13 +6,13 @@ import Text.Regex.TDFA
 import PandocTransforms.Utilities
 import System.FilePath
 import Network.URI.Encode
-import qualified Text.Pandoc.Builder as B
-import qualified Data.Text as T
 import Control.Monad.Logger
-import Ema (unSlug, Slug (Slug), decodeSlug)
-import Data.Char (isSpace, isAlphaNum)
+import Network.URI.Slug
+import Data.Char (isAlphaNum)
 import Caching
 import Control.Monad.Trans.Writer.Strict
+import qualified Text.Pandoc.Builder as B
+import qualified Data.Text as T
 
 warnAbsPath :: FilePath -> Text
 warnAbsPath fp =
@@ -34,13 +34,28 @@ warnIdNoZettel fp =
   "For now, id: links are only supported in Zettelkasten files.\
   \ Some links in file " <> toText fp <> " use id: and will not work!"
 
-linkOrImg ::
+warnUnhandledScheme :: Text -> FilePath -> Text
+warnUnhandledScheme kind fp =
+  "I don't know what to do with a link of scheme " <> kind <>
+  " in file " <> toText fp
+
+linkLikeInl ::
   Inline ->
   Maybe ( [Inline] -> Target -> Inline
         , [Inline] , Target, Bool)
-linkOrImg (Link at al t) = Just (Link at, al, t, True)
-linkOrImg (Image at al t) = Just (Image at, al, t, False)
-linkOrImg _ = Nothing
+linkLikeInl (Link at al t) = Just (Link at, al, t, True)
+linkLikeInl (Image at al t) = Just (Image at, al, t, False)
+linkLikeInl _ = Nothing
+
+readOrgQuick :: Text -> Either PandocError [Block]
+readOrgQuick txt = second toBlocks $ runPure $ readOrg readerOptions txt
+  where
+    toBlocks (Pandoc _ blocks) = blocks
+
+toIdent :: Text -> Text
+toIdent (readOrgQuick -> Right [Para inls]) =
+  inlineListToIdentifier emptyExtensions inls
+toIdent txt = txt
 
 handleOrgLink ::
   MonadLogger m =>
@@ -48,47 +63,48 @@ handleOrgLink ::
   Maybe UUID ->
   Inline ->
   CacheT Model m Inline
-handleOrgLink place@(src, srcFp) mID inl@(linkOrImg -> Just (cons, alt, (link, titl), isLink))
-  | isLink, Just anchor <- toString <$> match' (traceShow (place, T.take 30 link) "#")
+handleOrgLink place@(src, srcFp) mID inl@(linkLikeInl -> Just (cons, alt, (link, titl), isLink))
+  | isLink, Just anchor <- toString <$> match' "#"
   = pure $ inl' alt
-    (filterExt srcFp ++ "#" ++ encode anchor)
-    titl
+    (selfLink ++ "#" ++ encode anchor) titl
   | isLink, Just headingText <- match' "*"
   = pure $ inl' alt
-    (filterExt srcFp ++ "#" ++ encode (toIdent headingText))
-    titl
+    (selfLink ++ "#" ++ encode (toString $ toIdent headingText)) titl
+  | Just attPath <- match' "attachment:"
+  = if | Just uuid <- mID
+         -> let posfix = "data" </> toString (unSlug uuid) </> toString attPath
+                relPath = case src of
+                  Zettel -> posfix
+                  _ -> takeDirectory srcFp </> posfix
+            in tell (insertSA src relPath)
+               *> fileRelative relPath
+       | otherwise
+         -> log (warnAttachNoId srcFp) $> inl
+  | isLink, Just _ <- match' "id:"
+  = when (src /= Zettel)
+      (log $ warnIdNoZettel srcFp)
+    $> inl -- We passthrough bc those links are handled in processRoam
+  | let (scheme, path) = T.break (== ':') link,
+    T.all isAlphaNum scheme && not (T.null path),
+    scheme /= "file"
+  = when (scheme `notElem` ["http", "https", "data", "mailto"])
+      (log $ warnUnhandledScheme scheme srcFp)
+    $> inl
   | Just linkedFp <- normalise . toString <$>
-                     (match' "file:" <|> match' "./" <|> match' "/" $> link)
+                     -- To assume every other link is a file is not entirely
+                     -- correct, but is a work around some Pandoc conventions.
+                     (match' "file:" <|> match' "./" <|> Just link)
   = case src of
       Content
         -> if "/" `isPrefixOf` linkedFp
            then -- linkedFp is absolute (unsupported)
              log (warnAbsPath srcFp) $> inl
            else -- linkedFp is relative to `place`
-             let path = takeDirectory srcFp </> linkedFp
-                 fp = filepath (src, path)
-             in tell (insertSA src fp)
-                *> fileRelative path
+             let relPath = takeDirectory srcFp </> linkedFp
+             in tell (insertSA src relPath)
+                *> fileRelative relPath
       _ -> log (warnUseAttach place) $> inl
-  | Just attPath <- match' "attachment:"
-  = if | Just uuid <- mID
-         -> let posfix = "data" </> toString (unSlug uuid) </> toString attPath
-                path = case src of
-                  Zettel -> posfix
-                  _ -> takeDirectory srcFp </> posfix
-                attFp = filepath (src, path)
-            in tell (insertSA src attFp)
-               *> fileRelative path
-       | otherwise
-         -> log (warnAttachNoId srcFp) $> inl
-  | isLink, Just _ <- match' "id:"
-  = when (src /= Zettel)
-      (log $ warnIdNoZettel srcFp)
-    $> inl -- We also passthrough in zettelkasten, as those links are handled
-           -- in processRoam
   where
-    submatches :: (String, String, String, [String]) -> [String]
-    submatches (_,_,_,s) = s
     match' m = T.strip <$> T.stripPrefix m link
     log = logWarnNS "handleLink"
     strippedExts = [".org"] -- TODO
@@ -96,6 +112,12 @@ handleOrgLink place@(src, srcFp) mID inl@(linkOrImg -> Just (cons, alt, (link, t
       | takeExtension p `elem` strippedExts = dropExtension p
       | otherwise = p
     inl' a p t = cons a (toText $ servepath (src, p), t)
+
+    selfLink
+      | src == Zettel,
+        Just uuid <- mID = toString $ unSlug uuid
+      | otherwise = filterExt srcFp
+
     fileRelative filePath
       | [path,linenum] <- submatches $ filePath
                           =~ ("^(.+)::([[:digit:]]+)$" :: String)
@@ -103,22 +125,19 @@ handleOrgLink place@(src, srcFp) mID inl@(linkOrImg -> Just (cons, alt, (link, t
             newAlt = alt ++ toList (B.text linenumAnnotation)
             newTitle = titl <> " " <> linenumAnnotation
         in pure $ inl' newAlt (filterExt path) newTitle
-      | [_,_] <- submatches $ filePath
-                 =~ ("^(.+)::\\*+([^*]+)$" :: String)
-      = log ("Headline links between files are not supported. " <> -- TODO
-              "Some links in file " <> toText srcFp <> " will not work!")
-        $> inl
+      | [path,header] <- submatches $ filePath
+                         =~ ("^(.+)::\\*+([^*]+)$" :: String)
+      = let link' = filterExt path ++ "#" ++ encode (toString $ toIdent $ toText header)
+        in pure $ inl' alt link' titl
       | [path,anchor] <- submatches $ filePath
-                         =~ ("^(.+)::(#.+)$" :: String)
-      = pure $ inl' alt (filterExt path ++ encode anchor) titl
+                         =~ ("^(.+)::#(.+)$" :: String)
+      = pure $ inl' alt (filterExt path ++ "#" ++ encode anchor) titl
       | otherwise
       = pure $ inl' alt (filterExt filePath) titl
+      where
+        submatches :: (String, String, String, [String]) -> [String]
+        submatches (_,_,_,s) = s
 
-    -- TODO this probably does not work well with markdown
-    -- https://github.com/jgm/pandoc/blob/899feec4d341cf464e9fc6d72e40477ac7fbac15/src/Text/Pandoc/Shared.hs#L503
-    toIdent = toString . T.intercalate "-" . T.words . filterPunct . T.toLower
-    filterPunct = T.filter (\c -> isSpace c || isAlphaNum c || isAllowedPunct c)
-    isAllowedPunct c = c == '_' || c == '-' || c == '.'
 handleOrgLink _ _ inl = pure inl
 
 handleOrgLinksInBlock ::
@@ -127,9 +146,9 @@ handleOrgLinksInBlock ::
   Maybe UUID ->
   Block ->
   CacheT Model m Block
-handleOrgLinksInBlock p _ (Div props@(_, "section":_, kvs) blks)
-  | uuid@(Just _) <- Slug . snd <$> find ((== "id") . fst) kvs
-  = Div props <$> mapM (handleOrgLinksInBlock p uuid) blks
+handleOrgLinksInBlock p uuid (Div props@(_, "section":_, kvs) blks) =
+  let uuid' = decodeSlug . snd <$> find ((== "id") . fst) kvs <|> uuid
+  in Div props <$> mapM (handleOrgLinksInBlock p uuid') blks
 handleOrgLinksInBlock p uuid blk = walkM (handleOrgLink p uuid) blk
 
 handleOrgLinks ::
@@ -142,5 +161,6 @@ handleOrgLinks p (Pandoc meta blocks) = do
         Just (MetaString txt) -> Just $ decodeSlug txt
         _ -> Nothing
   meta' <- walkM (handleOrgLink p topId) meta
-  blocks' <- mapM (handleOrgLinksInBlock p topId) blocks
+  blocks' <- makeSections False Nothing blocks
+             & mapM (handleOrgLinksInBlock p topId)
   return $ Pandoc meta' blocks'
