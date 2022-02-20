@@ -1,20 +1,19 @@
 # #+title: Lucas V. Reis
 #+title: @@html:<div style='font-size: 60px'>Lucas V. Reis</div>@@
 
-Olá! Sou um estudante de graduação em matemática pura. Nesse site, você encontra
-principalmente notas de aula, notas da minha iniciação científica e notas sobre
-outros temas que considero interessantes. Também disponibilizo aqui alguns
-artigos escritos para disciplinas, pequenas postagens no formato de blog e outro
-materiais diversos.
+Olá! Sou um estudante de graduação em matemática pura. Nesse site, você encontra principalmente notas de aula, notas da minha iniciação científica e notas sobre outros temas que considero interessantes. Também disponibilizo aqui alguns artigos escritos para disciplinas, pequenas postagens no formato de blog e outro materiais diversos.
 
-Por enquanto, várias coisas deste site estão em desenvolvimento. Você pode ver
-algumas ideias a serem implementadas e o estado delas na página [[file:todo.org::*Tags][to-do]].
+Por enquanto, várias coisas deste site estão em desenvolvimento. Você pode ver algumas ideias a serem implementadas e o estado delas na página [[file:todo.org][to-do]].
 
-O site em si foi feito com Emacs e Haskell. As páginas são principalmente
-escritas na linguagem de markup Org 🦄, o zettelkasten é criado com a extensão
-Org-roam e o gerador foi escrito por mim, fazendo uso principalmente das
-bibiliotecas =ema= e =pandoc=.
+O site em si foi feito com Emacs e Haskell. As páginas são principalmente escritas na linguagem de markup Org 🦄, o zettelkasten é criado com a extensão Org-roam e o gerador foi escrito por mim, fazendo uso principalmente das bibiliotecas =ema= e =pandoc=.
 
+Para teste:
+- [[./test.org]]
+- [[./config.org]]
+- [[./artigos/index.org]]
+
+
+  
 #+begin_center
 */zettelkasten/*
 #+end_center

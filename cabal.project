@@ -1,6 +1,6 @@
 packages: .
-
-source-repository-package
-    type: git
-    location: /home/lucas/dados/projetos/codigo/haskell/ema
-    tag: fcf066fd1163c0e076f64b5243180b48d11670ee
+          /home/lucas/dados/projetos/codigo/haskell/ema
+-- source-repository-package
+--     type: git
+--     location: /home/lucas/dados/projetos/codigo/haskell/ema
+--     tag: 1bfa44bc8d1521f1a79668c9de4805d055533b49

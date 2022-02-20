@@ -42,9 +42,13 @@ warnUnhandledScheme kind fp =
 linkLikeInl ::
   Inline ->
   Maybe ( [Inline] -> Target -> Inline
-        , [Inline] , Target, Bool)
+        , [Inline], Target, Bool)
 linkLikeInl (Link at al t) = Just (Link at, al, t, True)
 linkLikeInl (Image at al t) = Just (Image at, al, t, False)
+linkLikeInl (Span (id', "spurious-link":cls, ("target", t):kvs) [Emph al])
+  | Just ('*', _) <- T.uncons t = Just (Link (id', cls, kvs), al, (t, ""), True)
+  -- TODO should check if the anchor (e.g. due to #+name) exists
+  | otherwise = Just (Link (id', cls, kvs), al, (T.cons '#' t, ""), True)
 linkLikeInl _ = Nothing
 
 readOrgQuick :: Text -> Either PandocError [Block]
@@ -67,7 +71,7 @@ handleOrgLink place@(src, srcFp) mID inl@(linkLikeInl -> Just (cons, alt, (link,
   | isLink, Just anchor <- toString <$> match' "#"
   = pure $ inl' alt
     (selfLink ++ "#" ++ encode anchor) titl
-  | isLink, Just headingText <- match' "*"
+  | isLink, Just headingText <- match' "*" -- TODO this does not work if the headline has custom_id property
   = pure $ inl' alt
     (selfLink ++ "#" ++ encode (toString $ toIdent headingText)) titl
   | Just attPath <- match' "attachment:"

@@ -13,33 +13,46 @@ Projects that I'm currently working on and new ideas to be implemented in
 :CUSTOM_ID: pandoc-in-model
 :END:
 
-** Third-party integrations
-*** Org-roam-timestamps -- [[https://github.com/ThomasFKJorna/org-roam-timestamps][link]]
+** Org packages integrations
+*** WAIT Org-roam-timestamps -- [[https://github.com/ThomasFKJorna/org-roam-timestamps][link]]
  - Funciona com arquivos Org não-roam? E com markdown?
-** Markup customizada
-- [ ] Destacar um trecho com =!= ... =!=.
-** Layout/estilo/conteúdo
- - [ ] Subtítulos
- - [ ] Estilizar =[k/n]= nos cabeçalhos e listas
- - [ ] Estilizar =TODO= nos cabeçalhos  
- - [ ] Estilizar [[tags][tags]]
+*** WAIT Org-transclusion -- [[https://github.com/nobiot/org-transclusion][link]]
+*** Some sort of spaced repetition (decide which)
+
+** Layout/style/content
+ - [ ] Page subtitles
+ - [ ] Style =[ ]= and =[k/n]= in headlines and lists
+ - [ ] Style =TODO= in headlines  
+   - [ ] Include other TODO types, make it globally customizable
+ - [ ] Style [[*Tags][tags]]
+ - [ ] Fold sections
 ** Links
 
 Reference: [[https://orgmode.org/manual/Hyperlinks.html][Hiperlinks no Manual do Org]].
-*** [?] [5/7] Internal links
-+ [X] Absolutizar: \\
-  =#anchor ~~> link/to/page#anchor=
-+ [X] =[[#texto]] ~~> CUSTOM_ID: texto=
-+ [X] =[[*Texto]] ~~> ** Texto=
-+ [X] =[[texto]] ~~> <<texto>>=
-+ [X] =[[texto]] ~~> #+name: texto=
-+ [ ] Números, em certos contextos:
-  #+begin_src rst
-  1. one item
-  2. <<target>>another item
-  Here we refer to item [[target]].
-  #+end_src
-  o link =[[target]]= vira =2=.
+*** [?] [2/6] Internal links
++ [X] =[[#anchor]] ~~> CUSTOM_ID: anchor=
++ [-] =[[*Headline]] ~~> ** Headline=
+  - [-] This should work even if headline has =custom_id=
++ [X] =[[anchor]] ~~> <<anchor>>=
++ [ ] =[[named]] ~~> #+name: named=
++ [ ] Smart link labels:
+- Targets
+    #+begin_src org
+    1. one item
+    2. <<target>>another item
+    Here we refer to item [[target]].
+    #+end_src
+    the link =[[target]]= should have label =2=.
+  - Custom IDs
+    #+begin_src org
+,* Headline
+:PROPERTIES:
+:CUSTOM_ID: custom-id
+:END:
+Here we refer to [[#custom-id]]
+    #+end_src
+    the link =[[#custom-id]]= should have label =Headline=
+
 + [ ] Alvos "radiais" =<<<alvo>>>=
 + +Fuzzy: procurar aproximadamente em cabeçalhos e nomes+
   (provavelmente não vai ser implementado)
@@ -62,22 +75,17 @@ Reference: [[https://orgmode.org/manual/Hyperlinks.html][Hiperlinks no Manual do
     + [ ] "=arxiv:=", "=wiki:=", "=nlab:=", ...?
 *** Process links in =render=
 This could be done after [[#pandoc-in-model]].
-** Tags <<tags>>
+** Tags 
 :PROPERTIES:
 :CUSTOM_ID: tags
 :END:
-O org-roam acrescenta tags tanto a partir das tags associadas à nota (na forma
-~#+filetags: :tag1:tag2:~ para arquivos, ou na forma ~Título :tag1:tag2:~ para
-seções), como a partir da estrutura do diretório.
+O org-roam acrescenta tags tanto a partir das tags associadas à nota (na forma ~#+filetags: :tag1:tag2:~ para arquivos, ou na forma ~Título :tag1:tag2:~ para seções), como a partir da estrutura do diretório.
 
-Tags vão possibibilitar não só filtrar/listar assuntos relacionados, como também
-serão uma forma rudimentar de listar o conteúdo de diretórios.
+Tags vão possibibilitar não só filtrar/listar assuntos relacionados, como também serão uma forma rudimentar de listar o conteúdo de diretórios.
 
 Detalhes:
-- caso especial para arquivos com nome =index.html=, pois eles representam todo
-  o conteúdo do diretório.
-- podemos usar o =select_tags= e =exclude_tags= para filtrar o documento (será
-  que isso já é feito pelo Pandoc? testar).
+- caso especial para arquivos com nome =index.html=, pois eles representam todo o conteúdo do diretório.
+- podemos usar o =select_tags= e =exclude_tags= para filtrar o documento (será que isso já é feito pelo Pandoc? testar).
 
 *** Implementação
 
@@ -100,3 +108,5 @@ md-roam? ou compatibilidade com Obsidian?
 ** Executar filtros lua definidos no arquivo 😈
 ** Incluir org e preâmbulo com links attachment:
 
+
+[[./todo][Same page link]]
