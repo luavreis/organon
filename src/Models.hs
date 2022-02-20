@@ -31,7 +31,7 @@ data Source
            )
 
 mountPoint :: IsString p => Source -> p
-mountPoint Zettel = "/home/lucas/dados/notas" -- Mudar
+mountPoint Zettel = "/home/lucas/dados/notas" -- MUDAR
 mountPoint Asset = "assets"
 mountPoint Content = "content"
 

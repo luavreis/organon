@@ -17,7 +17,7 @@ import PandocTransforms.Roam
 import Data.List (stripPrefix)
 
 mountSet :: Set (Source, FilePath)
-mountSet = fromList [(s, mountPoint s) | s <- [Asset, Content, Zettel]]
+mountSet = fromList [(s, mountPoint s) | s <- [Asset, Content, Zettel]] -- MUDAR
 
 filesToInclude :: [(Format, FilePattern)]
 filesToInclude =

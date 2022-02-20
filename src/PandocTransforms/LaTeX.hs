@@ -95,9 +95,9 @@ svgLaTeX dir preamble body = do
         (exitc, _, e) <- readCreateProcessWithExitCode
           (shell
            $ "cd " <> dir <> "; "
-           <> "tectonic -r 0 -o "
+           <> "tectonic -r 0 -o " -- INSTALAR tectonic
            <> tempDir
-           <> " - > /dev/null; pdf2svg "
+           <> " - > /dev/null; pdf2svg " -- INSTALAR pdf2svg
            <> (tempDir </> "texput.pdf")
            <> " "
            <> outpath)
