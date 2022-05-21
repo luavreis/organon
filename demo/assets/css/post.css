@@ -1,0 +1,32 @@
+.post-meta {
+    color: #0005;
+    font-family: 'Alegreya Sans', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    margin-top: 10px;
+    margin-bottom: 30px;
+}
+
+.post-tag {
+    background: #f5efdf;
+    margin-right: 5px;
+    padding: 2px 5px;
+    border-radius: 8px;
+}
+
+.backlink {
+    font-size: 90%;
+    color: #444;
+    cursor: pointer;
+    padding-left: 0.7em;
+    margin: 10px 0px;
+    padding-top: 3px;
+    border-radius: 5px;
+}
+
+.backlink-link {
+    font-weight: 500;
+    font-size: 26px;
+    text-decoration: none;
+    background: #dabce488;
+}

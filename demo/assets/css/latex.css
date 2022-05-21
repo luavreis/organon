@@ -1,0 +1,35 @@
+mjx-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tikzfig {
+  width: unset;
+  max-width: 100%;
+}
+
+.inl {
+  display: inline;
+  vertical-align: middle;
+  margin: 0 6px;
+  max-height: 1.5em;
+}
+
+.theorem,
+.lemma,
+.proposition {
+  border-radius: 7px;
+  border-width: 1px;
+  border-style: solid;
+  padding-right: 15px;
+  padding-left: 15px;
+  font-style: italic;
+}
+
+.proposition p:first-child:before {
+  content: "Proposição.";
+  padding-right: 6px;
+  font-style: normal;
+  font-weight: 500;
+  display: inline-block;
+}

@@ -1,0 +1,77 @@
+cabal-version:        2.4
+name:                 abacateiro
+version:              0.1.0.0
+
+executable abacateiro
+  main-is:            Main.hs
+  hs-source-dirs:     src
+  build-depends:      aeson >= 1.4
+                    , base >= 4.14
+                    , base64 >= 0.4
+                    , binary
+                    , binary-instances
+                    , bytestring
+                    , citeproc
+                    , containers
+                    , ema >= 0.7.1
+                    , filepath
+                    , filepattern
+                    , fsnotify
+                    , generics-sop
+                    , heist
+                    , lvar
+                    , map-syntax
+                    , monad-logger
+                    , monoid-extras
+                    , neat-interpolation
+                    , nonempty-containers
+                    , org-parser
+                    , optics-core
+                    , pretty-simple
+                    , regex-tdfa
+                    , relude
+                    , some
+                    , text
+                    , time
+                    , transformers >= 0.5
+                    , unliftio
+                    , unionmount
+                    , unordered-containers
+                    , uri-encode
+                    , url-slug
+                    , yaml
+                    , xmlhtml
+  ghc-options:        -threaded
+                      -j8
+                      -Wall
+                      -Wno-orphans
+  mixins:             base hiding (Prelude),
+                      relude (Relude as Prelude, Relude.Container.One),
+                      relude
+  default-extensions: BlockArguments
+                      DeriveGeneric
+                      DeriveAnyClass
+                      DerivingVia
+                      FlexibleContexts
+                      FlexibleInstances
+                      GeneralizedNewtypeDeriving
+                      ImportQualifiedPost
+                      KindSignatures
+                      LambdaCase
+                      MultiParamTypeClasses
+                      MultiWayIf
+                      OverloadedStrings
+                      ScopedTypeVariables
+                      TupleSections
+                      TypeFamilies
+                      TypeApplications
+                      ViewPatterns
+  default-language:   Haskell2010
+  other-modules:      Site.Roam
+                      Site.Roam.Process
+                      Site.Roam.Render
+                      Site.Roam.Model
+                      Render
+                      Config
+                      Path
+                      RoamGraph
