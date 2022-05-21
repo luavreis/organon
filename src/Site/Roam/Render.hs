@@ -11,6 +11,13 @@ import Heist.Interpreted (callTemplate, runChildrenWith, textSplice, Splice)
 import Org.Exporters.Heist (Spliceable (..), documentSplices, walkNodes, Exporter)
 import Ema.Route.Encoder (RouteEncoder)
 import Text.XmlHtml qualified as X
+import Org.Types
+import Org.Walk
+
+resolveLink :: (RoamRoute -> Text) -> OrgInline -> OrgInline
+resolveLink route (Link (URILink "id" rid) content) =
+  Link (URILink "http" $ route (RoamRoute_Post $ RoamID rid)) content
+resolveLink _ x = x
 
 renderPost :: RoamID -> RouteEncoder Model RoamRoute -> Model -> Splice Exporter
 renderPost rid enc m =
@@ -18,16 +25,21 @@ renderPost rid enc m =
     "Tags" ## join <$> forM (tags post) \tag ->
       runChildrenWith do
         "Tag" ## textSplice tag
-    documentSplices (doc post)
+    documentSplices (postProcess $ doc post)
     "Backlinks" ##
       ifElseSpliceWith (not (null backlinks)) do
         "NumberOfBacklinks" ## textSplice (show $ length backlinks)
         "BacklinkEntries" ## join <$> forM (toList backlinks) \ bl ->
           runChildrenWith do
             "BacklinkTitle" ## toSplice $ backlinkTitle bl
-            "BacklinkRoute" ## textSplice $ toText $ routeUrl enc m (RoamRoute_Post $ backlinkID bl)
-            "BacklinkExcerpt" ## clearAttrs <$> toSplice (backlinkExcerpt bl)
+            "BacklinkRoute" ## textSplice $ router (RoamRoute_Post $ backlinkID bl)
+            "BacklinkExcerpt" ## clearAttrs <$> toSplice (postProcess $ backlinkExcerpt bl)
   where
+    router = routeUrl enc m
+
+    postProcess :: Walkable OrgInline a => a -> a
+    postProcess = walk (resolveLink router)
+
     clearAttr :: X.Node -> X.Node
     clearAttr (X.Element n _ c) = X.Element n [] c
     clearAttr x = x
