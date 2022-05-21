@@ -1,0 +1,12 @@
+packages: .
+optimization: 2
+
+source-repository-package
+    type: git
+    location: https://github.com/lucasvreis/org-parser.git
+    tag: 666fde161ce62264907bd14382343bf902817330
+
+source-repository-package
+    type: git
+    location: https://github.com/srid/ema.git
+    tag: e87a448bb513e120ae5b441f5b3adc66ee97274d

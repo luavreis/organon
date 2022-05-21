@@ -1,0 +1,15 @@
+#+TITLE: Lucas' webpresence
+
+This is my personal page.
+
+Welcome! 🙂
+
+Some things to do here:
+- [[http:blog][Postagens do blog]]
+
+Some links from other sites:
+- [[https://github.com/lucasvreis][Meu Github]]
+
+Proudly made in Haskell.
+
+
