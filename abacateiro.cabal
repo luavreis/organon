@@ -5,7 +5,7 @@ version:              0.1.0.0
 executable abacateiro
   main-is:            Main.hs
   hs-source-dirs:     src
-  build-depends:      aeson >= 1.4
+  build-depends:      aeson >= 2.0
                     , base >= 4.14
                     , base64 >= 0.4
                     , binary
@@ -17,8 +17,9 @@ executable abacateiro
                     , filepath
                     , filepattern
                     , fsnotify
+                    , generic-optics
                     , generics-sop
-                    , heist
+                    , heist-emanote >= 1.2.1
                     , lvar
                     , map-syntax
                     , monad-logger
@@ -49,9 +50,11 @@ executable abacateiro
                       relude (Relude as Prelude, Relude.Container.One),
                       relude
   default-extensions: BlockArguments
+                      DataKinds
                       DeriveGeneric
                       DeriveAnyClass
                       DerivingVia
+                      DuplicateRecordFields
                       FlexibleContexts
                       FlexibleInstances
                       GeneralizedNewtypeDeriving
@@ -71,7 +74,12 @@ executable abacateiro
                       Site.Roam.Process
                       Site.Roam.Render
                       Site.Roam.Model
+                      Site.Roam.Graph
+                      Site.Roam.OrgAttach
+                      Site.Static
+                      Site.Content
                       Render
+                      JSON
                       Config
-                      Path
-                      RoamGraph
+                      Place
+                      LaTeX

@@ -2,6 +2,7 @@
 <html xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
+    <base href="/"/>
     <title><TitleText /></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="stylesheet" href="/assets/css/stylesheet.css" type="text/css" media="screen">
@@ -18,14 +19,11 @@
     <canvas id="fundo" style="position: fixed; top:0; left:0; z-index:-1;"> </canvas>
     <div id="main">
       <header>
-        <a href="/" style="background:none;">🏡 início</a>
+        <a href="/" style="background:none;">🏡 home</a>
       </header>
       <apply-content />
       <div class="page-foot">
-        Site em construção... 🏗
-        <br />
-        <button id="extra1">Katamari! 🏐</button>
-        <button id="extra2">Boids 🐦</button>
+        Made with <code>abacateiro</code>
       </div>
     </div>
   </body>

@@ -2,79 +2,66 @@ name: Demo of abacateiro
 
 sources:
 
+  static:
+    mount: assets
+    serve-at: assets
+
+  templates: templates
+
   zettelkasten:
     mount: /home/lucas/dados/notas
+    org-attach-dir: data
     raw-include:
-      - **/*.pdf
-      - **/*.jpg
-      - **/*.svg
-      - **/*.png
-      - **/*.html
+      - '**/*.pdf'
+      - '**/*.jpg'
+      - '**/*.svg'
+      - '**/*.png'
+      - '**/*.html'
     exclude:
-      - **/.*/**/*
-      - **/.dir-locals.el
-    serve: /zettel
+      - '**/.*/**/*'
+      - '**/.dir-locals.el'
+    serve-at: zettel
 
   content:
-    mount:
-      - content
-    raw-include:
-      - **/*.pdf
-      - **/*.jpg
-      - **/*.svg
-      - **/*.png
-      - **/*.html
+    mount: content
     exclude:
-      - **/.*/**/*
-      - **/imports
-    serve: /
-
-  common-assets:
-    mount:
-      - assets
-    raw-include:
-      - **/*
-    exclude:
-      - **/.*/**/*
-    serve: /assets
-
-templates:
-  - templates
-
+      - '**/.*/**/*'
+      - '**/imports'
+    serve-at: ''
 
 # Multilanguage options
 
-default-locale: pt
+# default-locale: pt
 
-locales:
-  pt:
-    timelocale:
-      wdays:
-        - [domingo, dom]
-        - [segunda, seg]
-        - [terça, ter]
-        - [quarta, qua]
-        - [quinta, qui]
-        - [sexta, sex]
-        - [sábado, sab]
-      months:
-        - [janeiro, jan]
-        - [febereiro, fev]
-        - [março, mar]
-        - [abril, abr]
-        - [maio, mai]
-        - [junho, jun]
-        - [julho, jul]
-        - [agosto, ago]
-        - [setembro, set]
-        - [outubro, out]
-        - [novembro, nov]
-        - [dezembro, dez]
-      ampm: [da manhã, da tarde]
-      datetimefmt: %a %b %e %H:%M:%S %Z %Y
-      datefmt: %d/%m/%y
-      timefmt: %H:%M:%S
-      time12fmt: %I:%M:%S %p
+# locales:
+#   pt:
+#     timelocale:
+#       wdays:
+#         - [domingo, dom]
+#         - [segunda, seg]
+#         - [terça, ter]
+#         - [quarta, qua]
+#         - [quinta, qui]
+#         - [sexta, sex]
+#         - [sábado, sab]
+#       months:
+#         - [janeiro, jan]
+#         - [febereiro, fev]
+#         - [março, mar]
+#         - [abril, abr]
+#         - [maio, mai]
+#         - [junho, jun]
+#         - [julho, jul]
+#         - [agosto, ago]
+#         - [setembro, set]
+#         - [outubro, out]
+#         - [novembro, nov]
+#         - [dezembro, dez]
+#       ampm: [da manhã, da tarde]
+#       datetimefmt: %a %b %e %H:%M:%S %Z %Y
+#       datefmt: %d/%m/%y
+#       timefmt: %H:%M:%S
+#       time12fmt: %I:%M:%S %p
 
 # LaTeX processing
 

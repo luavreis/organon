@@ -2,22 +2,48 @@
 
 module Site.Roam.Model where
 import Ema
+import JSON
 import Optics.Core
 import Ema.Route.Encoder
 import Org.Types
-import Generics.SOP qualified as SOP
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Relude.Extra (insert, delete, (!?), keys, member)
 import System.FilePath (stripExtension)
+import Heist (HeistState)
+import Org.Exporters.Heist (Exporter)
+import Generics.SOP qualified as SOP
+import System.FilePattern (FilePattern)
+
+data Options = Options
+  { mount :: FilePath
+  , serveAt :: FilePath
+  , rawInclude :: [FilePattern]
+  , exclude :: [FilePattern]
+  , orgAttachDir :: FilePath
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON Options where
+  toJSON = genericToJSON customOptions
+  toEncoding = genericToEncoding customOptions
+
+instance FromJSON Options where
+  parseJSON = genericParseJSON customOptions
 
 data Model = Model
   { posts :: Map RoamID Post
   , database :: Database
   , fileAssoc :: Map FilePath [RoamID]
+  , attachments :: Set FilePath
+  , serveAt :: FilePath
+  , hState :: Maybe (HeistState Exporter)
   -- , modelCliAction :: Some Ema.CLI.Action
   }
-  deriving stock (Show, Generic)
+  deriving (Generic)
+
+model0 :: Model
+model0 = Model mempty mempty mempty mempty "" Nothing
 
 data Post = Post
   { doc :: OrgDocument
@@ -74,12 +100,9 @@ insertPost k v blks =
                                & Map.unionWith Set.union mappedv
                    }
 
-initialModel :: Model
-initialModel = Model mempty mempty mempty
-
 newtype RoamID = RoamID Text
   deriving stock (Eq, Ord, Show)
-  deriving newtype (IsString, ToString, ToText)
+  deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
 
 instance IsRoute RoamID where
   type RouteModel RoamID = Model
@@ -91,13 +114,14 @@ instance IsRoute RoamID where
     % iso id toString
   allRoutes m = keys (posts m)
 
-data RoamRoute
-  = RoamRoute_Post RoamID
-  | RoamRoute_Index
+data Route
+  = Route_Post RoamID
+  | Route_Graph
+  | Route_Index
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (SOP.Generic, SOP.HasDatatypeInfo)
-  deriving (IsRoute) via (SingleModelRoute Model RoamRoute)
+  deriving (IsRoute) via (SingleModelRoute Model Route)
 
-newtype BadRoute = BadRoute RoamRoute
+newtype BadRoute = BadRoute Route
   deriving stock (Show)
   deriving anyclass (Exception)
