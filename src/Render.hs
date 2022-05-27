@@ -1,4 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Render where
 import Ema
@@ -7,105 +9,61 @@ import Heist.Interpreted
 import Heist.Splices (ifElseISplice)
 import Optics.Core
 import Org.Exporters.Heist
-import Control.Monad.Logger (MonadLogger, MonadLoggerIO, logErrorNS, runStdoutLoggingT)
-import UnliftIO (MonadUnliftIO, race_)
-import Ema.Route.Encoder (RouteEncoder, mapRouteEncoder)
-import Data.Some
-import System.FSNotify
-import System.FilePath (isExtensionOf)
+import Control.Monad.Logger (MonadLogger)
+import UnliftIO (MonadUnliftIO)
+import Ema.Route.Encoder (RouteEncoder, mapRouteEncoderRoute)
 import Data.LVar qualified as LVar
-import Ema.CLI qualified as CLI
-import Generics.SOP qualified as SOP
+import Data.Generics.Product
+import Data.Generics.Wrapped (_Unwrapped)
 
 ifElseSpliceWith :: Monad m => Bool -> Splices (Splice m) -> Splice m
 ifElseSpliceWith p splices = localHS (bindSplices splices) $ ifElseISplice p
 
-class IsRoute r => HeistSite r where
-  type HSiteArg r :: Type
-  type HSiteArg r = ()
-  hSiteInput ::
-    forall m.
-    (MonadIO m, MonadUnliftIO m, MonadLoggerIO m) =>
-    Some CLI.Action ->
-    RouteEncoder (RouteModel r) r ->
-    HSiteArg r ->
-    m (Dynamic m (RouteModel r))
-  hSiteOutput :: RouteEncoder (RouteModel r) r -> RouteModel r -> r -> Splice Exporter
+type HState = Maybe (HeistState Exporter)
 
-data WithHeist model = WithHeist { model :: model, hState :: Maybe (HeistState Exporter) }
+type HSModel s = HasField' "hState" s HState
 
-newtype HeistRoute route = HeistRoute { unHeistRoute :: route }
-  deriving stock (Generic)
-  deriving newtype (Eq, Show)
-  deriving anyclass (SOP.Generic, SOP.HasDatatypeInfo)
-
-toHeistEncoder :: RouteEncoder m r -> RouteEncoder (WithHeist m) (HeistRoute r)
-toHeistEncoder = mapRouteEncoder
-                 equality
-                 (iso HeistRoute unHeistRoute)
-                 model
-
-fromHeistEncoder :: RouteEncoder (WithHeist m) (HeistRoute r) -> RouteEncoder m r
-fromHeistEncoder = mapRouteEncoder
-                   equality
-                   (iso unHeistRoute HeistRoute )
-                   (`WithHeist` Nothing)
-
--- Can this be derived via?
-instance IsRoute r => IsRoute (HeistRoute r) where
-  type RouteModel (HeistRoute r) = WithHeist (RouteModel r)
-  routeEncoder = toHeistEncoder routeEncoder
-  allRoutes m = HeistRoute <$> allRoutes (model m)
-
-instance HeistSite r => EmaSite (HeistRoute r) where
-  type SiteArg (HeistRoute r) = (LVar.LVar (Maybe (HeistState Exporter)), HSiteArg r)
-  siteInput ac enc arg = adapter (fst arg) =<< hSiteInput ac (fromHeistEncoder enc) (snd arg)
-    where
-      adapter :: forall m model. (MonadUnliftIO m, MonadLogger m)
-        => LVar.LVar (Maybe (HeistState Exporter))
-        -> Dynamic m model
-        -> m (Dynamic m (WithHeist model))
-      adapter hvar d0 = do
-        h0 <- LVar.get hvar
-        pure $ liftA2 WithHeist d0 (Dynamic (h0, hLoop))
-        where
-          hLoop :: (Maybe (HeistState Exporter) -> m ()) -> m ()
-          hLoop send = do
-            lid <- LVar.addListener hvar
-            forever do
-              send =<< LVar.listenNext hvar lid
-  siteOutput enc m r =
-    case hState m of
-      Just st -> AssetGenerated Html $ renderSpliceToDoc st renderSettings splice
-      Nothing -> error "Heist exporter state is empty!"
-    where
-      splice = hSiteOutput (fromHeistEncoder enc) (model m) (unHeistRoute r)
-      renderSettings = defaultExporterSettings
-        { headlineLevelShift = 1
-        }
-
-runHeistSite ::
-  forall r.
-  (Show r, Eq r, HeistSite r) =>
-  HSiteArg r ->
-  IO ()
-runHeistSite arg = do
-  h0 <- load
-  hvar <- LVar.new h0
-  withManager \mgr -> do
-    stop <- watchDir mgr source predicate \_ -> do
-      hst <- load
-      LVar.set hvar hst
-    _ <- runSite @(HeistRoute r) (hvar, arg)
-    stop
+heistAdapter ::
+  forall m model.
+  (MonadUnliftIO m, MonadLogger m, HSModel model) =>
+  LVar.LVar HState ->
+  Dynamic m model -> m (Dynamic m model)
+heistAdapter hvar d0 = do
+  h0 <- LVar.get hvar
+  pure $ liftA2 (set (field' @"hState")) (Dynamic (h0, hLoop)) d0
   where
-    source = "demo/templates"
-    predicate e = eventIsDirectory e || ".tpl" `isExtensionOf` eventPath e
-    load :: (MonadIO m) => m (Maybe (HeistState Exporter))
-    load = do
-      let config = loadOrgTemplates
-                   & runIdentity . hcTemplateLocations (\t -> pure $ loadTemplates source : t)
-      hc <- liftIO $ initHeist config
-      case hc of
-        Left e -> mapM_ (runStdoutLoggingT <$> logErrorNS "Template reloading" . toText) e $> Nothing
-        Right hs -> pure $ Just hs
+    hLoop :: (HState -> m ()) -> m ()
+    hLoop send = do
+      lid <- LVar.addListener hvar
+      forever do
+        send =<< LVar.listenNext hvar lid
+
+heistOutput ::
+  (HSModel model) =>
+  (r -> RouteEncoder model r -> model -> HeistState Exporter -> Asset LByteString) ->
+  RouteEncoder model r -> model -> r -> Asset LByteString
+heistOutput f enc m r =
+  case view (field' @"hState") m of
+   Just hs -> f r enc m hs
+   Nothing -> error "Heist exporter state is empty!"
+
+renderAsset :: Splice Exporter -> HeistState Exporter -> Asset LByteString
+renderAsset s hs = AssetGenerated Html $ renderSpliceToDoc hs renderSettings s
+
+renderSettings :: ExporterSettings
+renderSettings = defaultExporterSettings
+  { headlineLevelShift = 1
+  }
+
+newtype HeistRoute a = HeistRoute {unHeistRoute :: a}
+  deriving (Generic)
+  deriving newtype (Eq, Show, IsRoute)
+
+instance (EmaSite r, HSModel (RouteModel r)) => EmaSite (HeistRoute r) where
+  type SiteArg (HeistRoute r) = (SiteArg r, LVar.LVar HState)
+  siteInput act enc (arg, hvar) = heistAdapter hvar =<< siteInput @r act newEnc arg
+    where
+      newEnc = mapRouteEncoderRoute _Unwrapped enc
+  siteOutput enc m r = siteOutput newEnc m (unHeistRoute r)
+    where
+      newEnc = mapRouteEncoderRoute _Unwrapped enc

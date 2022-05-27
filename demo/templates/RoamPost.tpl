@@ -8,12 +8,12 @@
   <Footnotes />
   <hr />
   <Backlinks>
-    <h5>Páginas com referências a esta página (<NumberOfBacklinks />):</h5>
+    <h5>Referências a esta página (<NumberOfBacklinks />):</h5>
     <BacklinkEntries>
       <div class="backlink"
-           onclick="window.location.href = '/zettelkasten/${BacklinkID}'">
+           onclick="window.location.href = '${BacklinkRoute}'">
         <a class="backlink-link"
-           href="/zettelkasten/${BacklinkID}">
+           href="${BacklinkRoute}">
           <BacklinkTitle />
         </a>
         <BacklinkExcerpt />

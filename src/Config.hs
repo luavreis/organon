@@ -3,20 +3,22 @@
 module Config where
 import Data.Aeson
 import Data.Yaml as Y
-import Data.Char (isUpper, toLower)
 import Data.Map (singleton)
-import Data.HashMap.Strict (unionWith)
-import System.FilePattern (FilePattern)
+import JSON
+import Data.Aeson.KeyMap qualified as KM
+import Site.Roam.Model qualified as Roam
+import Site.Static qualified as Static
+import qualified Site.Content as Content
 
 data Config = Config
   { name :: Text
-  , sources :: Map SourceKind Source
-  , templates :: [FilePath]
+  , sources :: Sources
   , defaultLatexProcess :: Text
   , latexProcesses :: Map Text MathLaTeXProcess
   } deriving Generic
 
 instance ToJSON Config where
+  toJSON = genericToJSON customOptions
   toEncoding = genericToEncoding customOptions
 
 instance FromJSON Config where
@@ -30,33 +32,37 @@ adjustConfig (toJSON -> v1) v2 =
     Right s -> s
   where
     adjust :: Value -> Value -> Value
-    adjust (Object x) (Object y) = Object $ unionWith adjust x y
+    adjust (Object x) (Object y) = Object $ KM.unionWith adjust x y
     adjust _ y = y
 
 defaultConfig :: Config
 defaultConfig = Config
   { name = ""
-  , sources = fromList
-    [ (Zettelkasten, Source
-      { mount = ["zettel"]
-      , rawInclude = ["**/*"]
-      , exclude = defExclude
-      , serve = "/zettel"
-      })
-    , (Content, Source
-      { mount = ["content"]
-      , rawInclude = ["**/*"]
-      , exclude = defExclude
-      , serve = "/content"
-      })
-    , (CommonAssets, Source
-      { mount = ["assets"]
-      , rawInclude = ["**/*"]
-      , exclude = defExclude
-      , serve = "/assets"
-      })
-    ]
-  , templates = ["templates"]
+  , sources = Sources
+    { zettelkasten = Roam.Options
+      { Roam.orgAttachDir = "data",
+        Roam.mount = "zettel",
+        Roam.serveAt = "zettel",
+        Roam.rawInclude = ["**/*"],
+        Roam.exclude = defExclude
+      }
+    , content = Content.Options
+      { Content.mount = "content"
+      , Content.exclude = defExclude
+      , Content.serveAt = ""
+      }
+      -- { kind = Content
+      -- , mount = one "content"
+      -- , rawInclude = ["**/*"]
+      -- , exclude = defExclude
+      -- , serve = "/content"
+      -- }
+    , static = Static.Options
+      { Static.mount = "assets",
+        Static.serveAt = "assets"
+      }
+    , templates = "templates"
+    }
   , defaultLatexProcess = "latex"
   , latexProcesses = singleton "latex" MathLaTeXProcess
     { preamble = "\\documentclass{article}"
@@ -66,36 +72,22 @@ defaultConfig = Config
     , latexCompiler = ["latex -interaction nonstopmode -output-directory %o %f"]
     , imageConverter = ["dvisvgm %f -n -b min -c %S -o %O"]
     }
-  } where defExclude = ["**/.*/**/*"]
+  }
+  where defExclude = ["**/.*/**/*"]
 
-data SourceKind
-  = CommonAssets
-  | Zettelkasten
-  | Content
-  | Templates
+data Sources = Sources
+  { static :: Static.Options
+  , zettelkasten :: Roam.Options
+  , content :: Content.Options
+  , templates :: FilePath
+  }
   deriving (Eq, Ord, Show, Generic)
 
-instance ToJSON SourceKind where
+instance ToJSON Sources where
+  toJSON = genericToJSON customOptions
   toEncoding = genericToEncoding customOptions
 
-instance ToJSONKey SourceKind
-
-instance FromJSON SourceKind where
-  parseJSON = genericParseJSON customOptions
-
-instance FromJSONKey SourceKind
-
-data Source = Source
-  { mount :: [FilePath]
-  , rawInclude :: [FilePattern]
-  , exclude :: [FilePattern]
-  , serve :: FilePath
-  } deriving (Generic)
-
-instance ToJSON Source where
-  toEncoding = genericToEncoding customOptions
-
-instance FromJSON Source where
+instance FromJSON Sources where
   parseJSON = genericParseJSON customOptions
 
 data MathLaTeXProcess = MathLaTeXProcess
@@ -108,22 +100,11 @@ data MathLaTeXProcess = MathLaTeXProcess
   } deriving Generic
 
 instance ToJSON MathLaTeXProcess where
+  toJSON = genericToJSON customOptions
   toEncoding = genericToEncoding customOptions
 
 instance FromJSON MathLaTeXProcess where
   parseJSON = genericParseJSON customOptions
-
-customOptions :: Options
-customOptions = defaultOptions
-                { fieldLabelModifier = hyphenizeCamelCase
-                }
-
-hyphenizeCamelCase :: String -> String
-hyphenizeCamelCase "" = ""
-hyphenizeCamelCase (y : ys) = toLower y : foldr go "" ys
-  where
-    go c xs | isUpper c = '-' : toLower c : xs
-            | otherwise = c : xs
 
 loadConfigWithDefault :: MonadIO m => FilePath -> m Config
 loadConfigWithDefault fp = do

@@ -1,32 +1,37 @@
 -- |
 
 module Site.Roam (RoamRoute) where
-import Ema
-import Site.Roam.Model
+import Ema hiding (PrefixedRoute)
+import Place
+import Site.Roam.Model qualified as M
 import Site.Roam.Process
-import System.UnionMount (mount, FileAction (..))
+import System.UnionMount (FileAction (..))
+import System.UnionMount qualified as UM
 import Org.Parser (parseOrgIO, defaultOrgOptions)
-import Render (HeistSite (..))
-import Site.Roam.Render (renderIndex, renderPost)
+import Site.Roam.Render (renderIndex, renderPost, renderGraph)
 import System.FilePath ((</>))
+import LaTeX (preambilizeKaTeX)
+import Render (heistOutput, HeistRoute)
 
-instance HeistSite RoamRoute where
-  hSiteInput _ _ _ = Dynamic <$> mount' handler
+instance EmaSite M.Route where
+  type SiteArg M.Route = M.Options
+  siteInput _ _ src = Dynamic <$>
+      UM.mount source include exclude M.model0
+        (const handler)
     where
-      source = "/home/lucas/dados/notas"
+      source = M.mount src
       include = [((), "**/*.org")]
-      exclude =
-        [ "**/imports/**/*"
-        , "**/.*/**/*"
-        , "**/.*"
-        ]
-      mount' = mount source include exclude initialModel . const
+      exclude = M.exclude src
       handler fp = \case
         Refresh _ () -> do
           orgdoc <- parseOrgIO defaultOrgOptions (source </> fp)
           let place = Place fp source
-          pure $ processRoam orgdoc place
-        Delete -> pure $ deleteRD fp
-  hSiteOutput enc m = \case
-    RoamRoute_Index -> renderIndex enc m
-    RoamRoute_Post uid -> renderPost uid enc m
+          preamble <- preambilizeKaTeX place orgdoc
+          pure $ processRoam place preamble orgdoc
+        Delete -> pure $ M.deleteRD fp
+  siteOutput = heistOutput \case
+    M.Route_Index -> renderIndex
+    M.Route_Graph -> const renderGraph
+    M.Route_Post uid -> renderPost uid
+
+type RoamRoute = HeistRoute (PrefixedRoute M.Route)

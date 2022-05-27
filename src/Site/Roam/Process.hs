@@ -7,23 +7,19 @@ module Site.Roam.Process
   , tell
   ) where
 import Site.Roam.Model hiding (tags)
+import Place
 import Control.Monad.Trans.Writer.Strict
 import Org.Types
 import Org.Walk
-import System.FilePath (takeDirectory, splitDirectories, (</>))
+import System.FilePath (takeDirectory, splitDirectories)
 import Data.Text qualified as T
 
-data Place = Place { relative :: FilePath, dir :: FilePath}
-
-absolute :: Place -> FilePath
-absolute p = dir p </> relative p
-
-processRoam :: OrgDocument -> Place -> Model -> Model
-processRoam post place = appEndo . execWriter $ do
+processRoam :: Place -> OrgElement -> OrgDocument -> Model -> Model
+processRoam place preamble post = appEndo . execWriter $ do
   let fp = absolute place
       fpTags = toText <$> splitDirectories (takeDirectory $ relative place)
       docTags = foldMap sepTags (lookupKeyword "filetags" post)
-      tags = fpTags <> docTags
+      tags = filter (== ".") fpTags <> docTags
 
   uuids <- foldMapM (processSections tags) (documentSections post)
 
@@ -55,9 +51,10 @@ processRoam post place = appEndo . execWriter $ do
     addToModel :: [Text] -> OrgDocument -> RoamID -> Writer (Endo Model) ()
     addToModel tags doc' rid = do
       let bklinks = processLinks doc'
-      tell $ insertPost rid (Post doc' tags) $
+          doc'' = mapContent (first (preamble :)) doc'
+      tell $ insertPost rid (Post doc'' tags) $
         map
-          (\ ~(ruuid, excrpt) -> (ruuid, Backlink rid (documentTitle doc') excrpt))
+          (\ ~(ruuid, excrpt) -> (ruuid, Backlink rid (documentTitle doc'') excrpt))
           bklinks
 
     processSections :: [Text] -> OrgSection -> Writer (Endo Model) [RoamID]

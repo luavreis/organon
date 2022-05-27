@@ -7,20 +7,23 @@ import Site.Roam.Model
 import Relude.Extra (lookup)
 import Data.Map (assocs, (!))
 import Data.Map.Syntax ((##))
-import Heist.Interpreted (callTemplate, runChildrenWith, textSplice, Splice)
+import Heist.Interpreted (callTemplate, runChildrenWith, textSplice)
 import Org.Exporters.Heist (Spliceable (..), documentSplices, walkNodes, Exporter)
 import Ema.Route.Encoder (RouteEncoder)
 import Text.XmlHtml qualified as X
 import Org.Types
 import Org.Walk
+import Heist (HeistState)
+import Site.Roam.Graph (buildRoamGraph)
+import Data.Aeson (encode)
 
-resolveLink :: (RoamRoute -> Text) -> OrgInline -> OrgInline
+resolveLink :: (Route -> Text) -> OrgInline -> OrgInline
 resolveLink route (Link (URILink "id" rid) content) =
-  Link (URILink "http" $ route (RoamRoute_Post $ RoamID rid)) content
+  Link (URILink "http" $ route (Route_Post $ RoamID rid)) content
 resolveLink _ x = x
 
-renderPost :: RoamID -> RouteEncoder Model RoamRoute -> Model -> Splice Exporter
-renderPost rid enc m =
+renderPost :: RoamID -> RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString
+renderPost rid enc m = renderAsset $
   callTemplate "RoamPost" do
     "Tags" ## join <$> forM (tags post) \tag ->
       runChildrenWith do
@@ -32,7 +35,7 @@ renderPost rid enc m =
         "BacklinkEntries" ## join <$> forM (toList backlinks) \ bl ->
           runChildrenWith do
             "BacklinkTitle" ## toSplice $ backlinkTitle bl
-            "BacklinkRoute" ## textSplice $ router (RoamRoute_Post $ backlinkID bl)
+            "BacklinkRoute" ## textSplice $ router (Route_Post $ backlinkID bl)
             "BacklinkExcerpt" ## clearAttrs <$> toSplice (postProcess $ backlinkExcerpt bl)
   where
     router = routeUrl enc m
@@ -41,7 +44,7 @@ renderPost rid enc m =
     postProcess = walk (resolveLink router)
 
     clearAttr :: X.Node -> X.Node
-    clearAttr (X.Element n _ c) = X.Element n [] c
+    clearAttr (X.Element n a c) = X.Element n (filter ((/= "id") . fst) a) c
     clearAttr x = x
 
     clearAttrs :: [X.Node] -> [X.Node]
@@ -50,23 +53,14 @@ renderPost rid enc m =
     post = posts m ! rid
     backlinks = fromMaybe mempty $ lookup rid (database m)
 
-renderIndex :: RouteEncoder Model RoamRoute -> Model -> Splice Exporter
-renderIndex enc m =
-  callTemplate "RoamIndex" $
-    "Index" ## join <$> forM (assocs $ posts m) \ (rid, _post) ->
+renderIndex :: RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString
+renderIndex enc m = renderAsset $
+  callTemplate "RoamIndex" do
+    "TitleText" ## textSplice "Olá!"
+    "Index" ## join <$> forM (assocs $ posts m) \ (rid, post) ->
       runChildrenWith do
-        "PostLink" ## textSplice (routeUrl enc m $ RoamRoute_Post rid)
+        "PostTitle" ## toSplice (documentTitle (doc post))
+        "PostLink" ## textSplice (routeUrl enc m $ Route_Post rid)
 
--- buildRoamGraph :: Model -> Graph
--- buildRoamGraph m = Graph nodes links
---   where
---     pageToNode (uuid, RoamPost page _tags) =
---       Node uuid (renderHtml' m (documentTitle page))
---     nodes = map pageToNode (toPairs $ roamPosts m)
---     backlinksToLinks (target, backlinks)
---       -- Ensure target exists
---       | target `member` roamPosts m =
---           map (\ bl -> Link (backlinkID bl) target) $
---           toList backlinks
---       | otherwise = []
---     links = backlinksToLinks =<< toPairs (roamDatabase m)
+renderGraph :: Model -> HeistState Exporter -> Asset LByteString
+renderGraph m = AssetGenerated Other . encode . buildRoamGraph m
