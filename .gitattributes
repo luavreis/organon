@@ -1,3 +1,5 @@
 *.html linguist-generated
 *.css linguist-generated
 *.js linguist-generated
+*.tpl linguist-language=HTML
+flake.lock linguist-generated=true
