@@ -89,15 +89,16 @@
     "org-parser": {
       "flake": false,
       "locked": {
-        "lastModified": 1653659163,
-        "narHash": "sha256-ir0aPVYFRCxcL0BLb26R3lVZ7MVmxiSXmucPM6+FO5c=",
-        "owner": "lucasvreis",
+        "lastModified": 1653684988,
+        "narHash": "sha256-F9jmL9gO2FviUzFnghKx0hJ8VPinzGD6Ow6LldozvP4=",
+        "owner": "srid",
         "repo": "org-parser",
-        "rev": "d3ef2346f6bd7915790746f3d7a52c95c2790931",
+        "rev": "410b0b3f3647492109b59c55484958d5f5619348",
         "type": "github"
       },
       "original": {
-        "owner": "lucasvreis",
+        "owner": "srid",
+        "ref": "relax-constraint",
         "repo": "org-parser",
         "type": "github"
       }
