@@ -27,3 +27,4 @@ result-*
 website.cache
 TAGS
 out/
+.direnv
