@@ -60,6 +60,7 @@
                 org-parser = doJailbreak (self.callCabal2nix "org-parser" inputs.org-parser { });
                 heist-emanote = doJailbreak (dontCheck (self.callCabal2nix "heist-emanote" inputs.heist-emanote { }));
                 citeproc = self.callHackage "citeproc" "0.7" { };
+                slugify = dontCheck super.slugify; # Tests fails to build on macOS
                 ema = self.callCabal2nix "ema" inputs.ema { };
               };
               modifier = drv:
