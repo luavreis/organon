@@ -4,7 +4,7 @@ optimization: 2
 source-repository-package
     type: git
     location: https://github.com/lucasvreis/org-parser.git
-    tag: 7ab68a90d68c5be38f0b8770bb15df15e5fe122d
+    tag: cf25716ce20add405eaf42536f5c3049c15eaf55
 
 source-repository-package
     type: git

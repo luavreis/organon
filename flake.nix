@@ -8,7 +8,7 @@
     flake-compat.flake = false;
     flake-compat.inputs.nixpkgs.follows = "nixpkgs";
 
-    org-parser.url = "github:srid/org-parser/relax-constraint";
+    org-parser.url = "github:lucasvreis/org-parser";
     org-parser.flake = false;
     heist-emanote.url = "github:srid/heist/emanote";
     heist-emanote.flake = false;

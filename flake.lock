@@ -3,11 +3,11 @@
     "ema": {
       "flake": false,
       "locked": {
-        "lastModified": 1653145491,
-        "narHash": "sha256-zPB5KgSM1mbyXdc8m2bwRyh3nqZxWWdVrqYVc+4QV1U=",
+        "lastModified": 1653742730,
+        "narHash": "sha256-NyhjoMbm3h1aTskIU6jowNClSgA92bUcGcVNPfWNWgE=",
         "owner": "srid",
         "repo": "ema",
-        "rev": "10dbf098263ef8df642de114abbc04752aaa0416",
+        "rev": "50d9499db16b4e334776d8e8cffcd144c67f9fc4",
         "type": "github"
       },
       "original": {
@@ -40,11 +40,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1653510071,
-        "narHash": "sha256-KoBs0USqNunyxaBOYx/trSREMf8f3fA+msDfADiMI5o=",
+        "lastModified": 1653735067,
+        "narHash": "sha256-Ms7/OEL8Nquq8ZDTaOdcRixbFbcmXfKrZMrYJYnOuIY=",
         "owner": "hercules-ci",
         "repo": "flake-parts",
-        "rev": "c7d1a3d10117247892df7db45cef562bf62789d5",
+        "rev": "39a134713ee15ab4033bb32ebb23af1b6049c08f",
         "type": "github"
       },
       "original": {
@@ -72,11 +72,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1653326962,
-        "narHash": "sha256-W8feCYqKTsMre4nAEpv5Kx1PVFC+hao/LwqtB2Wci/8=",
+        "lastModified": 1653738054,
+        "narHash": "sha256-IaR8iLN4Ms3f5EjU1CJkXSc49ZzyS5qv03DtVAti6/s=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "41cc1d5d9584103be4108c1815c350e07c807036",
+        "rev": "17b62c338f2a0862a58bb6951556beecd98ccda9",
         "type": "github"
       },
       "original": {
@@ -89,16 +89,15 @@
     "org-parser": {
       "flake": false,
       "locked": {
-        "lastModified": 1653684988,
+        "lastModified": 1653690588,
         "narHash": "sha256-F9jmL9gO2FviUzFnghKx0hJ8VPinzGD6Ow6LldozvP4=",
-        "owner": "srid",
+        "owner": "lucasvreis",
         "repo": "org-parser",
-        "rev": "410b0b3f3647492109b59c55484958d5f5619348",
+        "rev": "cf25716ce20add405eaf42536f5c3049c15eaf55",
         "type": "github"
       },
       "original": {
-        "owner": "srid",
-        "ref": "relax-constraint",
+        "owner": "lucasvreis",
         "repo": "org-parser",
         "type": "github"
       }
