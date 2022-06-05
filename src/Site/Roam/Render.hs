@@ -16,19 +16,30 @@ import Org.Walk
 import Heist (HeistState)
 import Site.Roam.Graph (buildRoamGraph)
 import Data.Aeson (encode)
+import System.FilePath ((</>))
+import Optics.Core
+import Site.Roam.Common
 
-resolveLink :: (Route -> Text) -> OrgInline -> OrgInline
-resolveLink route (Link (URILink "id" rid) content) =
+resolveLink :: (Route -> Text) -> RoamID -> OrgInline -> OrgInline
+resolveLink route _ (Link (URILink "id" rid) content) =
   Link (URILink "http" $ route (Route_Post $ RoamID rid)) content
-resolveLink _ x = x
+resolveLink route rid (Link (URILink "attachment" path) content) =
+  Link (URILink "http" $ route (Route_Attach (AttachPath rid path))) content
+resolveLink route rid (Image (URILink "attachment" path)) =
+  Image (URILink "http" $ route (Route_Attach (AttachPath rid path)))
+resolveLink _ _ x = x
+
+resolveLinksInDoc :: (Route -> Text) -> OrgDocument -> OrgDocument
+resolveLinksInDoc route = walkOrgInContext resolve
+  where resolve _ p = maybe id (resolveLink route) (RoamID <$> lookup "id" p)
 
 renderPost :: RoamID -> RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString
 renderPost rid enc m = renderAsset $
   callTemplate "RoamPost" do
-    "Tags" ## join <$> forM (tags post) \tag ->
+    "Tags" ## join <$> forM (view docTag post) \tag ->
       runChildrenWith do
         "Tag" ## textSplice tag
-    documentSplices (postProcess $ doc post)
+    documentSplices (resolveLinksInDoc router post)
     "Backlinks" ##
       ifElseSpliceWith (not (null backlinks)) do
         "NumberOfBacklinks" ## textSplice (show $ length backlinks)
@@ -36,21 +47,20 @@ renderPost rid enc m = renderAsset $
           runChildrenWith do
             "BacklinkTitle" ## toSplice $ backlinkTitle bl
             "BacklinkRoute" ## textSplice $ router (Route_Post $ backlinkID bl)
-            "BacklinkExcerpt" ## clearAttrs <$> toSplice (postProcess $ backlinkExcerpt bl)
+            "BacklinkExcerpt" ## clearAttrs <$> toSplice (postProcessBl (backlinkID bl) $ backlinkExcerpt bl)
   where
     router = routeUrl enc m
 
-    postProcess :: Walkable OrgInline a => a -> a
-    postProcess = walk (resolveLink router)
+    postProcessBl blId = walk (resolveLink router blId)
 
     clearAttr :: X.Node -> X.Node
-    clearAttr (X.Element n a c) = X.Element n (filter ((/= "id") . fst) a) c
+    clearAttr (X.Element n a c) = X.Element n (filter ((`notElem` ["id", "href"]) . fst) a) c
     clearAttr x = x
 
     clearAttrs :: [X.Node] -> [X.Node]
     clearAttrs = walkNodes clearAttr
 
-    post = posts m ! rid
+    Post post = posts m ! rid
     backlinks = fromMaybe mempty $ lookup rid (database m)
 
 renderIndex :: RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString
@@ -64,3 +74,9 @@ renderIndex enc m = renderAsset $
 
 renderGraph :: Model -> HeistState Exporter -> Asset LByteString
 renderGraph m = AssetGenerated Other . encode . buildRoamGraph m
+
+renderAttachment :: AttachPath -> Model -> HeistState Exporter -> Asset LByteString
+renderAttachment (AttachPath rid path) m = const $
+  case lookup rid (attachDirs m) of
+    Just dir -> AssetStatic (dir </> toString path)
+    Nothing  -> error "This should not happen. Unknown org-attach dir."

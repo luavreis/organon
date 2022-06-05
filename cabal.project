@@ -4,9 +4,9 @@ optimization: 2
 source-repository-package
     type: git
     location: https://github.com/lucasvreis/org-parser.git
-    tag: 7ab68a90d68c5be38f0b8770bb15df15e5fe122d
+    tag: d311c27f60789817c3ae0a3ed74713abad4ba00d
 
 source-repository-package
     type: git
-    location: https://github.com/srid/ema.git
-    tag: e87a448bb513e120ae5b441f5b3adc66ee97274d
+    location: https://github.com/lucasvreis/ema.git
+    tag: 7ac11828cf439e8f76e635e3520aa5c331d90213

@@ -9,33 +9,18 @@ import Org.Types
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Relude.Extra (insert, delete, (!?), keys, member)
-import System.FilePath (stripExtension)
+import System.FilePath (stripExtension, (</>), splitDirectories)
 import Heist (HeistState)
 import Org.Exporters.Heist (Exporter)
 import Generics.SOP qualified as SOP
-import System.FilePattern (FilePattern)
-
-data Options = Options
-  { mount :: FilePath
-  , serveAt :: FilePath
-  , rawInclude :: [FilePattern]
-  , exclude :: [FilePattern]
-  , orgAttachDir :: FilePath
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-instance ToJSON Options where
-  toJSON = genericToJSON customOptions
-  toEncoding = genericToEncoding customOptions
-
-instance FromJSON Options where
-  parseJSON = genericParseJSON customOptions
 
 data Model = Model
   { posts :: Map RoamID Post
   , database :: Database
   , fileAssoc :: Map FilePath [RoamID]
-  , attachments :: Set FilePath
+  , attachments :: Set AttachPath
+  , attachDirs :: Map RoamID FilePath
+  , mount :: FilePath
   , serveAt :: FilePath
   , hState :: Maybe (HeistState Exporter)
   -- , modelCliAction :: Some Ema.CLI.Action
@@ -43,11 +28,10 @@ data Model = Model
   deriving (Generic)
 
 model0 :: Model
-model0 = Model mempty mempty mempty mempty "" Nothing
+model0 = Model mempty mempty mempty mempty mempty "" "" Nothing
 
-data Post = Post
+newtype Post = Post
   { doc :: OrgDocument
-  , tags :: [Text]
   }
   deriving (Eq, Ord, Show)
 
@@ -114,8 +98,25 @@ instance IsRoute RoamID where
     % iso id toString
   allRoutes m = keys (posts m)
 
+data AttachPath = AttachPath RoamID Text
+  deriving stock (Eq, Ord, Show)
+
+instance IsRoute AttachPath where
+  type RouteModel AttachPath = Model
+  routeEncoder = mkRouteEncoder \m ->
+    prism'
+      (\(AttachPath rid txt) ->
+         toString rid </> toString txt)
+      (\case
+          (splitDirectories -> [fromString -> rid, fromString -> txt]) ->
+            let att = AttachPath rid txt
+            in guard (att `member` attachments m) $> att
+          _ -> Nothing)
+  allRoutes m = toList (attachments m)
+
 data Route
   = Route_Post RoamID
+  | Route_Attach AttachPath
   | Route_Graph
   | Route_Index
   deriving (Eq, Ord, Show, Generic)
