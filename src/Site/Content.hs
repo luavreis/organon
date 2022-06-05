@@ -36,8 +36,9 @@ instance FromJSON Options where
   parseJSON = genericParseJSON customOptions
 
 data Model = Model
-  { docs :: Map FilePath OrgDocument
+  { mount :: FilePath
   , serveAt :: FilePath
+  , docs :: Map FilePath OrgDocument
   , hState :: HState
   }
   deriving (Generic)
@@ -59,10 +60,10 @@ instance IsRoute Route where
 instance EmaSite Route where
   type SiteArg Route = Options
   siteInput _ _ opt = Dynamic <$>
-    UM.mount source include exclude' (Model mempty mempty Nothing)
+    UM.mount source include exclude' (Model "" mempty mempty Nothing)
       (const handler)
     where
-      source = mount opt
+      source = mount (opt :: Options)
       include = [((), "**/*.org")]
       exclude' = exclude opt
       handler fp =

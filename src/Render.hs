@@ -53,6 +53,7 @@ renderAsset s hs = AssetGenerated Html $ renderSpliceToDoc hs renderSettings s
 renderSettings :: ExporterSettings
 renderSettings = defaultExporterSettings
   { headlineLevelShift = 1
+  , orgExportHeadlineLevels = 8
   }
 
 newtype HeistRoute a = HeistRoute {unHeistRoute :: a}

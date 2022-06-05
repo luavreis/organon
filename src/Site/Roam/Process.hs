@@ -6,67 +6,68 @@ module Site.Roam.Process
   , processRoam
   , tell
   ) where
-import Site.Roam.Model hiding (tags)
+import Site.Roam.Model
 import Place
 import Control.Monad.Trans.Writer.Strict
 import Org.Types
 import Org.Walk
 import System.FilePath (takeDirectory, splitDirectories)
-import Data.Text qualified as T
+import Site.Roam.OrgAttach (processAttachments)
+import Site.Roam.Options as O
+import LaTeX (preambilizeKaTeX)
+import Org.Parser
+import UnliftIO (MonadUnliftIO)
+import Control.Monad.Logger (MonadLogger)
+import Site.Roam.Common
+import Optics.Core
 
-processRoam :: Place -> OrgElement -> OrgDocument -> Model -> Model
-processRoam place preamble post = appEndo . execWriter $ do
-  let fp = absolute place
-      fpTags = toText <$> splitDirectories (takeDirectory $ relative place)
-      docTags = foldMap sepTags (lookupKeyword "filetags" post)
-      tags = filter (== ".") fpTags <> docTags
+processRoam ::
+  forall m.
+  (MonadUnliftIO m, MonadLogger m, MonadReader Options m)
+  => FilePath
+  -> m (Endo Model)
+processRoam fp = execWriterT $ do
+  source <- asks O.mount
+  let place = Place fp source
 
-  uuids <- foldMapM (processSections tags) (documentSections post)
+  post <- parseOrgIO defaultOrgOptions (absolute place)
+  preamble <- lift $ preambilizeKaTeX place post
 
-  case lookupProperty "id" post of
+  let relDir = takeDirectory (relative place)
+      fpTags =
+        if relDir == "."
+          then []
+          else toText <$> splitDirectories (takeDirectory $ relative place)
+      postWithTags = over docTag (fpTags <>) post
+
+      addToModel :: OrgDocument -> RoamID -> WriterT (Endo Model) m ()
+      addToModel doc' rid = do
+        let bklinks = processLinks doc'
+            doc'' = mapContent (first (preamble :)) doc'
+        tell =<< lift (processAttachments rid doc'')
+        tell $ insertPost rid (Post doc'') $
+          map
+            (\ ~(ruuid, excrpt) -> (ruuid, Backlink rid (documentTitle doc'') excrpt))
+            bklinks
+
+      processSectionsWithId :: Tags -> Properties -> OrgSection -> Ap (WriterT (Endo Model) m) [RoamID]
+      processSectionsWithId tags props section = Ap $
+        case lookupSectionProperty "id" section of
+          Just (RoamID -> uuid) -> do
+            let inhSection = section { sectionTags = tags, sectionProperties = props }
+            addToModel (isolateSection inhSection post) uuid
+            pure [uuid]
+          Nothing -> pure []
+
+  uuids <- getAp $ queryOrgInContext processSectionsWithId postWithTags
+
+  case lookupProperty "id" postWithTags of
     Just (RoamID -> uuid) -> do
-      addToModel tags post uuid
+      addToModel postWithTags uuid
       tell $ filterIds fp (uuid : uuids)
     _ -> tell $ filterIds fp uuids
 
   where
-    sepTags (ValueKeyword _ t) =
-      t & T.dropAround (':' ==)
-        & T.split (':' ==)
-    sepTags _ = []
-
-    shift i sec@OrgSection { sectionLevel = level }
-      | level + i > 0  = sec { sectionLevel = level + i }
-      | otherwise      = sec { sectionLevel = 1 }
-
-    isolateSection :: OrgSection -> OrgDocument
-    isolateSection section@OrgSection { sectionLevel = l } =
-      let section' = walk (shift (-l + 1)) section
-          title = sectionTitle section
-      in post { documentKeywords =
-               ("title", ParsedKeyword [] title) : filter (("title" /=) . fst) (documentKeywords post)
-             }
-         & mapContent (const $ sectionContent section')
-
-    addToModel :: [Text] -> OrgDocument -> RoamID -> Writer (Endo Model) ()
-    addToModel tags doc' rid = do
-      let bklinks = processLinks doc'
-          doc'' = mapContent (first (preamble :)) doc'
-      tell $ insertPost rid (Post doc'' tags) $
-        map
-          (\ ~(ruuid, excrpt) -> (ruuid, Backlink rid (documentTitle doc'') excrpt))
-          bklinks
-
-    processSections :: [Text] -> OrgSection -> Writer (Endo Model) [RoamID]
-    processSections tags section@OrgSection
-      { sectionTags = ((tags <>) -> inhtags)
-      , sectionSubsections = (foldMapM (processSections inhtags) -> others)
-      } = case lookupSectionProperty "id" section of
-            Just (RoamID -> uuid) -> do
-              addToModel inhtags (isolateSection section) uuid
-              (<>) [uuid] <$> others
-            Nothing -> others
-
     -- Walks over the document but only maps the "zero-level" elements (no nesting)
     processLinks :: OrgDocument -> [(RoamID, [OrgElement])]
     processLinks doc' = f (documentChildren doc') <> query mapSections doc'
@@ -87,3 +88,4 @@ processRoam place preamble post = appEndo . execWriter $ do
     processLink :: OrgInline -> [RoamID]
     processLink (Link (URILink "id" uid) _) = [RoamID uid]
     processLink _ = []
+

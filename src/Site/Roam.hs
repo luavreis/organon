@@ -3,35 +3,30 @@
 module Site.Roam (RoamRoute) where
 import Ema hiding (PrefixedRoute)
 import Place
-import Site.Roam.Model qualified as M
+import Site.Roam.Model
+import Site.Roam.Options qualified as O
 import Site.Roam.Process
 import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
-import Org.Parser (parseOrgIO, defaultOrgOptions)
-import Site.Roam.Render (renderIndex, renderPost, renderGraph)
-import System.FilePath ((</>))
-import LaTeX (preambilizeKaTeX)
+import Site.Roam.Render (renderIndex, renderPost, renderGraph, renderAttachment)
 import Render (heistOutput, HeistRoute)
 
-instance EmaSite M.Route where
-  type SiteArg M.Route = M.Options
+instance EmaSite Route where
+  type SiteArg Route = O.Options
   siteInput _ _ src = Dynamic <$>
-      UM.mount source include exclude M.model0
+      UM.mount source include exclude model0
         (const handler)
     where
-      source = M.mount src
+      source = O.mount src
       include = [((), "**/*.org")]
-      exclude = M.exclude src
+      exclude = O.exclude src
       handler fp = \case
-        Refresh _ () -> do
-          orgdoc <- parseOrgIO defaultOrgOptions (source </> fp)
-          let place = Place fp source
-          preamble <- preambilizeKaTeX place orgdoc
-          pure $ processRoam place preamble orgdoc
-        Delete -> pure $ M.deleteRD fp
+        Refresh _ () -> appEndo <$> runReaderT (processRoam fp) src
+        Delete -> pure $ deleteRD fp
   siteOutput = heistOutput \case
-    M.Route_Index -> renderIndex
-    M.Route_Graph -> const renderGraph
-    M.Route_Post uid -> renderPost uid
+    Route_Index -> renderIndex
+    Route_Graph -> const renderGraph
+    Route_Post uid -> renderPost uid
+    Route_Attach path -> const (renderAttachment path)
 
-type RoamRoute = HeistRoute (PrefixedRoute M.Route)
+type RoamRoute = HeistRoute (PrefixedRoute Route)

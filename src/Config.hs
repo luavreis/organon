@@ -6,7 +6,7 @@ import Data.Yaml as Y
 import Data.Map (singleton)
 import JSON
 import Data.Aeson.KeyMap qualified as KM
-import Site.Roam.Model qualified as Roam
+import Site.Roam.Options qualified as Roam
 import Site.Static qualified as Static
 import qualified Site.Content as Content
 
