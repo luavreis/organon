@@ -1,33 +1,59 @@
-name: Demo of abacateiro
+# 🥑
 
-sources:
+static:
+  mount: assets
+  serve-at: assets
 
-  static:
-    mount: assets
-    serve-at: assets
+templates: templates
 
-  templates: templates
+zettelkasten:
+  mount: /home/lucas/dados/notas
+  org-attach-dir: data
+  raw-include:
+    - '**/*.pdf'
+    - '**/*.jpg'
+    - '**/*.svg'
+    - '**/*.png'
+    - '**/*.html'
+  exclude:
+    - '**/.*/**/*'
+    - '**/.dir-locals.el'
+  serve-at: zettel
 
-  zettelkasten:
-    mount: /home/lucas/dados/notas
-    org-attach-dir: data
-    raw-include:
-      - '**/*.pdf'
-      - '**/*.jpg'
-      - '**/*.svg'
-      - '**/*.png'
-      - '**/*.html'
-    exclude:
-      - '**/.*/**/*'
-      - '**/.dir-locals.el'
-    serve-at: zettel
+  # LaTeX processing
+  latex-options: &my-latex-options
+    # "latex" is also available by default
+    default-latex-process: xelatex
 
-  content:
-    mount: content
-    exclude:
-      - '**/.*/**/*'
-      - '**/imports'
-    serve-at: ''
+    latex-processes:
+      xelatex:
+        preamble: |
+          \documentclass{article}
+          \usepackage[normalem]{ulem}
+          \usepackage{Alegreya}
+          \usepackage{unicode-math}
+          \usepackage{amsmath}
+          \usepackage{amssymb}
+          \usepackage{tikz-cd}
+          \usepackage{tikz}
+          \setmathfont[StylisticSet={4,6}]{Concrete Math}
+        image-input-type: pdf
+        image-output-type: svg
+        image-mime-type: "image/svg+xml"
+        image-size-adjust: 1.7
+        latex-compiler:
+          - "xelatex -interaction nonstopmode -output-directory %o %f"
+        image-converter:
+          - "pdfcrop %f %o/cropped.pdf"
+          - "dvisvgm %o/cropped.pdf -P -n -c %S -o %O"
+
+content:
+  mount: content
+  exclude:
+    - '**/.*/**/*'
+    - '**/imports'
+  serve-at: ''
+  latex-options: *my-latex-options
 
 # Multilanguage options
 
@@ -63,27 +89,3 @@ sources:
 #       timefmt: %H:%M:%S
 #       time12fmt: %I:%M:%S %p
 
-# LaTeX processing
-
-default-latex-process: xelatex # "latex" is also available by default
-
-latex-processes:
-  xelatex:
-    preamble: |
-      \documentclass{article}
-      \usepackage[normalem]{ulem}
-      \usepackage{Alegreya}
-      \usepackage{unicode-math}
-      \usepackage{amsmath}
-      \usepackage{amssymb}
-      \usepackage{tikz-cd}
-      \usepackage{tikz}
-      \setmathfont[StylisticSet={4,6}]{Concrete Math}
-    image-input-type: pdf
-    image-output-type: svg
-    image-size-adjust: 1.7
-    latex-compiler:
-      - "xelatex -interaction nonstopmode -output-directory %o %f"
-    image-converter:
-      - "pdfcrop %f %o/cropped.pdf"
-      - "dvisvgm %o/cropped.pdf -P -n -c %S -o %O"

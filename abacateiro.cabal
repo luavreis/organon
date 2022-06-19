@@ -79,7 +79,9 @@ executable abacateiro
                       Site.Roam.Common
                       Site.Roam.OrgAttach
                       Site.Static
+                      Site.Static.Options
                       Site.Content
+                      Site.Content.Options
                       Render
                       JSON
                       Config

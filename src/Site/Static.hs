@@ -5,22 +5,9 @@ module Site.Static (StaticRoute, Options (..)) where
 
 import Ema hiding (PrefixedRoute)
 import Place
+import Site.Static.Options
 import Ema.Route.Encoder
-import JSON
 import System.FilePath.Posix ((</>))
-
-data Options = Options
-  { mount :: FilePath
-  , serveAt :: FilePath
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-instance ToJSON Options where
-  toJSON = genericToJSON customOptions
-  toEncoding = genericToEncoding customOptions
-
-instance FromJSON Options where
-  parseJSON = genericParseJSON customOptions
 
 newtype Route = Route {unStaticRoute :: FilePath}
   deriving stock (Show, Eq)
