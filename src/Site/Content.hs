@@ -15,25 +15,10 @@ import System.FilePath (stripExtension, (</>), dropExtension)
 import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
 import Render (HState, heistOutput, HeistRoute, renderAsset)
-import System.FilePattern
 import Org.Parser
-import LaTeX
-import JSON
+import LaTeX hiding (preamble)
 import Heist (HeistState)
-
-data Options = Options
-  { mount :: FilePath
-  , exclude :: [FilePattern]
-  , serveAt :: FilePath
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-instance ToJSON Options where
-  toJSON = genericToJSON customOptions
-  toEncoding = genericToEncoding customOptions
-
-instance FromJSON Options where
-  parseJSON = genericParseJSON customOptions
+import Site.Content.Options
 
 data Model = Model
   { mount :: FilePath

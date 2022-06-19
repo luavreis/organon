@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 module Main where
 import Ema hiding (PrefixedRoute)
 import Ema.Multi
@@ -13,15 +15,31 @@ import System.FilePath
 import Control.Monad.Logger
 import Config
 import Data.Yaml as Y
-import Generics.SOP (I (..), NP (..))
 import Control.Exception (catch)
+
+data Route
+  = Route_Roam RoamRoute
+  | Route_Content ContentRoute
+  | Route_Static StaticRoute
+  deriving stock (Eq, Show, Ord)
+
+instance IsRoute Route where
+  type RouteModel Route = Model
+  routeEncoder =
+    combineRouteEncoder
+      routeDecomposition
+      decomposeModel
+      (routeEncoder @MarkdownRoute)
+      (routeEncoder @StaticRoute)
+  allRoutes model =
+    fmap Route_Markdown (allRoutes @MarkdownRoute $ fst . decomposeModel $ model)
+      <> fmap Route_Static (allRoutes @StaticRoute $ snd . decomposeModel $ model)
 
 main :: IO ()
 main = do
   cfg <- Y.decodeFileThrow "abacate.yaml"
          `catch` (error . toText . prettyPrintParseException)
-  let srcs = sources cfg
-      tpls = templates srcs
+  let tpls = templates (sources cfg)
   h0 <- load tpls
   hvar <- LVar.new h0
   withManager \mgr -> do
@@ -30,8 +48,8 @@ main = do
       LVar.set hvar hst
     void $
       runSite
-        @(MultiRoute '[RoamRoute, ContentRoute, StaticRoute])
-        (I (zettelkasten srcs, hvar) :* I (content srcs, hvar) :* I (static srcs) :* Nil)
+        @(MultiRoute '[Boo, Boo, Boo])
+        (I (cfg, hvar) :* I (cfg, hvar) :* I cfg :* Nil)
     stop
   where
     predicate e = eventIsDirectory e || ".tpl" `isExtensionOf` eventPath e

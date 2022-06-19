@@ -3,8 +3,8 @@
 module Site.Roam (RoamRoute) where
 import Ema hiding (PrefixedRoute)
 import Place
-import Site.Roam.Model
 import Site.Roam.Options qualified as O
+import Site.Roam.Model
 import Site.Roam.Process
 import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
