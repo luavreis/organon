@@ -11,10 +11,10 @@ import Optics.Core
 import Data.Generics.Wrapped
 import Data.Generics.Product
 
-data Place = Place {relative :: FilePath, dir :: FilePath}
+data Place = Place {relative :: FilePath, directory :: FilePath}
 
 absolute :: Place -> FilePath
-absolute p = dir p </> relative p
+absolute p = directory p </> relative p
 
 newtype PrefixedRoute a = PrefixedRoute {unPrefixRoute :: a}
   deriving (Generic)

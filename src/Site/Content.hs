@@ -1,6 +1,6 @@
 -- |
 
-module Site.Content (ContentRoute, Options (..)) where
+module Site.Content (ContentRoute, Model (..), Options (..)) where
 import Place
 import Ema hiding (PrefixedRoute)
 import Org.Types
@@ -14,7 +14,7 @@ import Optics.Core
 import System.FilePath (stripExtension, (</>), dropExtension)
 import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
-import Render (HState, heistOutput, HeistRoute, renderAsset)
+import Render (HeistS, heistOutput, renderAsset)
 import Org.Parser
 import LaTeX hiding (preamble)
 import Heist (HeistState)
@@ -24,7 +24,7 @@ data Model = Model
   { mount :: FilePath
   , serveAt :: FilePath
   , docs :: Map FilePath OrgDocument
-  , hState :: HState
+  , heistS :: HeistS
   }
   deriving (Generic)
 
@@ -67,4 +67,4 @@ renderDoc :: Route -> RouteEncoder Model Route -> Model -> HeistState Exporter -
 renderDoc (Route fp) _ m = renderAsset $
   callTemplate "ContentPage" $ documentSplices (docs m ! fp)
 
-type ContentRoute = HeistRoute (PrefixedRoute Route)
+type ContentRoute = PrefixedRoute Route

@@ -4,6 +4,7 @@ module Site.Roam.Render where
 import Render
 import Ema
 import Site.Roam.Model
+import Site.Roam.Route
 import Relude.Extra (lookup)
 import Data.Map (assocs, (!))
 import Data.Map.Syntax ((##))
@@ -22,11 +23,11 @@ import Site.Roam.Common
 
 resolveLink :: (Route -> Text) -> RoamID -> OrgInline -> OrgInline
 resolveLink route _ (Link (URILink "id" rid) content) =
-  Link (URILink "http" $ route (Route_Post $ RoamID rid)) content
+  Link (URILink "http" $ route (RoutePost' $ RoamID rid)) content
 resolveLink route rid (Link (URILink "attachment" path) content) =
-  Link (URILink "http" $ route (Route_Attach (AttachPath rid path))) content
+  Link (URILink "http" $ route (RouteAttach' (AttachPath rid path))) content
 resolveLink route rid (Image (URILink "attachment" path)) =
-  Image (URILink "http" $ route (Route_Attach (AttachPath rid path)))
+  Image (URILink "http" $ route (RouteAttach' (AttachPath rid path)))
 resolveLink _ _ x = x
 
 resolveLinksInDoc :: (Route -> Text) -> OrgDocument -> OrgDocument
@@ -46,7 +47,7 @@ renderPost rid enc m = renderAsset $
         "BacklinkEntries" ## join <$> forM (toList backlinks) \ bl ->
           runChildrenWith do
             "BacklinkTitle" ## toSplice $ backlinkTitle bl
-            "BacklinkRoute" ## textSplice $ router (Route_Post $ backlinkID bl)
+            "BacklinkRoute" ## textSplice $ router (RoutePost' $ backlinkID bl)
             "BacklinkExcerpt" ## clearAttrs <$> toSplice (postProcessBl (backlinkID bl) $ backlinkExcerpt bl)
   where
     router = routeUrl enc m
@@ -70,7 +71,7 @@ renderIndex enc m = renderAsset $
     "Index" ## join <$> forM (assocs $ posts m) \ (rid, post) ->
       runChildrenWith do
         "PostTitle" ## toSplice (documentTitle (doc post))
-        "PostLink" ## textSplice (routeUrl enc m $ Route_Post rid)
+        "PostLink" ## textSplice (routeUrl enc m $ RoutePost' rid)
 
 renderGraph :: Model -> HeistState Exporter -> Asset LByteString
 renderGraph m = AssetGenerated Other . encode . buildRoamGraph m
