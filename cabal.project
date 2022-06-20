@@ -1,5 +1,6 @@
 packages: .
           /home/lucas/dados/projetos/codigo/haskell/org-parser/
+          -- /home/lucas/dados/projetos/codigo/haskell/ema/
 optimization: 1
 
 -- source-repository-package

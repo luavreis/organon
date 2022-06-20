@@ -106,8 +106,8 @@ preambilizeKaTeX plc doc = preambleBlock
              || "\\DeclareMathOperator" `T.isPrefixOf` txt
 
 
-processLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m) => FilePath -> MathLaTeXProcess -> Text -> Text -> m (Text, ByteString)
-processLaTeX cDir process preamble' txt = do
+renderLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m) => FilePath -> MathLaTeXProcess -> Text -> Text -> m (Text, ByteString)
+renderLaTeX cDir process preamble' txt = do
   let finalText =
         [text|
           $(preamble process)
@@ -145,8 +145,8 @@ newtype UndefinedLaTeXProcess = UndefinedLaTeXProcess Text
   deriving stock (Show)
   deriving anyclass (Exception)
 
-renderLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m, MonadReader LaTeXOptions m) => Place -> OrgDocument -> m OrgDocument
-renderLaTeX plc doc = do
+processLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m, MonadReader LaTeXOptions m) => Place -> OrgDocument -> m OrgDocument
+processLaTeX plc doc = do
   pname <- asks defaultLatexProcess -- TODO read from metadata
   process <- asks (M.lookup pname . latexProcesses) >>= \case
     Just p -> pure p
@@ -157,7 +157,7 @@ renderLaTeX plc doc = do
     mapping :: (Walkable OrgElement a, Walkable OrgInline a) => a -> m a
     mapping = walkM wBlocks >=> walkM wInlines
 
-    doProcess txt = processLaTeX (takeDirectory (absolute plc)) process (getPreamble doc) txt
+    doProcess txt = renderLaTeX (takeDirectory (absolute plc)) process (getPreamble doc) txt
     -- cachedSvgLaTeX :: Text -> m ByteString
     -- cachedSvgLaTeX = fromCacheOrCompute $ svgLaTeX process (getPreamble doc)
 

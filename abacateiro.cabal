@@ -36,7 +36,7 @@ executable abacateiro
                     , time
                     , transformers >= 0.5
                     , unliftio
-                    , unionmount
+                    , unionmount >= 0.2
                     , unordered-containers
                     , uri-encode
                     , url-slug
@@ -45,6 +45,7 @@ executable abacateiro
   ghc-options:        -threaded
                       -j8
                       -Wall
+                      -fprint-potential-instances
                       -Wno-orphans
   mixins:             base hiding (Prelude),
                       relude (Relude as Prelude, Relude.Container.One),
@@ -74,6 +75,7 @@ executable abacateiro
                       Site.Roam.Process
                       Site.Roam.Render
                       Site.Roam.Model
+                      Site.Roam.Route
                       Site.Roam.Options
                       Site.Roam.Graph
                       Site.Roam.Common
@@ -82,7 +84,9 @@ executable abacateiro
                       Site.Static.Options
                       Site.Content
                       Site.Content.Options
+                      Ema.Route.GenericClass
                       Render
+                      Route
                       JSON
                       Config
                       Place

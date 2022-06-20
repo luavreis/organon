@@ -1,6 +1,6 @@
 -- |
 
-module Site.Roam (RoamRoute) where
+module Site.Roam (RoamRoute, Model (..)) where
 import Ema hiding (PrefixedRoute)
 import Place
 import Site.Roam.Options qualified as O
@@ -9,7 +9,8 @@ import Site.Roam.Process
 import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
 import Site.Roam.Render (renderIndex, renderPost, renderGraph, renderAttachment)
-import Render (heistOutput, HeistRoute)
+import Render (heistOutput)
+import Site.Roam.Route
 
 instance EmaSite Route where
   type SiteArg Route = O.Options
@@ -24,9 +25,10 @@ instance EmaSite Route where
         Refresh _ () -> appEndo <$> runReaderT (processRoam fp) src
         Delete -> pure $ deleteRD fp
   siteOutput = heistOutput \case
-    Route_Index -> renderIndex
-    Route_Graph -> const renderGraph
-    Route_Post uid -> renderPost uid
-    Route_Attach path -> const (renderAttachment path)
+    RouteIndex' -> renderIndex
+    RouteGraph' -> const renderGraph
+    RoutePost' uid -> renderPost uid
+    RouteAttach' path -> const (renderAttachment path)
+    _ -> error "dammit ghc"
 
-type RoamRoute = HeistRoute (PrefixedRoute Route)
+type RoamRoute = PrefixedRoute Route
