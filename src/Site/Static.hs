@@ -3,7 +3,7 @@
 -}
 module Site.Static (StaticRoute, Model, Options (..)) where
 
-import Ema hiding (PrefixedRoute)
+import Ema
 import Place
 import Site.Static.Options
 import Ema.Route.Encoder
@@ -23,6 +23,6 @@ instance EmaSite Route where
   siteInput _ _ opt = pure $ pure opt
   siteOutput _ m (Route fp) = Ema.AssetStatic $ mount m </> fp
 
-type StaticRoute = PrefixedRoute Route
+type StaticRoute = PrefixedRoute' Route
 
 type Model = Options

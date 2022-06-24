@@ -1,17 +1,17 @@
+{-# LANGUAGE UndecidableInstances #-}
 -- |
 
 module Site.Content (ContentRoute, Model (..), Options (..)) where
 import Place
-import Ema hiding (PrefixedRoute)
+import Ema
 import Org.Types
 import Ema.Route.Encoder
-import Relude.Extra (keys)
 import Org.Exporters.Heist (Exporter, documentSplices)
 import Heist.Interpreted
 import Data.Generics.Product.Fields
-import Data.Map ((!), member, delete, insert)
+import Data.Map ((!), delete, insert)
 import Optics.Core
-import System.FilePath (stripExtension, (</>), dropExtension)
+import System.FilePath ((</>), dropExtension, takeDirectory)
 import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
 import Render (HeistS, heistOutput, renderAsset)
@@ -19,33 +19,38 @@ import Org.Parser
 import LaTeX hiding (preamble)
 import Heist (HeistState)
 import Site.Content.Options
+import qualified Generics.SOP as SOP
+import Ema.Route.GenericClass
+import Routes
+import Site.Content.Links
+import UnliftIO.Concurrent (threadDelay)
 
 data Model = Model
   { mount :: FilePath
   , serveAt :: FilePath
-  , docs :: Map FilePath OrgDocument
+  , docs :: Map Text OrgDocument
+  , files :: Set FilePath
   , heistS :: HeistS
   }
   deriving (Generic)
 
-newtype Route = Route FilePath
-  deriving (Eq, Show)
-  deriving newtype (IsString, ToString)
+type DocRoute = MapRoute Text OrgDocument
 
-instance IsRoute Route where
-  type RouteModel Route = Model
-  routeEncoder = mkRouteEncoder \m ->
-    prism' (<> ".html") (\fp -> do
-        fp' <- stripExtension ".html" fp
-        guard (fp' `member` docs m) $> Route fp'
-      )
-    % iso id toString
-  allRoutes m = Route <$> keys (docs m)
+type FileRoute = SetRoute FilePath
+
+data ModelI = MI {docs :: Map Text OrgDocument, files :: Set FilePath}
+  deriving (Generic, SOP.Generic)
+
+data Route
+  = Doc DocRoute
+  | File FileRoute
+  deriving (Eq, Show, Generic, SOP.Generic)
+  deriving (IsRoute) via (GenericRoute ModelI Model Route)
 
 instance EmaSite Route where
   type SiteArg Route = Options
   siteInput _ _ opt = Dynamic <$>
-    UM.mount source include exclude' (Model "" mempty mempty Nothing)
+    UM.mount source include exclude' (Model "" mempty mempty mempty Nothing)
       (const handler)
     where
       source = mount (opt :: Options)
@@ -53,18 +58,22 @@ instance EmaSite Route where
       exclude' = exclude opt
       handler fp =
         let place = Place fp source
-            key = dropExtension fp
+            key = toText $ dropExtension fp
         in \case
           Refresh _ () -> do
+            threadDelay 100
             orgdoc <- parseOrgIO defaultOrgOptions (source </> fp)
             preamble <- preambilizeKaTeX place orgdoc
             let orgdoc' = mapContent (first (preamble :)) orgdoc
-            pure (over (field @"docs") (insert key orgdoc'))
+                (orgdoc'', files') = processLinks (takeDirectory fp) orgdoc'
+            orgdoc''' <- runReaderT (processLaTeX place orgdoc'') opt
+            pure (over (field @"docs") (insert key orgdoc''') . over (field @"files") (files' <>))
           Delete -> pure (over (field @"docs") (delete key))
   siteOutput = heistOutput renderDoc
 
 renderDoc :: Route -> RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString
-renderDoc (Route fp) _ m = renderAsset $
-  callTemplate "ContentPage" $ documentSplices (docs m ! fp)
+renderDoc (Doc (MapRoute fp)) _ m = renderAsset $
+  callTemplate "ContentPage" $ documentSplices (docs (m :: Model) ! fp)
+renderDoc (File (SetRoute fp)) _ m = const $ AssetStatic (mount (m :: Model) </> fp)
 
-type ContentRoute = PrefixedRoute Route
+type ContentRoute = PrefixedRoute' Route

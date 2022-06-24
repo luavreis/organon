@@ -1,7 +1,7 @@
 -- |
 
 module Site.Roam (RoamRoute, Model (..)) where
-import Ema hiding (PrefixedRoute)
+import Ema
 import Place
 import Site.Roam.Options qualified as O
 import Site.Roam.Model
@@ -21,9 +21,11 @@ instance EmaSite Route where
       source = O.mount src
       include = [((), "**/*.org")]
       exclude = O.exclude src
-      handler fp = \case
-        Refresh _ () -> appEndo <$> runReaderT (processRoam fp) src
-        Delete -> pure $ deleteRD fp
+      handler fp action =
+        (case action of
+          Refresh _ () -> appEndo <$> runReaderT (processRoam fp) src
+          Delete -> pure id)
+        <&> (. deleteAllFromFile fp)
   siteOutput = heistOutput \case
     RouteIndex' -> renderIndex
     RouteGraph' -> const renderGraph
@@ -31,4 +33,4 @@ instance EmaSite Route where
     RouteAttach' path -> const (renderAttachment path)
     _ -> error "dammit ghc"
 
-type RoamRoute = PrefixedRoute Route
+type RoamRoute = PrefixedRoute' Route

@@ -2,12 +2,14 @@
 
 module Site.Content.Options where
 import System.FilePattern (FilePattern)
+import LaTeX (LaTeXOptions)
 import JSON
 
 data Options = Options
   { mount :: FilePath
   , exclude :: [FilePattern]
   , serveAt :: FilePath
+  , latexOptions :: LaTeXOptions
   }
   deriving (Eq, Ord, Show, Generic)
 
