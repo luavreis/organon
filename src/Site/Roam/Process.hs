@@ -14,7 +14,7 @@ import Org.Walk
 import System.FilePath (takeDirectory, splitDirectories)
 import Site.Roam.OrgAttach (processAttachments)
 import Site.Roam.Options as O
-import LaTeX (preambilizeKaTeX)
+import LaTeX (preambilizeKaTeX, processLaTeX)
 import Org.Parser
 import UnliftIO (MonadUnliftIO)
 import Control.Monad.Logger (MonadLogger)
@@ -24,14 +24,15 @@ import Optics.Core
 processRoam ::
   forall m.
   (MonadUnliftIO m, MonadLogger m, MonadReader Options m)
+  => HasCallStack
   => FilePath
   -> m (Endo Model)
-processRoam fp = execWriterT $ do
+processRoam fp = do
   source <- asks O.mount
   let place = Place fp source
-
   post <- parseOrgIO defaultOrgOptions (absolute place)
-  preamble <- lift $ preambilizeKaTeX place post
+          >>= processLaTeX place
+  preamble <- preambilizeKaTeX place post
 
   let relDir = takeDirectory (relative place)
       fpTags =
@@ -40,32 +41,30 @@ processRoam fp = execWriterT $ do
           else toText <$> splitDirectories (takeDirectory $ relative place)
       postWithTags = over docTag (fpTags <>) post
 
-      addToModel :: OrgDocument -> RoamID -> WriterT (Endo Model) m ()
+      addToModel :: OrgDocument -> RoamID -> Ap m (Endo Model)
       addToModel doc' rid = do
         let bklinks = processLinks doc'
             doc'' = mapContent (first (preamble :)) doc'
-        tell =<< lift (processAttachments rid doc'')
-        tell $ insertPost rid (Post doc'') $
-          map
-            (\ ~(ruuid, excrpt) -> (ruuid, Backlink rid (documentTitle doc'') excrpt))
-            bklinks
+        attachEndo <- Ap $ processAttachments rid doc''
+        let postEndo = insertPost fp rid (Post doc'') $
+                       map (second (Backlink rid (documentTitle doc'')))
+                       bklinks
+        pure $ attachEndo <> postEndo
 
-      processSectionsWithId :: Tags -> Properties -> OrgSection -> Ap (WriterT (Endo Model) m) [RoamID]
-      processSectionsWithId tags props section = Ap $
+      processSectionsWithId :: Tags -> Properties -> OrgSection -> (Ap m) (Endo Model)
+      processSectionsWithId tags props section =
         case lookupSectionProperty "id" section of
           Just (RoamID -> uuid) -> do
             let inhSection = section { sectionTags = tags, sectionProperties = props }
             addToModel (isolateSection inhSection post) uuid
-            pure [uuid]
-          Nothing -> pure []
+          Nothing -> pure mempty
 
-  uuids <- getAp $ queryOrgInContext processSectionsWithId postWithTags
+  let endo = queryOrgInContext processSectionsWithId postWithTags
 
-  case lookupProperty "id" postWithTags of
-    Just (RoamID -> uuid) -> do
-      addToModel postWithTags uuid
-      tell $ filterIds fp (uuid : uuids)
-    _ -> tell $ filterIds fp uuids
+  getAp $
+    case lookupProperty "id" postWithTags of
+      Just uid -> endo <> addToModel postWithTags (RoamID uid)
+      _ -> endo
 
   where
     -- Walks over the document but only maps the "zero-level" elements (no nesting)

@@ -72,8 +72,8 @@ executable abacateiro
                       ViewPatterns
   default-language:   Haskell2010
   other-modules:      Site.Roam
-                      Site.Roam.Process
                       Site.Roam.Render
+                      Site.Roam.Process
                       Site.Roam.Model
                       Site.Roam.Route
                       Site.Roam.Options
@@ -84,10 +84,12 @@ executable abacateiro
                       Site.Static.Options
                       Site.Content
                       Site.Content.Options
+                      Site.Content.Links
                       Ema.Route.GenericClass
-                      Render
-                      Route
                       JSON
+                      Route
+                      Render
+                      Routes
                       Config
                       Place
                       LaTeX

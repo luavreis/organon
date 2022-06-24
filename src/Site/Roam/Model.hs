@@ -5,13 +5,16 @@ import JSON
 import Org.Types
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Relude.Extra (insert, delete, (!?))
+import Relude.Extra (insert, delete, (!?), member)
 import Render (HeistS)
+import Routes
+import Ema
+import System.FilePath.Posix ((</>), splitDirectories)
 
 data Model = Model
   { posts :: Map RoamID Post
   , database :: Database
-  , fileAssoc :: Map FilePath [RoamID]
+  , fileAssoc :: Map FilePath (Set RoamID)
   , attachments :: Set AttachPath
   , attachDirs :: Map RoamID FilePath
   , mount :: FilePath
@@ -29,9 +32,18 @@ newtype Post = Post
 newtype RoamID = RoamID Text
   deriving stock (Eq, Ord, Show)
   deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
+  deriving (StringRoute) via Text
+  deriving (IsRoute) via (MapRoute RoamID Post)
 
 data AttachPath = AttachPath RoamID Text
   deriving stock (Eq, Ord, Show)
+  deriving (IsRoute) via (SetRoute AttachPath)
+
+instance StringRoute AttachPath where
+  stringfy = (\(AttachPath rid txt) -> toString rid </> toString txt,
+              \case
+                (splitDirectories -> [fromString -> rid, fromString -> txt]) -> Just $ AttachPath rid txt
+                _ -> Nothing)
 
 data Backlink = Backlink
   { backlinkID :: RoamID
@@ -42,44 +54,36 @@ data Backlink = Backlink
 
 type Database = Map RoamID (Set Backlink)
 
-deleteIdsFromRD :: [RoamID] -> Database -> Database
+-- | Delete backlinks made by a set of ids from the database.
+deleteIdsFromRD :: Set RoamID -> Database -> Database
 deleteIdsFromRD ks = Map.mapMaybeWithKey delFilter
   where
-    delFilter _refereed referents =
-      case Set.filter (not . flip elem ks . backlinkID) referents of
+    delFilter _mentioned mentioners = -- Don't filter "mentioned" because we
+                                      -- need to store links to nonexisting
+                                      -- notes, as they may be added later
+      case Set.filter (not . (`member` ks) . backlinkID) mentioners of
         xs | Set.null xs -> Nothing
            | otherwise -> Just xs
 
-filterIds :: FilePath -> [RoamID] -> Endo Model
-filterIds fp ks =
-  Endo \m ->
-    case fileAssoc m !? fp of
-      Just pks ->
-        let cks = filter (`notElem` ks) pks
-        in m { database = deleteIdsFromRD cks (database m)
-             , posts = foldr delete (posts m) cks
-             , fileAssoc = insert fp ks (fileAssoc m)
-             }
-      Nothing -> m { fileAssoc = insert fp ks (fileAssoc m) }
-
-deleteRD :: FilePath -> Model -> Model
-deleteRD fp m =
+-- | Delete everything that was previously defined by a file, using information
+-- from @fileAssoc@.
+deleteAllFromFile :: FilePath -> Model -> Model
+deleteAllFromFile fp m =
   case fileAssoc m !? fp of
-    Just ks -> m { database = deleteIdsFromRD ks (database m)
-                 , posts = foldr delete (posts m) ks
-                 , fileAssoc = delete fp (fileAssoc m)
-                 }
+    Just ids ->
+      m { database = deleteIdsFromRD ids (database m)
+        , posts = foldr delete (posts m) ids
+        , fileAssoc = delete fp (fileAssoc m)
+        }
     Nothing -> m
 
-insertPost :: RoamID -> Post -> [(RoamID, Backlink)] -> Endo Model
-insertPost k v blks =
-  let filteredv = mapMaybe
-                  (\case (x, y) | k /= x -> Just (x, [y]); _ -> Nothing) blks
-      mappedv = Map.map Set.fromList $ Map.fromListWith (++) filteredv
+insertPost :: FilePath -> RoamID -> Post -> [(RoamID, Backlink)] -> Endo Model
+insertPost fp k v blks =
+  let filteredv = mapMaybe (\case (x, y) | x /= k -> Just (x, one y); _ -> Nothing) blks
+      mappedv = Map.fromListWith (<>) filteredv
    in Endo \m -> m { posts = insert k v (posts m)
-                   , database = database m
-                               & deleteIdsFromRD [k]
-                               & Map.unionWith Set.union mappedv
+                   , database = Map.unionWith Set.union mappedv (database m)
+                   , fileAssoc = Map.insertWith (<>) fp (one k) (fileAssoc m)
                    }
 
 model0 :: Model

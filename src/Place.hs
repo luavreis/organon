@@ -4,7 +4,7 @@
 
 module Place where
 import System.FilePath
-import Ema hiding (PrefixedRoute)
+import Ema
 import qualified Data.Text as T
 import Ema.Route.Encoder
 import Optics.Core
@@ -16,11 +16,11 @@ data Place = Place {relative :: FilePath, directory :: FilePath}
 absolute :: Place -> FilePath
 absolute p = directory p </> relative p
 
-newtype PrefixedRoute a = PrefixedRoute {unPrefixRoute :: a}
+newtype PrefixedRoute' a = PrefixedRoute' {unPrefixRoute :: a}
   deriving (Generic)
   deriving newtype (Eq, Show)
 
-prefixIso :: Iso' a (PrefixedRoute a)
+prefixIso :: Iso' a (PrefixedRoute' a)
 prefixIso = _Wrapped
 
 type HasPrefix s =
@@ -28,8 +28,8 @@ type HasPrefix s =
   , HasField' "serveAt" s FilePath
   )
 
-instance (IsRoute a, HasPrefix (RouteModel a)) => IsRoute (PrefixedRoute a) where
-  type RouteModel (PrefixedRoute a) = RouteModel a
+instance (IsRoute a, HasPrefix (RouteModel a)) => IsRoute (PrefixedRoute' a) where
+  type RouteModel (PrefixedRoute' a) = RouteModel a
   routeEncoder =
     mkRouteEncoder \m@(view (field' @"serveAt") -> pfx) ->
      prism' ((pfx </>) . encodeRoute newEnc m)
@@ -39,10 +39,10 @@ instance (IsRoute a, HasPrefix (RouteModel a)) => IsRoute (PrefixedRoute a) wher
       stripPrefix "" = Just
       stripPrefix p =
         fmap toString . T.stripPrefix (toText $ addTrailingPathSeparator p) . toText
-  allRoutes = map PrefixedRoute . allRoutes
+  allRoutes = map PrefixedRoute' . allRoutes
 
-instance (EmaSite a, HasPrefix (RouteModel a), HasPrefix (SiteArg a)) => EmaSite (PrefixedRoute a) where
-  type SiteArg (PrefixedRoute a) = SiteArg a
+instance (EmaSite a, HasPrefix (RouteModel a), HasPrefix (SiteArg a)) => EmaSite (PrefixedRoute' a) where
+  type SiteArg (PrefixedRoute' a) = SiteArg a
   siteInput act enc arg = do
     Dynamic (m0, h) <- (siteInput @a) act newEnc arg
     pure $ Dynamic (setf m0, h . (. setf))

@@ -2,15 +2,15 @@
 
 module Site.Roam.Options where
 import System.FilePattern (FilePattern)
-import LaTeX
+import LaTeX (LaTeXOptions)
 import JSON
 
 data Options = Options
   { mount :: FilePath
   , serveAt :: FilePath
-  , rawInclude :: [FilePattern]
   , exclude :: [FilePattern]
   , orgAttachDir :: FilePath
+  , publicTags :: [Text]
   , latexOptions :: LaTeXOptions
   }
   deriving (Eq, Ord, Show, Generic)

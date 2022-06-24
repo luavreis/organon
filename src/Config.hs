@@ -45,21 +45,22 @@ adjustConfig (toJSON -> v1) v2 =
 defaultConfig :: Config
 defaultConfig = Config
   { zettelkasten = Roam.Options
-    { Roam.orgAttachDir = "data",
-      Roam.mount = "zettel",
-      Roam.serveAt = "zettel",
-      Roam.rawInclude = ["**/*"],
-      Roam.exclude = defExclude,
-      Roam.latexOptions = defLaTeXOptions
+    { Roam.orgAttachDir = "data"
+    , Roam.mount = "zettel"
+    , Roam.serveAt = "zettel"
+    , Roam.publicTags = ["public"]
+    , Roam.exclude = defExclude
+    , Roam.latexOptions = defLaTeXOptions
     }
   , content = Content.Options
     { Content.mount = "content"
     , Content.exclude = defExclude
     , Content.serveAt = ""
+    , Content.latexOptions = defLaTeXOptions
     }
   , static = Static.Options
-    { Static.mount = "assets",
-      Static.serveAt = "assets"
+    { Static.mount = "assets"
+    , Static.serveAt = "assets"
     }
   , templates = "templates"
   }

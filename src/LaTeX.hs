@@ -9,7 +9,7 @@ import NeatInterpolation
 import qualified Data.Map as M
 import qualified Data.Text as T
 import System.FilePath ((-<.>), (</>), takeDirectory)
-import UnliftIO (IOException, catch, MonadUnliftIO, withTempFile, withSystemTempDirectory)
+import UnliftIO (IOException, catch, MonadUnliftIO, withSystemTempDirectory, hClose)
 import UnliftIO.Process
 import Control.Monad.Logger (logErrorNS, MonadLogger)
 import Data.Text.IO (hPutStr)
@@ -19,6 +19,9 @@ import JSON
 import Org.Walk
 import Control.Exception (throw)
 import Data.Bitraversable (bimapM)
+import Optics.Core
+import System.Exit
+import System.IO (openTempFile)
 
 
 data MathLaTeXProcess = MathLaTeXProcess
@@ -106,36 +109,52 @@ preambilizeKaTeX plc doc = preambleBlock
              || "\\DeclareMathOperator" `T.isPrefixOf` txt
 
 
-renderLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m) => FilePath -> MathLaTeXProcess -> Text -> Text -> m (Text, ByteString)
-renderLaTeX cDir process preamble' txt = do
-  let finalText =
-        [text|
-          $(preamble process)
+renderLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m, HasCallStack) => Place -> MathLaTeXProcess -> Text -> Text -> m (Text, ByteString)
+renderLaTeX place process preamble' txt = do
+  withSystemTempDirectory "tex-conversion" $ \tmpDir -> do
+    (texInFp, texInH) <- liftIO $ openTempFile tmpDir "orgtex.tex"
+    liftIO $ hPutStr texInH finalText
+    hClose texInH
+    -- Here I'm reimplementing Org's `org-compile-file`, which mandates that the
+    -- process produces exactly the same filepath but with replaced extension.
+    let texOutFp = texInFp -<.> imageInputType process
+    forM_ (latexCompiler process) \ cmd ->
+        callCreateProcess (shell . toString $
+          cmd & T.replace "%o" (toText tmpDir)
+              & T.replace "%O" (toText texOutFp)
+              & T.replace "%f" (toText texInFp)) { cwd = Just dir }
+    let iOutFp = texOutFp -<.> imageOutputType process
+    forM_ (imageConverter process) \ cmd ->
+      callCreateProcess (shell . toString $
+        cmd & T.replace "%o" (toText tmpDir)
+            & T.replace "%O" (toText iOutFp)
+            & T.replace "%f" (toText texOutFp)
+            & T.replace "%S" (show $ imageSizeAdjust process)) { cwd = Just dir }
+    (imageMIMEType process,) <$> readFileBS iOutFp
+  `catch` (\(_ :: IOException) -> do
+      logErrorNS "LaTeX Rendering" ("Failed to render LaTeX in file " <> toText (absolute place))
+      logErrorNS "LaTeX Rendering" ("LaTeX content:\n" <> finalText)
+      pure (imageMIMEType process, ""))
+  where
+    finalText =
+      let pPreamble = preamble process
+      in [text|
+          $pPreamble
           $preamble'
           \begin{document}
           $txt
           \end{document}
         |]
-  withSystemTempDirectory "tex-conversion" $ \tmpDir ->
-    withTempFile tmpDir "in.tex" $ \ inFp inH -> do
-      liftIO $ hPutStr inH finalText
-      withTempFile tmpDir ("comp." <> imageInputType process) \ iInFp _ -> do
-        forM_ (latexCompiler process) \ cmd ->
-           callCreateProcess (shell . toString $
-             cmd & T.replace "%o" (toText tmpDir)
-                 & T.replace "%O" (toText iInFp)
-                 & T.replace "%f" (toText inFp)) { cwd = Just cDir }
-        withTempFile tmpDir ("out." <> imageOutputType process) \ iOutFp _ -> do
-          forM_ (imageConverter process) \ cmd ->
-            callCreateProcess (shell . toString $
-              cmd & T.replace "%o" (toText tmpDir)
-                  & T.replace "%O" (toText iOutFp)
-                  & T.replace "%f" (toText iInFp)
-                  & T.replace "%S" (show $ imageSizeAdjust process)) { cwd = Just cDir }
-          (imageMIMEType process,) <$> readFileBS iOutFp
-  where
+    dir = takeDirectory (absolute place)
     callCreateProcess :: CreateProcess -> m ()
-    callCreateProcess = void . flip readCreateProcess ""
+    callCreateProcess p = do
+      (ecode, out, err) <- readCreateProcessWithExitCode p ""
+      case ecode of
+        ExitSuccess -> pure ()
+        ExitFailure _ -> do
+          logErrorNS "LaTeX Rendering" ("Error in process " <> show (cmdspec p))
+          logErrorNS "LaTeX Rendering" ("STDOUT:\n" <> toText out)
+          logErrorNS "LaTeX Rendering" ("STDERR:\n" <> toText err)
 
 -- | Encode Base64 data in link.
 makeDataURI :: (Text, ByteString) -> LinkTarget
@@ -145,19 +164,19 @@ newtype UndefinedLaTeXProcess = UndefinedLaTeXProcess Text
   deriving stock (Show)
   deriving anyclass (Exception)
 
-processLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m, MonadReader LaTeXOptions m) => Place -> OrgDocument -> m OrgDocument
+processLaTeX :: forall m n. (MonadUnliftIO m, MonadLogger m, HasType LaTeXOptions n, MonadReader n m) => Place -> OrgDocument -> m OrgDocument
 processLaTeX plc doc = do
-  pname <- asks defaultLatexProcess -- TODO read from metadata
-  process <- asks (M.lookup pname . latexProcesses) >>= \case
+  pname <- asks (defaultLatexProcess . view typed) -- TODO read from metadata
+  process <- asks (M.lookup pname . latexProcesses . view typed) >>= \case
     Just p -> pure p
     Nothing -> do
       logErrorNS "" $ "LaTeX process \"" <> pname <> "\" is not defined."
       throw (UndefinedLaTeXProcess pname)
   let
-    mapping :: (Walkable OrgElement a, Walkable OrgInline a) => a -> m a
-    mapping = walkM wBlocks >=> walkM wInlines
+    mapping' :: (Walkable OrgElement a, Walkable OrgInline a) => a -> m a
+    mapping' = walkM wBlocks >=> walkM wInlines
 
-    doProcess txt = renderLaTeX (takeDirectory (absolute plc)) process (getPreamble doc) txt
+    doProcess txt = renderLaTeX plc process (getPreamble doc) txt
     -- cachedSvgLaTeX :: Text -> m ByteString
     -- cachedSvgLaTeX = fromCacheOrCompute $ svgLaTeX process (getPreamble doc)
 
@@ -176,5 +195,5 @@ processLaTeX plc doc = do
         leaveToKaTeX = ["equation", "equation*", "align", "align*", "aligned"]
     wBlocks x = pure x
 
-  (child', sect') <- bimapM mapping mapping (documentContent doc)
+  (child', sect') <- bimapM mapping' mapping' (documentContent doc)
   pure doc { documentChildren = child', documentSections = sect' }

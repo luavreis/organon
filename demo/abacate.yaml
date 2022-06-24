@@ -7,14 +7,11 @@ static:
 templates: templates
 
 zettelkasten:
-  mount: /home/lucas/dados/notas
+  mount: notes
+  public-tags:
+    - public
+    - blog
   org-attach-dir: data
-  raw-include:
-    - '**/*.pdf'
-    - '**/*.jpg'
-    - '**/*.svg'
-    - '**/*.png'
-    - '**/*.html'
   exclude:
     - '**/.*/**/*'
     - '**/.dir-locals.el'
@@ -28,24 +25,19 @@ zettelkasten:
     latex-processes:
       xelatex:
         preamble: |
-          \documentclass{article}
-          \usepackage[normalem]{ulem}
-          \usepackage{Alegreya}
-          \usepackage{unicode-math}
+          \documentclass[preview]{standalone}
           \usepackage{amsmath}
           \usepackage{amssymb}
           \usepackage{tikz-cd}
           \usepackage{tikz}
-          \setmathfont[StylisticSet={4,6}]{Concrete Math}
         image-input-type: pdf
         image-output-type: svg
         image-mime-type: "image/svg+xml"
         image-size-adjust: 1.7
         latex-compiler:
-          - "xelatex -interaction nonstopmode -output-directory %o %f"
+          - "pdflatex -output-directory=%o %f"
         image-converter:
-          - "pdfcrop %f %o/cropped.pdf"
-          - "dvisvgm %o/cropped.pdf -P -n -c %S -o %O"
+          - "dvisvgm --pdf --exact-bbox -c %S -o %O %f"
 
 content:
   mount: content
@@ -54,38 +46,3 @@ content:
     - '**/imports'
   serve-at: ''
   latex-options: *my-latex-options
-
-# Multilanguage options
-
-# default-locale: pt
-
-# locales:
-#   pt:
-#     timelocale:
-#       wdays:
-#         - [domingo, dom]
-#         - [segunda, seg]
-#         - [terça, ter]
-#         - [quarta, qua]
-#         - [quinta, qui]
-#         - [sexta, sex]
-#         - [sábado, sab]
-#       months:
-#         - [janeiro, jan]
-#         - [febereiro, fev]
-#         - [março, mar]
-#         - [abril, abr]
-#         - [maio, mai]
-#         - [junho, jun]
-#         - [julho, jul]
-#         - [agosto, ago]
-#         - [setembro, set]
-#         - [outubro, out]
-#         - [novembro, nov]
-#         - [dezembro, dez]
-#       ampm: [da manhã, da tarde]
-#       datetimefmt: %a %b %e %H:%M:%S %Z %Y
-#       datefmt: %d/%m/%y
-#       timefmt: %H:%M:%S
-#       time12fmt: %I:%M:%S %p
-
