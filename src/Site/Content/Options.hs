@@ -2,7 +2,7 @@
 
 module Site.Content.Options where
 import System.FilePattern (FilePattern)
-import LaTeX (LaTeXOptions)
+import LaTeX.Types (LaTeXOptions)
 import JSON
 
 data Options = Options

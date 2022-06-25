@@ -19,6 +19,7 @@ executable abacateiro
                     , fsnotify
                     , generic-optics
                     , generics-sop
+                    , hashable
                     , heist-emanote >= 1.2.1
                     , lvar
                     , map-syntax
@@ -83,7 +84,7 @@ executable abacateiro
                       Site.Content
                       Site.Content.Options
                       Site.Content.Links
-                      System.UnionMount.MoreFlexible
+                      Cache
                       Common
                       OrgAttach
                       Ema.Route.GenericClass
@@ -95,3 +96,4 @@ executable abacateiro
                       Prefix
                       Place
                       LaTeX
+                      LaTeX.Types

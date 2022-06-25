@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 -- |
 
-module Site.Content (ContentRoute, Model (..), Options (..), ModelCache, cache0) where
+module Site.Content (ContentRoute, Model (..), Options (..)) where
 import Place
 import Prefix
 import Ema
@@ -15,7 +15,6 @@ import Data.Set qualified as Set (map)
 import Optics.Core
 import System.FilePath ((</>), dropExtension, takeDirectory)
 import System.UnionMount (FileAction (..))
-import System.UnionMount.MoreFlexible
 import Render (HeistS, heistOutput, renderAsset)
 import Org.Parser
 import LaTeX
@@ -28,7 +27,8 @@ import Site.Content.Links
 import UnliftIO.Concurrent (threadDelay)
 import OrgAttach (AttachModel, emptyAttachModel, renderAttachment, AttachRoute, resolveAttachLinks, processAttachInDoc)
 import Control.Monad.Trans.Writer
-import Data.Binary (Binary)
+import System.UnionMount qualified as UM
+import Cache (Cache)
 
 data Model = Model
   { mount :: FilePath
@@ -36,21 +36,12 @@ data Model = Model
   , docs :: Map DocRoute OrgDocument
   , files :: Set FileRoute
   , attachments :: AttachModel
-  , latexCache :: LaTeXCache
   , heistS :: HeistS
   }
   deriving (Generic)
 
-data ModelCache = ModelCache
-  { latexCache :: LaTeXCache
-  }
-  deriving (Generic, Binary)
-
-cache0 :: ModelCache
-cache0 = ModelCache mempty
-
 model0 :: Model
-model0 = Model "" mempty mempty mempty emptyAttachModel mempty Nothing
+model0 = Model "" mempty mempty mempty emptyAttachModel Nothing
 
 newtype DocRoute = DocRoute Text
   deriving (Eq, Ord, Show)
@@ -74,36 +65,29 @@ data Route
   deriving (IsRoute) via (GenericRoute ModelI Model Route)
 
 instance EmaSite Route where
-  type SiteArg Route = Options
-  siteInput _ _ opt = Dynamic <$>
-    mount_ source include exclude' model0
-      (const handler)
+  type SiteArg Route = (Options, TVar Cache)
+  siteInput _ _ arg@(opt,_) = Dynamic <$>
+    UM.mount source include exclude' model0 handler
     where
       source = mount (opt :: Options)
       include = [((), "**/*.org")]
       exclude' = exclude opt
-      run :: Monad m => Model -> WriterT (KreisliEndo m Model) (ReaderT Options m) a -> m Model
-      run m x = flip appKreisliEndo m =<< runReaderT (execWriterT x) opt
-      handler fp =
+      run :: Monad m => WriterT (Endo Model) (ReaderT (Options, TVar Cache) m) a -> m (Model -> Model)
+      run x = appEndo <$> runReaderT (execWriterT x) arg
+      handler () fp =
         let place = Place fp source
             key = fromString $ dropExtension fp
         in \case
-          Refresh _ () -> \m -> do
+          Refresh _ () -> do
             threadDelay 100
-            orgdoc <- parseOrgIO defaultOrgOptions (source </> fp)
-            preamble' <- preambilizeKaTeX place orgdoc
-            let orgdoc' = mapContent (first (preamble' :)) orgdoc
-                (orgdoc'', Set.map FileRoute -> files') = processLinks (takeDirectory fp) orgdoc'
-            run m $ do
-              f <- lift (processLaTeX place orgdoc'')
-              let texDoc  = fmap fst . f
-                  texEndo = KreisliEndo $ fmap snd . f
-              doc <- lift (lift (texDoc m))
-              tell texEndo
-              tell $ kreisliFromEndo (over (field @"docs") (insert key doc) . over (field @"files") (files' <>))
-              attachEndo <- lift (processAttachInDoc doc)
-              tell $ kreisliFromEndo (appEndo attachEndo)
-          Delete -> pure . over (field @"docs") (delete key)
+            run do
+              orgdoc <- parseOrgIO defaultOrgOptions (source </> fp)
+                        >>= lift . processLaTeX place
+                        >>= lift . putKaTeXPreamble place
+              let (orgdoc', Set.map FileRoute -> files') = processLinks (takeDirectory fp) orgdoc
+              tell $ Endo (over (field @"docs") (insert key orgdoc') . over (field @"files") (files' <>))
+              tell =<< lift (processAttachInDoc orgdoc')
+          Delete -> pure $ over (field @"docs") (delete key)
   siteOutput = heistOutput renderDoc
 
 renderDoc :: Route -> RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString

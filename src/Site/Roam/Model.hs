@@ -10,8 +10,6 @@ import Render (HeistS)
 import Routes ( MapRoute(..), HtmlRoute(..), StringRoute )
 import Ema ( IsRoute )
 import OrgAttach ( AttachModel, emptyAttachModel )
-import LaTeX (LaTeXCache)
-import Data.Binary (Binary)
 
 data Model = Model
   { posts :: Map RoamID Post
@@ -20,19 +18,10 @@ data Model = Model
   , attachments :: AttachModel
   , mount :: FilePath
   , serveAt :: FilePath
-  , latexCache :: LaTeXCache
   , heistS :: HeistS
   -- , modelCliAction :: Some Ema.CLI.Action
   }
   deriving (Generic)
-
-data ModelCache = ModelCache
-  { latexCache :: LaTeXCache
-  }
-  deriving (Generic, Binary)
-
-cache0 :: ModelCache
-cache0 = ModelCache mempty
 
 newtype Post = Post
   { doc :: OrgDocument
@@ -87,4 +76,4 @@ insertPost fp k v blks =
                    }
 
 model0 :: Model
-model0 = Model mempty mempty mempty emptyAttachModel "" "" mempty Nothing
+model0 = Model mempty mempty mempty emptyAttachModel "" "" Nothing
