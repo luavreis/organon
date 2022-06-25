@@ -1,6 +1,6 @@
 -- |
 
-module Site.Roam.Common where
+module Common where
 import Org.Types
 import Org.Walk (walk, Walkable (walkM), walkM)
 import qualified Data.Text as T

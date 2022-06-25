@@ -17,17 +17,13 @@ import Org.Walk
 import Heist (HeistState)
 import Site.Roam.Graph (buildRoamGraph)
 import Data.Aeson (encode)
-import System.FilePath ((</>))
 import Optics.Core
-import Site.Roam.Common
+import Common
+import OrgAttach
 
 resolveLink :: (Route -> Text) -> RoamID -> OrgInline -> OrgInline
 resolveLink route _ (Link (URILink "id" rid) content) =
   Link (URILink "http" $ route (RoutePost' $ RoamID rid)) content
-resolveLink route rid (Link (URILink "attachment" path) content) =
-  Link (URILink "http" $ route (RouteAttach' (AttachPath rid path))) content
-resolveLink route rid (Image (URILink "attachment" path)) =
-  Image (URILink "http" $ route (RouteAttach' (AttachPath rid path)))
 resolveLink _ _ x = x
 
 resolveLinksInDoc :: (Route -> Text) -> OrgDocument -> OrgDocument
@@ -40,7 +36,7 @@ renderPost rid enc m = renderAsset $
     "Tags" ## join <$> forM (view docTag post) \tag ->
       runChildrenWith do
         "Tag" ## textSplice tag
-    documentSplices (resolveLinksInDoc router post)
+    documentSplices (resolveAttachLinks router $ resolveLinksInDoc router post)
     "Backlinks" ##
       ifElseSpliceWith (not (null backlinks)) do
         "NumberOfBacklinks" ## textSplice (show $ length backlinks)
@@ -75,9 +71,3 @@ renderIndex enc m = renderAsset $
 
 renderGraph :: Model -> HeistState Exporter -> Asset LByteString
 renderGraph m = AssetGenerated Other . encode . buildRoamGraph m
-
-renderAttachment :: AttachPath -> Model -> HeistState Exporter -> Asset LByteString
-renderAttachment (AttachPath rid path) m = const $
-  case lookup rid (attachDirs m) of
-    Just dir -> AssetStatic (dir </> toString path)
-    Nothing  -> error "This should not happen. Unknown org-attach dir."

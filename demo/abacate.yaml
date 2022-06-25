@@ -4,6 +4,8 @@ static:
   mount: assets
   serve-at: assets
 
+cache-file: site.cache
+
 templates: templates
 
 zettelkasten:
@@ -33,11 +35,11 @@ zettelkasten:
         image-input-type: pdf
         image-output-type: svg
         image-mime-type: "image/svg+xml"
-        image-size-adjust: 1.7
+        image-size-adjust: 1.5
         latex-compiler:
           - "pdflatex -output-directory=%o %f"
         image-converter:
-          - "dvisvgm --pdf --exact-bbox -c %S -o %O %f"
+          - "dvisvgm --pdf --no-fonts -c %S -o %O %f"
 
 content:
   mount: content
@@ -45,4 +47,5 @@ content:
     - '**/.*/**/*'
     - '**/imports'
   serve-at: ''
+  org-attach-dir: data
   latex-options: *my-latex-options

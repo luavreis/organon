@@ -13,10 +13,24 @@ import qualified Data.Yaml as Y
 import Route
 import Render (HeistS)
 import Ema.Route.GenericClass (subRouteEncoder)
+import UnliftIO.Directory (setCurrentDirectory)
+import Optics.Core
+import Data.Binary (decodeFileOrFail, encodeFile)
 
 instance EmaSite Route where
   type SiteArg Route = Config
   siteInput act _ask_to_remove_encoder_from_siteinput cfg = do
+    let cFile = cacheFile cfg
+    cache :: ModelCache <-
+      (liftIO (decodeFileOrFail cFile) >>= \case
+        Right x -> pure x
+        Left (_,s) -> do
+          logWarnN "Error decoding cache file. Starting with an empty one."
+          logDebugN $ toText s
+          pure cache0)
+      `catch` \(e :: IOException) -> do
+        logWarnN $ show e
+        pure cache0
     dH <- heistDynamic (templates cfg)
     dR <- siteInput @R.RoamRoute act noEnc (zettelkasten cfg)
     dS <- siteInput @S.StaticRoute act noEnc (static cfg)
@@ -46,6 +60,8 @@ instance EmaSite Route where
 
 main :: IO ()
 main = do
+  setCurrentDirectory "/home/lucas/dados/projetos/sites/gatil"
   cfg <- Y.decodeFileThrow "abacate.yaml"
          `catch` (error . toText . Y.prettyPrintParseException)
+
   void $ runSite @Route cfg

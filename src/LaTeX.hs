@@ -1,5 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances #-}
 -- |
 
 module LaTeX where
@@ -15,14 +16,17 @@ import Control.Monad.Logger (logErrorNS, MonadLogger)
 import Data.Text.IO (hPutStr)
 import Data.ByteString.Base64 (encodeBase64)
 import Data.Generics.Product
+import Data.Binary.Instances.UnorderedContainers ()
 import JSON
 import Org.Walk
 import Control.Exception (throw)
 import Data.Bitraversable (bimapM)
-import Optics.Core
 import System.Exit
 import System.IO (openTempFile)
+import Data.Binary (Binary)
+import Data.HashMap.Strict (lookup, insert)
 
+type LaTeXCache = HashMap (Text, LaTeXOptions) (Text, ByteString)
 
 data MathLaTeXProcess = MathLaTeXProcess
   { preamble :: Text
@@ -33,7 +37,7 @@ data MathLaTeXProcess = MathLaTeXProcess
   , latexCompiler :: [Text]
   , imageConverter :: [Text]
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Binary, Hashable)
 
 instance ToJSON MathLaTeXProcess where
   toJSON = genericToJSON customOptions
@@ -46,7 +50,7 @@ data LaTeXOptions = LaTeXOptions
   { defaultLatexProcess :: Text
   , latexProcesses :: Map Text MathLaTeXProcess
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Binary, Hashable)
 
 instance ToJSON LaTeXOptions where
   toJSON = genericToJSON customOptions
@@ -54,8 +58,6 @@ instance ToJSON LaTeXOptions where
 
 instance FromJSON LaTeXOptions where
   parseJSON = genericParseJSON customOptions
-
-type HasLaTeXOptions s = HasField' "latexOptions" s LaTeXOptions
 
 getPreamble :: OrgDocument -> Text
 getPreamble d = T.unlines . mapMaybe justText $ lookupKeyword "latex_header" d
@@ -109,7 +111,14 @@ preambilizeKaTeX plc doc = preambleBlock
              || "\\DeclareMathOperator" `T.isPrefixOf` txt
 
 
-renderLaTeX :: forall m. (MonadUnliftIO m, MonadLogger m, HasCallStack) => Place -> MathLaTeXProcess -> Text -> Text -> m (Text, ByteString)
+renderLaTeX ::
+  forall m.
+  (MonadUnliftIO m, MonadLogger m, HasCallStack) =>
+  Place ->
+  MathLaTeXProcess ->
+  Text ->
+  Text ->
+  m (Text, ByteString)
 renderLaTeX place process preamble' txt = do
   withSystemTempDirectory "tex-conversion" $ \tmpDir -> do
     (texInFp, texInH) <- liftIO $ openTempFile tmpDir "orgtex.tex"
@@ -133,7 +142,7 @@ renderLaTeX place process preamble' txt = do
     (imageMIMEType process,) <$> readFileBS iOutFp
   `catch` (\(_ :: IOException) -> do
       logErrorNS "LaTeX Rendering" ("Failed to render LaTeX in file " <> toText (absolute place))
-      logErrorNS "LaTeX Rendering" ("LaTeX content:\n" <> finalText)
+      logErrorNS "LaTeX Rendering" (T.strip $ "LaTeX content:\n" <> finalText)
       pure (imageMIMEType process, ""))
   where
     finalText =
@@ -153,8 +162,8 @@ renderLaTeX place process preamble' txt = do
         ExitSuccess -> pure ()
         ExitFailure _ -> do
           logErrorNS "LaTeX Rendering" ("Error in process " <> show (cmdspec p))
-          logErrorNS "LaTeX Rendering" ("STDOUT:\n" <> toText out)
-          logErrorNS "LaTeX Rendering" ("STDERR:\n" <> toText err)
+          logErrorNS "LaTeX Rendering" (T.strip $ "STDOUT:\n" <> toText out)
+          logErrorNS "LaTeX Rendering" (T.strip $ "STDERR:\n" <> toText err)
 
 -- | Encode Base64 data in link.
 makeDataURI :: (Text, ByteString) -> LinkTarget
@@ -164,28 +173,44 @@ newtype UndefinedLaTeXProcess = UndefinedLaTeXProcess Text
   deriving stock (Show)
   deriving anyclass (Exception)
 
-processLaTeX :: forall m n. (MonadUnliftIO m, MonadLogger m, HasType LaTeXOptions n, MonadReader n m) => Place -> OrgDocument -> m OrgDocument
+processLaTeX ::
+  forall model n m k.
+  (HasType LaTeXCache model) =>
+  (HasType LaTeXOptions n) =>
+  (MonadLogger m, MonadReader n m) =>
+  (MonadUnliftIO k, MonadLogger k) =>
+  Place ->
+  OrgDocument ->
+  m (model -> k (OrgDocument, model))
 processLaTeX plc doc = do
-  pname <- asks (defaultLatexProcess . view typed) -- TODO read from metadata
-  process <- asks (M.lookup pname . latexProcesses . view typed) >>= \case
-    Just p -> pure p
-    Nothing -> do
-      logErrorNS "" $ "LaTeX process \"" <> pname <> "\" is not defined."
-      throw (UndefinedLaTeXProcess pname)
+  opt <- asks getTyped
+  let pname = defaultLatexProcess opt -- TODO read from metadata
+  process <-
+    case M.lookup pname (latexProcesses opt) of
+      Just p -> pure p
+      Nothing -> do
+        logErrorNS "" $ "LaTeX process \"" <> pname <> "\" is not defined."
+        throw (UndefinedLaTeXProcess pname)
   let
-    mapping' :: (Walkable OrgElement a, Walkable OrgInline a) => a -> m a
+    mapping' :: (Walkable OrgElement a, Walkable OrgInline a) => a -> StateT LaTeXCache k a
     mapping' = walkM wBlocks >=> walkM wInlines
 
-    doProcess txt = renderLaTeX plc process (getPreamble doc) txt
-    -- cachedSvgLaTeX :: Text -> m ByteString
-    -- cachedSvgLaTeX = fromCacheOrCompute $ svgLaTeX process (getPreamble doc)
+    doProcess :: Text -> StateT LaTeXCache k (Text, ByteString)
+    doProcess txt = do
+      cache <- get
+      case lookup (txt, opt) cache of
+        Just cached -> pure cached
+        Nothing -> do
+          result <- lift $ renderLaTeX plc process (getPreamble doc) txt
+          modify (insert (txt, opt) result)
+          pure result
 
-    wInlines :: OrgInline -> m OrgInline
+    wInlines :: OrgInline -> StateT LaTeXCache k OrgInline
     wInlines (ExportSnippet "latex" s) =
       Image . makeDataURI <$> doProcess s
     wInlines x = pure x
 
-    wBlocks :: OrgElement -> m OrgElement
+    wBlocks :: OrgElement -> StateT LaTeXCache k OrgElement
     wBlocks (ExportBlock "latex" s) =
       Paragraph mempty . one . Image . makeDataURI <$> doProcess s
     wBlocks (LaTeXEnvironment _ name s)
@@ -195,5 +220,8 @@ processLaTeX plc doc = do
         leaveToKaTeX = ["equation", "equation*", "align", "align*", "aligned"]
     wBlocks x = pure x
 
-  (child', sect') <- bimapM mapping' mapping' (documentContent doc)
-  pure doc { documentChildren = child', documentSections = sect' }
+  pure \m -> do
+    (x, y) <- flip runStateT (getTyped m) $ do
+      (child', sect') <- bimapM mapping' mapping' (documentContent doc)
+      pure doc { documentChildren = child', documentSections = sect' }
+    pure (x, setTyped y m)

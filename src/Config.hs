@@ -16,6 +16,7 @@ data Config = Config
   , zettelkasten :: Roam.Options
   , content :: Content.Options
   , templates :: FilePath
+  , cacheFile :: FilePath
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -57,12 +58,14 @@ defaultConfig = Config
     , Content.exclude = defExclude
     , Content.serveAt = ""
     , Content.latexOptions = defLaTeXOptions
+    , Content.orgAttachDir = "data"
     }
   , static = Static.Options
     { Static.mount = "assets"
     , Static.serveAt = "assets"
     }
   , templates = "templates"
+  , cacheFile = "site.cache"
   }
   where
     defExclude = ["**/.*/**/*"]

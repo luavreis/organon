@@ -78,18 +78,20 @@ executable abacateiro
                       Site.Roam.Route
                       Site.Roam.Options
                       Site.Roam.Graph
-                      Site.Roam.Common
-                      Site.Roam.OrgAttach
                       Site.Static
                       Site.Static.Options
                       Site.Content
                       Site.Content.Options
                       Site.Content.Links
+                      System.UnionMount.MoreFlexible
+                      Common
+                      OrgAttach
                       Ema.Route.GenericClass
                       JSON
                       Route
                       Render
                       Routes
                       Config
+                      Prefix
                       Place
                       LaTeX
