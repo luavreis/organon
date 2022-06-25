@@ -1,37 +1,26 @@
 -- |
 
-module Site.Roam.Process
-  ( Place (..)
-  , absolute
-  , processRoam
-  , tell
-  ) where
-import Site.Roam.Model
-import Place
-import Control.Monad.Trans.Writer.Strict
+module Site.Roam.Process where
 import Org.Types
-import Org.Walk
+import Site.Roam.Model ( Backlink(Backlink), RoamID(..), Post(Post), Model, insertPost )
+import Place ( Place(..) )
+import Common ( docTag, isolateSection, queryOrgInContext )
+import Org.Walk ( Walkable(query) )
 import System.FilePath (takeDirectory, splitDirectories)
-import Site.Roam.OrgAttach (processAttachments)
-import Site.Roam.Options as O
-import LaTeX (preambilizeKaTeX, processLaTeX)
-import Org.Parser
+import LaTeX (preambilizeKaTeX)
 import UnliftIO (MonadUnliftIO)
 import Control.Monad.Logger (MonadLogger)
-import Site.Roam.Common
-import Optics.Core
+import Optics.Core ( over )
 
 processRoam ::
   forall m.
-  (MonadUnliftIO m, MonadLogger m, MonadReader Options m)
+  (MonadUnliftIO m, MonadLogger m)
   => HasCallStack
-  => FilePath
+  => OrgDocument
+  -> Place
   -> m (Endo Model)
-processRoam fp = do
-  source <- asks O.mount
-  let place = Place fp source
-  post <- parseOrgIO defaultOrgOptions (absolute place)
-          >>= processLaTeX place
+processRoam post place = do
+  let fp = relative place
   preamble <- preambilizeKaTeX place post
 
   let relDir = takeDirectory (relative place)
@@ -45,11 +34,10 @@ processRoam fp = do
       addToModel doc' rid = do
         let bklinks = processLinks doc'
             doc'' = mapContent (first (preamble :)) doc'
-        attachEndo <- Ap $ processAttachments rid doc''
-        let postEndo = insertPost fp rid (Post doc'') $
+            postEndo = insertPost fp rid (Post doc'') $
                        map (second (Backlink rid (documentTitle doc'')))
                        bklinks
-        pure $ attachEndo <> postEndo
+        pure postEndo
 
       processSectionsWithId :: Tags -> Properties -> OrgSection -> (Ap m) (Endo Model)
       processSectionsWithId tags props section =

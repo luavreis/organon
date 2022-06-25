@@ -4,7 +4,7 @@
 module Site.Static (StaticRoute, Model, Options (..)) where
 
 import Ema
-import Place
+import Prefix
 import Site.Static.Options
 import Ema.Route.Encoder
 import System.FilePath.Posix ((</>))

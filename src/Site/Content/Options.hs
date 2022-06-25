@@ -10,6 +10,7 @@ data Options = Options
   , exclude :: [FilePattern]
   , serveAt :: FilePath
   , latexOptions :: LaTeXOptions
+  , orgAttachDir :: FilePath
   }
   deriving (Eq, Ord, Show, Generic)
 

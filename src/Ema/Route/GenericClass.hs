@@ -135,11 +135,11 @@ instance
   routeEncoder = mapRouteEncoder
                  equality
                  (_Unwrapped % re isASumTypeIso % _Wrapped)
-                 (review npNonEmptyIso . productTypeFrom . view (super @ref))
+                 (review npNonEmptyIso . productTypeFrom . upcast @ref)
                  (routeEncoder @(NSumRoute (ASumCode r)))
   allRoutes = map (view $ _Unwrapped % re isASumTypeIso % _Wrapped) .
               allRoutes @(NSumRoute (ASumCode r)) .
-              (review npNonEmptyIso . productTypeFrom . view (super @ref))
+              (review npNonEmptyIso . productTypeFrom . upcast @ref)
 
 subRouteEncoder ::
   forall ctor field m n i o.
@@ -149,4 +149,4 @@ subRouteEncoder ::
   RouteEncoder m i ->
   RouteEncoder n o
 subRouteEncoder m =
-  mapRouteEncoder equality (_Ctor' @ctor) (flip (set (field' @field)) m)
+  mapRouteEncoder equality (_Ctor' @ctor) (flip (setField @field) m)

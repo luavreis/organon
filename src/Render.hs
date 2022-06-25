@@ -7,7 +7,6 @@ import Ema
 import Heist
 import Heist.Interpreted
 import Heist.Splices (ifElseISplice)
-import Optics.Core
 import Org.Exporters.Heist
 import Ema.Route.Encoder (RouteEncoder)
 import Data.Generics.Product
@@ -24,7 +23,7 @@ heistOutput ::
   (r -> RouteEncoder model r -> model -> HeistState Exporter -> Asset LByteString) ->
   RouteEncoder model r -> model -> r -> Asset LByteString
 heistOutput f enc m r =
-  case view typed m of
+  case getTyped m of
    Just hs -> f r enc m hs
    Nothing -> error "Heist exporter state is empty!"
 

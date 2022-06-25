@@ -1,49 +1,49 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Site.Roam.Model where
-import JSON
-import Org.Types
+import JSON ( FromJSON, ToJSON )
+import Org.Types ( OrgElement, OrgDocument, OrgInline )
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Relude.Extra (insert, delete, (!?), member)
 import Render (HeistS)
-import Routes
-import Ema
-import System.FilePath.Posix ((</>), splitDirectories)
+import Routes ( MapRoute(..), HtmlRoute(..), StringRoute )
+import Ema ( IsRoute )
+import OrgAttach ( AttachModel, emptyAttachModel )
+import LaTeX (LaTeXCache)
+import Data.Binary (Binary)
 
 data Model = Model
   { posts :: Map RoamID Post
   , database :: Database
   , fileAssoc :: Map FilePath (Set RoamID)
-  , attachments :: Set AttachPath
-  , attachDirs :: Map RoamID FilePath
+  , attachments :: AttachModel
   , mount :: FilePath
   , serveAt :: FilePath
+  , latexCache :: LaTeXCache
   , heistS :: HeistS
   -- , modelCliAction :: Some Ema.CLI.Action
   }
   deriving (Generic)
+
+data ModelCache = ModelCache
+  { latexCache :: LaTeXCache
+  }
+  deriving (Generic, Binary)
+
+cache0 :: ModelCache
+cache0 = ModelCache mempty
 
 newtype Post = Post
   { doc :: OrgDocument
   }
   deriving (Eq, Ord, Show)
 
-newtype RoamID = RoamID Text
+newtype RoamID = RoamID {getID :: Text}
   deriving stock (Eq, Ord, Show)
   deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
-  deriving (StringRoute) via Text
+  deriving (StringRoute) via (HtmlRoute Text)
   deriving (IsRoute) via (MapRoute RoamID Post)
-
-data AttachPath = AttachPath RoamID Text
-  deriving stock (Eq, Ord, Show)
-  deriving (IsRoute) via (SetRoute AttachPath)
-
-instance StringRoute AttachPath where
-  stringfy = (\(AttachPath rid txt) -> toString rid </> toString txt,
-              \case
-                (splitDirectories -> [fromString -> rid, fromString -> txt]) -> Just $ AttachPath rid txt
-                _ -> Nothing)
 
 data Backlink = Backlink
   { backlinkID :: RoamID
@@ -87,4 +87,4 @@ insertPost fp k v blks =
                    }
 
 model0 :: Model
-model0 = Model mempty mempty mempty mempty mempty "" "" Nothing
+model0 = Model mempty mempty mempty emptyAttachModel "" "" mempty Nothing
