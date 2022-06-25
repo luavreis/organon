@@ -10,54 +10,20 @@ import NeatInterpolation
 import qualified Data.Map as M
 import qualified Data.Text as T
 import System.FilePath ((-<.>), (</>), takeDirectory)
-import UnliftIO (IOException, catch, MonadUnliftIO, withSystemTempDirectory, hClose)
+import UnliftIO (IOException, catch, MonadUnliftIO, withSystemTempDirectory, hClose, pooledMapConcurrently, pooledMapConcurrentlyN)
 import UnliftIO.Process
 import Control.Monad.Logger (logErrorNS, MonadLogger)
 import Data.Text.IO (hPutStr)
 import Data.ByteString.Base64 (encodeBase64)
 import Data.Generics.Product
-import Data.Binary.Instances.UnorderedContainers ()
-import JSON
 import Org.Walk
 import Control.Exception (throw)
 import Data.Bitraversable (bimapM)
 import System.Exit
 import System.IO (openTempFile)
-import Data.Binary (Binary)
 import Data.HashMap.Strict (lookup, insert)
-
-type LaTeXCache = HashMap (Text, LaTeXOptions) (Text, ByteString)
-
-data MathLaTeXProcess = MathLaTeXProcess
-  { preamble :: Text
-  , imageInputType :: String
-  , imageOutputType :: String
-  , imageMIMEType :: Text
-  , imageSizeAdjust :: Float
-  , latexCompiler :: [Text]
-  , imageConverter :: [Text]
-  }
-  deriving (Eq, Ord, Show, Generic, Binary, Hashable)
-
-instance ToJSON MathLaTeXProcess where
-  toJSON = genericToJSON customOptions
-  toEncoding = genericToEncoding customOptions
-
-instance FromJSON MathLaTeXProcess where
-  parseJSON = genericParseJSON customOptions
-
-data LaTeXOptions = LaTeXOptions
-  { defaultLatexProcess :: Text
-  , latexProcesses :: Map Text MathLaTeXProcess
-  }
-  deriving (Eq, Ord, Show, Generic, Binary, Hashable)
-
-instance ToJSON LaTeXOptions where
-  toJSON = genericToJSON customOptions
-  toEncoding = genericToEncoding customOptions
-
-instance FromJSON LaTeXOptions where
-  parseJSON = genericParseJSON customOptions
+import LaTeX.Types
+import Cache
 
 getPreamble :: OrgDocument -> Text
 getPreamble d = T.unlines . mapMaybe justText $ lookupKeyword "latex_header" d
@@ -65,8 +31,8 @@ getPreamble d = T.unlines . mapMaybe justText $ lookupKeyword "latex_header" d
     justText (ValueKeyword _ t) = Just t
     justText _ = Nothing
 
-preambilizeKaTeX :: forall m. (MonadUnliftIO m, MonadLogger m) => Place -> OrgDocument -> m OrgElement
-preambilizeKaTeX plc doc = preambleBlock
+getKaTeXPreamble :: forall m. (MonadUnliftIO m, MonadLogger m) => Place -> OrgDocument -> m OrgElement
+getKaTeXPreamble plc doc = preambleBlock
   where
     hide :: KeywordValue
     hide = BackendKeyword [("style", "display: none")]
@@ -110,6 +76,10 @@ preambilizeKaTeX plc doc = preambleBlock
              || "\\def" `T.isPrefixOf` txt
              || "\\DeclareMathOperator" `T.isPrefixOf` txt
 
+putKaTeXPreamble :: (MonadUnliftIO m, MonadLogger m) => Place -> OrgDocument -> m OrgDocument
+putKaTeXPreamble plc doc = do
+  preambl <- getKaTeXPreamble plc doc
+  pure $ mapContent (first (preambl :)) doc
 
 renderLaTeX ::
   forall m.
@@ -174,16 +144,15 @@ newtype UndefinedLaTeXProcess = UndefinedLaTeXProcess Text
   deriving anyclass (Exception)
 
 processLaTeX ::
-  forall model n m k.
-  (HasType LaTeXCache model) =>
-  (HasType LaTeXOptions n) =>
-  (MonadLogger m, MonadReader n m) =>
-  (MonadUnliftIO k, MonadLogger k) =>
+  forall cfg m.
+  (HasType LaTeXOptions cfg) =>
+  (MonadUnliftIO m, MonadLogger m, MonadReader (cfg, TVar Cache) m) =>
   Place ->
   OrgDocument ->
-  m (model -> k (OrgDocument, model))
+  m OrgDocument
 processLaTeX plc doc = do
-  opt <- asks getTyped
+  opt <- asks (getTyped . fst)
+  cVar <- asks snd
   let pname = defaultLatexProcess opt -- TODO read from metadata
   process <-
     case M.lookup pname (latexProcesses opt) of
@@ -192,36 +161,40 @@ processLaTeX plc doc = do
         logErrorNS "" $ "LaTeX process \"" <> pname <> "\" is not defined."
         throw (UndefinedLaTeXProcess pname)
   let
-    mapping' :: (Walkable OrgElement a, Walkable OrgInline a) => a -> StateT LaTeXCache k a
-    mapping' = walkM wBlocks >=> walkM wInlines
-
-    doProcess :: Text -> StateT LaTeXCache k (Text, ByteString)
+    doProcess :: Text -> m (Text, ByteString)
     doProcess txt = do
-      cache <- get
-      case lookup (txt, opt) cache of
+      cache <- readTVarIO cVar
+      let lcache = latexCache cache
+          ckey = (txt, absolute plc, opt)
+      case lookup ckey lcache of
         Just cached -> pure cached
         Nothing -> do
-          result <- lift $ renderLaTeX plc process (getPreamble doc) txt
-          modify (insert (txt, opt) result)
+          result <- renderLaTeX plc process (getPreamble doc) txt
+          atomically $ writeTVar cVar cache { latexCache = insert ckey result lcache }
           pure result
 
-    wInlines :: OrgInline -> StateT LaTeXCache k OrgInline
-    wInlines (ExportSnippet "latex" s) =
-      Image . makeDataURI <$> doProcess s
-    wInlines x = pure x
+    wContent :: OrgContent -> m OrgContent
+    wContent = bimapM (pooledMapConcurrentlyN 8 wAll) (pooledMapConcurrentlyN 4 wSection)
 
-    wBlocks :: OrgElement -> StateT LaTeXCache k OrgElement
-    wBlocks (ExportBlock "latex" s) =
+    wSection :: OrgSection -> m OrgSection
+    wSection = mapSectionContentM wContent
+
+    wAll :: (Walkable OrgElement a, Walkable OrgInline a) => a -> m a
+    wAll = walkM wBlock >=> walkM wInline
+
+    wInline :: OrgInline -> m OrgInline
+    wInline (ExportSnippet "latex" s) =
+      Image . makeDataURI <$> doProcess s
+    wInline x = pure x
+
+    wBlock :: OrgElement -> m OrgElement
+    wBlock (ExportBlock "latex" s) =
       Paragraph mempty . one . Image . makeDataURI <$> doProcess s
-    wBlocks (LaTeXEnvironment _ name s)
+    wBlock (LaTeXEnvironment _ name s)
       | name `notElem` leaveToKaTeX =
       Paragraph mempty . one . Image . makeDataURI <$> doProcess s
       where
         leaveToKaTeX = ["equation", "equation*", "align", "align*", "aligned"]
-    wBlocks x = pure x
+    wBlock x = pure x
 
-  pure \m -> do
-    (x, y) <- flip runStateT (getTyped m) $ do
-      (child', sect') <- bimapM mapping' mapping' (documentContent doc)
-      pure doc { documentChildren = child', documentSections = sect' }
-    pure (x, setTyped y m)
+  mapContentM wContent doc

@@ -55,14 +55,14 @@ getAttachment (Image (URILink "attachment" att))  = one (toString att)
 getAttachment _ = mempty
 
 processAttachInDoc ::
-  forall model options m.
+  forall options model m _c.
   HasType AttachModel model =>
   Subtype AttachOptions options =>
-  (MonadIO m, MonadReader options m) =>
+  (MonadIO m, MonadReader (options, _c) m) =>
   OrgDocument ->
   m (Endo model)
 processAttachInDoc doc = do
-  attDir <- liftA2 (</>) (asks (mount . upcast)) (asks (orgAttachDir . upcast))
+  attDir <- liftA2 (</>) (asks (mount . upcast . fst)) (asks (orgAttachDir . upcast . fst))
   docEndo <-
     case lookupProperty "id" doc of
       Just uid -> processAttachInSection @model attDir uid doc

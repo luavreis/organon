@@ -7,7 +7,7 @@ import Place ( Place(..) )
 import Common ( docTag, isolateSection, queryOrgInContext )
 import Org.Walk ( Walkable(query) )
 import System.FilePath (takeDirectory, splitDirectories)
-import LaTeX (preambilizeKaTeX)
+import LaTeX (getKaTeXPreamble)
 import UnliftIO (MonadUnliftIO)
 import Control.Monad.Logger (MonadLogger)
 import Optics.Core ( over )
@@ -21,7 +21,7 @@ processRoam ::
   -> m (Endo Model)
 processRoam post place = do
   let fp = relative place
-  preamble <- preambilizeKaTeX place post
+  preamble <- getKaTeXPreamble place post
 
   let relDir = takeDirectory (relative place)
       fpTags =

@@ -5,7 +5,7 @@ module Config where
 import Data.Yaml as Y
 import Data.Map (singleton)
 import JSON
-import LaTeX
+import LaTeX.Types
 import Data.Aeson.KeyMap qualified as KM
 import Site.Roam.Options qualified as Roam
 import Site.Content.Options qualified as Content

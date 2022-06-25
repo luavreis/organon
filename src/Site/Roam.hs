@@ -15,23 +15,27 @@ import OrgAttach (renderAttachment, processAttachInDoc)
 import Control.Monad.Trans.Writer
 import Place
 import Org.Parser (parseOrgIO, defaultOrgOptions)
+import Cache (Cache)
+import LaTeX (processLaTeX)
 
 instance EmaSite Route where
-  type SiteArg Route = O.Options
-  siteInput _ _ opt = Dynamic <$>
+  type SiteArg Route = (O.Options, TVar Cache)
+  siteInput _ _ arg@(opt,_) = Dynamic <$>
       UM.mount source include exclude model0
         (const handler)
     where
       source = O.mount opt
       include = [((), "**/*.org")]
       exclude = O.exclude opt
-      run x = appEndo <$> runReaderT (execWriterT x) opt
+      run x = appEndo <$> runReaderT (execWriterT x) arg
       handler fp action =
         (case action of
-          Refresh _ () -> run $ do
-            doc' <- parseOrgIO defaultOrgOptions (absolute place)
-            tell =<< processAttachInDoc doc'
-            tell =<< lift (processRoam doc' place)
+          Refresh _ () ->
+            run do
+              doc' <- parseOrgIO defaultOrgOptions (absolute place)
+                      >>= lift . processLaTeX place
+              tell =<< processAttachInDoc doc'
+              tell =<< lift (processRoam doc' place)
           Delete -> pure id)
         <&> (. deleteAllFromFile fp)
         where

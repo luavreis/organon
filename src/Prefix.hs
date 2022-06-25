@@ -34,13 +34,13 @@ instance (IsRoute a, HasPrefix (RouteModel a)) => IsRoute (PrefixedRoute' a) whe
         fmap toString . T.stripPrefix (toText $ addTrailingPathSeparator p) . toText
   allRoutes = map PrefixedRoute' . allRoutes
 
-instance (EmaSite a, HasPrefix (RouteModel a), HasPrefix (SiteArg a)) => EmaSite (PrefixedRoute' a) where
+instance (EmaSite a, (x,y) ~ SiteArg a, HasPrefix (RouteModel a), HasPrefix x) => EmaSite (PrefixedRoute' a) where
   type SiteArg (PrefixedRoute' a) = SiteArg a
   siteInput act enc arg = do
     Dynamic (m0, h) <- (siteInput @a) act newEnc arg
     pure $ Dynamic (setf m0, h . (. setf))
     where
-      setf = smash (upcast @PrefixOptions arg)
+      setf = smash (upcast @PrefixOptions (fst arg))
       newEnc = mapRouteEncoderRoute _Unwrapped enc
   siteOutput enc m r = siteOutput newEnc m (unPrefixRoute r)
     where

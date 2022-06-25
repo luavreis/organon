@@ -19,8 +19,8 @@ instance IsRoute Route where
   allRoutes m = [Route $ mount m]
 
 instance EmaSite Route where
-  type SiteArg Route = Options
-  siteInput _ _ opt = pure $ pure opt
+  type SiteArg Route = (Options, ()) -- Sorry
+  siteInput _ _ (opt,_) = pure $ pure opt
   siteOutput _ m (Route fp) = Ema.AssetStatic $ mount m </> fp
 
 type StaticRoute = PrefixedRoute' Route
