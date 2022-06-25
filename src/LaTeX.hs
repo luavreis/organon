@@ -10,7 +10,7 @@ import NeatInterpolation
 import qualified Data.Map as M
 import qualified Data.Text as T
 import System.FilePath ((-<.>), (</>), takeDirectory)
-import UnliftIO (IOException, catch, MonadUnliftIO, withSystemTempDirectory, hClose, pooledMapConcurrently, pooledMapConcurrentlyN)
+import UnliftIO (IOException, catch, MonadUnliftIO, withSystemTempDirectory, hClose, pooledMapConcurrentlyN, modifyTVar)
 import UnliftIO.Process
 import Control.Monad.Logger (logErrorNS, MonadLogger)
 import Data.Text.IO (hPutStr)
@@ -24,6 +24,7 @@ import System.IO (openTempFile)
 import Data.HashMap.Strict (lookup, insert)
 import LaTeX.Types
 import Cache
+import Optics.Core ((%~))
 
 getPreamble :: OrgDocument -> Text
 getPreamble d = T.unlines . mapMaybe justText $ lookupKeyword "latex_header" d
@@ -158,7 +159,7 @@ processLaTeX plc doc = do
     case M.lookup pname (latexProcesses opt) of
       Just p -> pure p
       Nothing -> do
-        logErrorNS "" $ "LaTeX process \"" <> pname <> "\" is not defined."
+        logErrorNS "LaTeX process" $ "LaTeX process \"" <> pname <> "\" is not defined."
         throw (UndefinedLaTeXProcess pname)
   let
     doProcess :: Text -> m (Text, ByteString)
@@ -170,7 +171,7 @@ processLaTeX plc doc = do
         Just cached -> pure cached
         Nothing -> do
           result <- renderLaTeX plc process (getPreamble doc) txt
-          atomically $ writeTVar cVar cache { latexCache = insert ckey result lcache }
+          atomically $ modifyTVar cVar (field' @"latexCache" %~ insert ckey result)
           pure result
 
     wContent :: OrgContent -> m OrgContent
