@@ -66,6 +66,7 @@ executable abacateiro
                       MultiParamTypeClasses
                       MultiWayIf
                       OverloadedStrings
+                      OverloadedLabels
                       ScopedTypeVariables
                       TupleSections
                       TypeFamilies

@@ -23,8 +23,9 @@ data Model = Model
   }
   deriving (Generic)
 
-newtype Post = Post
+data Post = Post
   { doc :: OrgDocument
+  , parent :: Maybe RoamID
   }
   deriving (Eq, Ord, Show)
 

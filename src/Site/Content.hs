@@ -69,7 +69,7 @@ instance EmaSite Route where
   siteInput _ _ arg@(opt,_) = Dynamic <$>
     UM.mount source include exclude' model0 handler
     where
-      source = mount (opt :: Options)
+      source = opt ^. #mount
       include = [((), "**/*.org")]
       exclude' = exclude opt
       run :: Monad m => WriterT (Endo Model) (ReaderT (Options, TVar Cache) m) a -> m (Model -> Model)
@@ -85,16 +85,16 @@ instance EmaSite Route where
                         >>= lift . processLaTeX place
                         >>= lift . putKaTeXPreamble place
               let (orgdoc', Set.map FileRoute -> files') = processLinks (takeDirectory fp) orgdoc
-              tell $ Endo (over (field @"docs") (insert key orgdoc') . over (field @"files") (files' <>))
+              tell $ Endo (over (field @"docs") (insert key orgdoc') . over #files (files' <>))
               tell =<< lift (processAttachInDoc orgdoc')
           Delete -> pure $ over (field @"docs") (delete key)
   siteOutput = heistOutput renderDoc
 
 renderDoc :: Route -> RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString
 renderDoc (Doc key) enc m = renderAsset $
-  callTemplate "ContentPage" $ documentSplices (resolveAttachLinks router $ docs (m :: Model) ! key)
+  callTemplate "ContentPage" $ documentSplices (resolveAttachLinks router $ (m ^. #docs) ! key)
   where router = routeUrl enc m
-renderDoc (File (FileRoute fp)) _ m = const $ AssetStatic (mount (m :: Model) </> fp)
+renderDoc (File (FileRoute fp)) _ m = const $ AssetStatic (m ^. #mount </> fp)
 renderDoc (Attch att) _ m = renderAttachment att m
 
 type ContentRoute = PrefixedRoute' Route

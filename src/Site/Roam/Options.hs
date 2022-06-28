@@ -11,6 +11,7 @@ data Options = Options
   , exclude :: [FilePattern]
   , orgAttachDir :: FilePath
   , publicTags :: [Text]
+  , privateTags :: [Text]
   , latexOptions :: LaTeXOptions
   }
   deriving (Eq, Ord, Show, Generic)
