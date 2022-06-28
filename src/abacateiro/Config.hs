@@ -8,7 +8,7 @@ import JSON
 import LaTeX.Types
 import Data.Aeson.KeyMap qualified as KM
 import Site.Roam.Options qualified as Roam
-import Site.Content.Options qualified as Content
+import Site.Org.Options qualified as Content
 import Site.Static.Options qualified as Static
 
 data Config = Config

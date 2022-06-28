@@ -1,7 +1,8 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeOperators #-}
 -- |
 
-module Site.Content (ContentRoute, Model (..), Options (..)) where
+module Site.Org (ContentRoute, Model (..), Options (..)) where
 import Place
 import Prefix
 import Ema
@@ -19,22 +20,23 @@ import Render (HeistS, heistOutput, renderAsset)
 import Org.Parser
 import LaTeX
 import Heist (HeistState)
-import Site.Content.Options
+import Site.Org.Options
 import Generics.SOP qualified as SOP
-import Ema.Route.GenericClass
+import Ema.Route.Generic
 import Routes qualified as R
-import Site.Content.Links
+import Site.Org.Links
 import UnliftIO.Concurrent (threadDelay)
 import OrgAttach (AttachModel, emptyAttachModel, renderAttachment, AttachRoute, resolveAttachLinks, processAttachInDoc)
 import Control.Monad.Trans.Writer
 import System.UnionMount qualified as UM
 import Cache (Cache)
+import Generics.SOP hiding (Generic)
 
 data Model = Model
   { mount :: FilePath
   , serveAt :: FilePath
   , docs :: Map DocRoute OrgDocument
-  , files :: Set FileRoute
+  , files :: Set FileRoute'
   , attachments :: AttachModel
   , heistS :: HeistS
   }
@@ -49,24 +51,25 @@ newtype DocRoute = DocRoute Text
   deriving (IsRoute) via (R.MapRoute DocRoute OrgDocument)
   deriving newtype (IsString)
 
-newtype FileRoute = FileRoute FilePath
+newtype FileRoute' = FileRoute' FilePath
   deriving (Eq, Ord, Show)
-  deriving (R.StringRoute) via (R.FileRoute String)
-  deriving (IsRoute) via (R.SetRoute FileRoute)
-
-data ModelI = MI {docs :: Map DocRoute OrgDocument, files :: Set FileRoute, attachments :: AttachModel}
-  deriving (Generic, SOP.Generic)
+  deriving (R.StringRoute) via (R.FileRoute' String)
+  deriving (IsRoute) via (R.SetRoute FileRoute')
 
 data Route
   = Doc DocRoute
-  | File FileRoute
+  | File FileRoute'
   | Attch AttachRoute
-  deriving (Eq, Show, Generic, SOP.Generic)
-  deriving (IsRoute) via (GenericRoute ModelI Model Route)
+  deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
+  deriving (HasSubRoutes) via (Route `WithSubRoutes` '[DocRoute, FileRoute', AttachRoute])
+  deriving (IsRoute) via (Route `WithModel` Model)
+
+instance HasSubModels Route where
+  subModels m = I (docs m) :* I (files m) :* I (attachments m) :* Nil
 
 instance EmaSite Route where
   type SiteArg Route = (Options, TVar Cache)
-  siteInput _ _ arg@(opt,_) = Dynamic <$>
+  siteInput _ arg@(opt,_) = Dynamic <$>
     UM.mount source include exclude' model0 handler
     where
       source = opt ^. #mount
@@ -84,17 +87,17 @@ instance EmaSite Route where
               orgdoc <- parseOrgIO defaultOrgOptions (source </> fp)
                         >>= lift . processLaTeX place
                         >>= lift . putKaTeXPreamble place
-              let (orgdoc', Set.map FileRoute -> files') = processLinks (takeDirectory fp) orgdoc
+              let (orgdoc', Set.map FileRoute' -> files') = processLinks (takeDirectory fp) orgdoc
               tell $ Endo (over (field @"docs") (insert key orgdoc') . over #files (files' <>))
               tell =<< lift (processAttachInDoc orgdoc')
           Delete -> pure $ over (field @"docs") (delete key)
   siteOutput = heistOutput renderDoc
 
-renderDoc :: Route -> RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString
+renderDoc :: Route -> Prism' FilePath Route -> Model -> HeistState Exporter -> Asset LByteString
 renderDoc (Doc key) enc m = renderAsset $
   callTemplate "ContentPage" $ documentSplices (resolveAttachLinks router $ (m ^. #docs) ! key)
-  where router = routeUrl enc m
-renderDoc (File (FileRoute fp)) _ m = const $ AssetStatic (m ^. #mount </> fp)
+  where router = routeUrl enc
+renderDoc (File (FileRoute' fp)) _ m = const $ AssetStatic (m ^. #mount </> fp)
 renderDoc (Attch att) _ m = renderAttachment att m
 
-type ContentRoute = PrefixedRoute' Route
+type ContentRoute = PrefixedRoute Route

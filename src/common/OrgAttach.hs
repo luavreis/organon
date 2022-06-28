@@ -15,9 +15,10 @@ import Ema (IsRoute, Asset (AssetStatic))
 import Heist (HeistState)
 import Org.Exporters.Heist (Exporter)
 import Generics.SOP qualified as SOP
-import Ema.Route.GenericClass (GenericRoute (..))
 import Common (walkOrgInContext, queryOrgInContext)
 import Optics.Operators
+import Ema.Route.Generic
+import Generics.SOP hiding (Generic)
 
 type OrgID = Text
 
@@ -27,24 +28,24 @@ data AttachOptions = AttachO { mount :: FilePath, orgAttachDir :: FilePath }
 data AttachModel = AttachM { attachments :: Set AttachPath, attachDirs :: Map OrgID FilePath }
   deriving (Show, Generic)
 
-newtype AttachModelI = MI { attachments :: Set AttachPath }
-  deriving (Generic)
-  deriving anyclass (SOP.Generic)
-
 data AttachPath = AttachPath OrgID Text
   deriving (Eq, Ord, Show)
   deriving (IsRoute) via (SetRoute AttachPath)
 
 instance StringRoute AttachPath where
-  strPrism = (\(AttachPath rid txt) -> toString rid </> toString txt,
-              \case
-                (splitDirectories -> [fromString -> rid, fromString -> txt]) -> Just $ AttachPath rid txt
-                _ -> Nothing)
+  strPrism' = (\(AttachPath rid txt) -> toString rid </> toString txt,
+               \case
+                 (splitDirectories -> [fromString -> rid, fromString -> txt]) -> Just $ AttachPath rid txt
+                 _ -> Nothing)
 
 newtype AttachRoute = AttachRoute AttachPath
   deriving (Eq, Show, Generic)
-  deriving anyclass (SOP.Generic)
-  deriving (IsRoute) via (GenericRoute AttachModelI AttachModel AttachRoute)
+  deriving anyclass (SOP.Generic, SOP.HasDatatypeInfo)
+  deriving (HasSubRoutes) via (AttachRoute `WithSubRoutes` '[AttachPath])
+  deriving (IsRoute) via (AttachRoute `WithModel` AttachModel)
+
+instance HasSubModels AttachRoute where
+  subModels m = I (attachments m) :* Nil
 
 emptyAttachModel :: AttachModel
 emptyAttachModel = AttachM mempty mempty
@@ -124,7 +125,7 @@ resolveAttachLinks route = walkOrgInContext resolve
 
     resolveLink :: OrgID -> OrgInline -> OrgInline
     resolveLink rid (Link (URILink "attachment" path) content) =
-      Link (URILink "http" $ route (injectTyped $ AttachRoute (AttachPath rid path))) content
+      Link (URILink "file" $ route (injectTyped $ AttachRoute (AttachPath rid path))) content
     resolveLink rid (Image (URILink "attachment" path)) =
-      Image (URILink "http" $ route (injectTyped $ AttachRoute (AttachPath rid path)))
+      Image (URILink "file" $ route (injectTyped $ AttachRoute (AttachPath rid path)))
     resolveLink _ x = x

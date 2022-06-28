@@ -1,6 +1,6 @@
 -- |
 
-module Site.Content.Options where
+module Site.Org.Options where
 import System.FilePattern (FilePattern)
 import LaTeX.Types (LaTeXOptions)
 import JSON
