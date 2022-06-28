@@ -29,7 +29,7 @@ buildRoamGraph :: Model -> HeistState Exporter -> Graph
 buildRoamGraph m hs = Graph nodes links
   where
     render = decodeUtf8 . renderSplice hs renderSettings . toSplice
-    pageToNode (uuid, Post page) =
+    pageToNode (uuid, Post page _parent) =
       Node uuid (render (documentTitle page))
     nodes = map pageToNode (toPairs $ posts m)
     backlinksToLinks (target, backlinks)

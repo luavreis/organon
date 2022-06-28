@@ -57,7 +57,7 @@ queryOrgInContext f doc =
       let inhTags = sectionTags section <> tags
           inhProps = sectionProperties section <> properties
           subs = foldMap (doSection inhTags inhProps) (sectionSubsections section)
-      f inhTags inhProps section <> subs
+      f tags properties section <> subs
 
 shift :: Int -> OrgSection -> OrgSection
 shift i sec@OrgSection { sectionLevel = level }

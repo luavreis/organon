@@ -57,7 +57,7 @@ renderPost rid enc m = renderAsset $
     clearAttrs :: [X.Node] -> [X.Node]
     clearAttrs = walkNodes clearAttr
 
-    Post post = posts m ! rid
+    Post post _parent = posts m ! rid
     backlinks = fromMaybe mempty $ lookup rid (database m)
 
 renderIndex :: RouteEncoder Model Route -> Model -> HeistState Exporter -> Asset LByteString

@@ -50,6 +50,7 @@ defaultConfig = Config
     , Roam.mount = "zettel"
     , Roam.serveAt = "zettel"
     , Roam.publicTags = ["public"]
+    , Roam.privateTags = ["noexport"]
     , Roam.exclude = defExclude
     , Roam.latexOptions = defLaTeXOptions
     }

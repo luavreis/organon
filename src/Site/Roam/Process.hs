@@ -10,18 +10,22 @@ import System.FilePath (takeDirectory, splitDirectories)
 import LaTeX (getKaTeXPreamble)
 import UnliftIO (MonadUnliftIO)
 import Control.Monad.Logger (MonadLogger)
-import Optics.Core ( over )
+import Site.Roam.Options
+import Data.List (intersect)
+import Optics.Core
+import Relude.Extra (lookup)
 
 processRoam ::
-  forall m.
-  (MonadUnliftIO m, MonadLogger m)
-  => HasCallStack
-  => OrgDocument
-  -> Place
-  -> m (Endo Model)
+  forall m _c.
+  (MonadUnliftIO m, MonadLogger m, MonadReader (Options, _c) m) =>
+  HasCallStack =>
+  OrgDocument ->
+  Place ->
+  m (Endo Model)
 processRoam post place = do
   let fp = relative place
   preamble <- getKaTeXPreamble place post
+  opts <- asks fst
 
   let relDir = takeDirectory (relative place)
       fpTags =
@@ -30,29 +34,35 @@ processRoam post place = do
           else toText <$> splitDirectories (takeDirectory $ relative place)
       postWithTags = over docTag (fpTags <>) post
 
-      addToModel :: OrgDocument -> RoamID -> Ap m (Endo Model)
-      addToModel doc' rid = do
-        let bklinks = processLinks doc'
-            doc'' = mapContent (first (preamble :)) doc'
-            postEndo = insertPost fp rid (Post doc'') $
-                       map (second (Backlink rid (documentTitle doc'')))
-                       bklinks
-        pure postEndo
+      addToModel :: OrgDocument -> Maybe RoamID -> Ap m (Endo Model)
+      addToModel docToAdd parentId =
+        case lookupProperty "id" docToAdd of
+          Just (RoamID -> rid)
+            | parentId /= Just rid,
+              ex <- lookupProperty "roam_exclude" docToAdd,
+              ex == Nothing || ex == Just "nil" ->
+              let tags = view docTag docToAdd
+              in if null (privateTags opts `intersect` tags) &&
+                    (null (publicTags opts) || not (null (publicTags opts `intersect` tags)))
+                then do
+                  let bklinks = processLinks docToAdd
+                      docWithPreamble = mapContent (first (preamble :)) docToAdd
+                      postEndo = insertPost fp rid (Post docWithPreamble parentId) $
+                                map (second (Backlink rid (documentTitle docWithPreamble)))
+                                bklinks
+                  pure postEndo
+                else pure (Endo id)
+          _ -> pure mempty
 
       processSectionsWithId :: Tags -> Properties -> OrgSection -> (Ap m) (Endo Model)
       processSectionsWithId tags props section =
-        case lookupSectionProperty "id" section of
-          Just (RoamID -> uuid) -> do
-            let inhSection = section { sectionTags = tags, sectionProperties = props }
-            addToModel (isolateSection inhSection post) uuid
-          Nothing -> pure mempty
+        let inhSection = section & #sectionTags %~ (<> tags)
+                                 & #sectionProperties %~ (<> props)
+        in addToModel (isolateSection inhSection post) (RoamID <$> lookup "id" props)
 
   let endo = queryOrgInContext processSectionsWithId postWithTags
 
-  getAp $
-    case lookupProperty "id" postWithTags of
-      Just uid -> endo <> addToModel postWithTags (RoamID uid)
-      _ -> endo
+  getAp $ endo <> addToModel postWithTags Nothing
 
   where
     -- Walks over the document but only maps the "zero-level" elements (no nesting)

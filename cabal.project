@@ -12,3 +12,8 @@ source-repository-package
     type: git
     location: https://github.com/srid/ema.git
     tag: da5b29f03c1edfb7f947666a5a818fb97cc3c229
+
+source-repository-package
+    type: git
+    location: /home/lucas/dados/projetos/codigo/haskell/heist/
+    tag: e2a1e2e6cdf172f49d9dd9b6644c6561f0e6e690
