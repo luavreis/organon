@@ -8,8 +8,8 @@ import Heist
 import Heist.Interpreted
 import Heist.Splices (ifElseISplice)
 import Org.Exporters.Heist
-import Ema.Route.Encoder (RouteEncoder)
 import Data.Generics.Product
+import Optics.Core
 
 ifElseSpliceWith :: Monad m => Bool -> Splices (Splice m) -> Splice m
 ifElseSpliceWith p splices = localHS (bindSplices splices) $ ifElseISplice p
@@ -20,11 +20,11 @@ type HSModel s = HasType HeistS s
 
 heistOutput ::
   (HSModel model) =>
-  (r -> RouteEncoder model r -> model -> HeistState Exporter -> Asset LByteString) ->
-  RouteEncoder model r -> model -> r -> Asset LByteString
-heistOutput f enc m r =
+  (r -> Prism' FilePath r -> model -> HeistState Exporter -> Asset LByteString) ->
+  Prism' FilePath r -> model -> r -> Asset LByteString
+heistOutput f pr m r =
   case getTyped m of
-   Just hs -> f r enc m hs
+   Just hs -> f r pr m hs
    Nothing -> error "Heist exporter state is empty!"
 
 renderAsset :: Splice Exporter -> HeistState Exporter -> Asset LByteString

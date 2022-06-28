@@ -9,7 +9,21 @@ import Relude.Extra (insert, delete, (!?), member)
 import Render (HeistS)
 import Routes ( MapRoute(..), HtmlRoute(..), StringRoute )
 import Ema ( IsRoute )
-import OrgAttach ( AttachModel, emptyAttachModel )
+import OrgAttach ( AttachModel, emptyAttachModel, AttachRoute )
+import Generics.SOP qualified as SOP
+import Ema.Route.Generic
+import Generics.SOP hiding (Generic)
+
+data Route
+  = Route_Post RoamID
+  | Route_Attach AttachRoute
+  | Route_Graph_Json
+  | Route_Index
+  deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo, HasSubRoutes)
+  deriving (IsRoute) via (Route `WithModel` Model)
+
+instance HasSubModels Route where
+  subModels m = I (posts m) :* I (attachments m) :* I () :* I () :* Nil
 
 data Model = Model
   { posts :: Map RoamID Post

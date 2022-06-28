@@ -1,6 +1,6 @@
 -- |
 
-module Site.Content.Links where
+module Site.Org.Links where
 import Org.Types
 import Org.Walk
 import System.FilePath (takeExtension, (</>), normalise)

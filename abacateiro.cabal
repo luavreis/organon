@@ -1,56 +1,34 @@
-cabal-version:        2.4
+cabal-version:        3.4
 name:                 abacateiro
 version:              0.1.0.0
 
-executable abacateiro
-  main-is:            Main.hs
-  hs-source-dirs:     src
+common common-options
+  default-language:   Haskell2010
+  mixins:             base hiding (Prelude)
+                    , relude (Relude as Prelude)
+                    , relude
+  ghc-options:       -Wall
   build-depends:      aeson >= 2.0
-                    , base >= 4.14
-                    , base64 >= 0.4
+                    , base >= 4.16
                     , binary
-                    , binary-instances
                     , bytestring
-                    , citeproc
                     , containers
                     , ema >= 0.7.1
                     , filepath
                     , filepattern
-                    , fsnotify
-                    , generic-optics
                     , generics-sop
-                    , hashable
+                    , generic-optics
                     , heist-emanote >= 1.2.1
-                    , lvar
                     , map-syntax
                     , monad-logger
-                    , monoid-extras
-                    , neat-interpolation
-                    , nonempty-containers
-                    , org-parser
                     , optics-core
-                    , pretty-simple
-                    , regex-tdfa
+                    , org-parser
                     , relude
-                    , some
-                    , text
-                    , time
                     , transformers >= 0.5
-                    , unliftio
                     , unionmount >= 0.2
-                    , unordered-containers
-                    , uri-encode
-                    , url-slug
-                    , yaml
+                    , unliftio
                     , xmlhtml
-  ghc-options:        -threaded
-                      -j8
-                      -Wall
-                      -fprint-potential-instances
-                      -Wno-orphans
-  mixins:             base hiding (Prelude),
-                      relude (Relude as Prelude, Relude.Container.One),
-                      relude
+                    , yaml
   default-extensions: BlockArguments
                       DataKinds
                       DeriveGeneric
@@ -69,32 +47,61 @@ executable abacateiro
                       OverloadedLabels
                       ScopedTypeVariables
                       TupleSections
+                      TypeOperators
                       TypeFamilies
                       TypeApplications
                       ViewPatterns
-  default-language:   Haskell2010
-  other-modules:      Site.Roam
-                      Site.Roam.Render
-                      Site.Roam.Process
-                      Site.Roam.Model
-                      Site.Roam.Route
-                      Site.Roam.Options
-                      Site.Roam.Graph
-                      Site.Static
-                      Site.Static.Options
-                      Site.Content
-                      Site.Content.Options
-                      Site.Content.Links
-                      Cache
+
+library common
+  import:             common-options
+  hs-source-dirs:     src/common
+  visibility:         public
+  build-depends:      base64 >= 0.4
+                    , binary-instances
+                    , neat-interpolation
+  exposed-modules:    Cache
                       Common
-                      OrgAttach
-                      Ema.Route.GenericClass
                       JSON
-                      Route
-                      Render
-                      Routes
-                      Config
-                      Prefix
-                      Place
                       LaTeX
                       LaTeX.Types
+                      OrgAttach
+                      Place
+                      Prefix
+                      Render
+                      Routes
+
+library ema-org
+  import:             common-options
+  hs-source-dirs:     src/org
+  visibility:         public
+  build-depends:      abacateiro:common
+  exposed-modules:    Site.Org
+                      Site.Org.Options
+                      Site.Org.Links
+
+library ema-roam
+  import:             common-options
+  hs-source-dirs:     src/roam
+  visibility:         public
+  build-depends:      abacateiro:common
+  exposed-modules:    Site.Roam
+                      Site.Roam.Graph
+                      Site.Roam.Model
+                      Site.Roam.Options
+                      Site.Roam.Process
+                      Site.Roam.Render
+
+executable abacateiro
+  import:             common-options
+  hs-source-dirs:     src/abacateiro
+  main-is:            Main.hs
+  build-depends:      abacateiro:common
+                    , abacateiro:ema-org
+                    , abacateiro:ema-roam
+  ghc-options:        -threaded
+                      -j8
+                      -Wall
+                      -fprint-potential-instances
+  other-modules:      Site.Static
+                      Site.Static.Options
+                      Config

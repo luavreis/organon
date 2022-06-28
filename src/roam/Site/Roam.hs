@@ -9,8 +9,7 @@ import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
 import Site.Roam.Render (renderIndex, renderPost, renderGraph)
 import Render (heistOutput)
-import Site.Roam.Route
-import Prefix (PrefixedRoute')
+import Prefix (PrefixedRoute)
 import OrgAttach (renderAttachment, processAttachInDoc)
 import Control.Monad.Trans.Writer
 import Place
@@ -20,7 +19,7 @@ import LaTeX (processLaTeX)
 
 instance EmaSite Route where
   type SiteArg Route = (O.Options, TVar Cache)
-  siteInput _ _ arg@(opt,_) = Dynamic <$>
+  siteInput _ arg@(opt,_) = Dynamic <$>
       UM.mount source include exclude model0
         (const handler)
     where
@@ -41,10 +40,9 @@ instance EmaSite Route where
         where
           place = Place fp source
   siteOutput = heistOutput \case
-    RouteIndex' -> renderIndex
-    RouteGraph' -> const renderGraph
-    RoutePost' uid -> renderPost uid
-    RouteAttach path -> const (renderAttachment path)
-    _ -> error "dammit ghc"
+    Route_Index -> renderIndex
+    Route_Graph_Json -> const renderGraph
+    Route_Post uid -> renderPost uid
+    Route_Attach path -> const (renderAttachment path)
 
-type RoamRoute = PrefixedRoute' Route
+type RoamRoute = PrefixedRoute Route
