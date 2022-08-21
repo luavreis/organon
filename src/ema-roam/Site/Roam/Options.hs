@@ -1,11 +1,17 @@
 -- |
 
-module Site.Static.Options where
+module Site.Roam.Options where
+import System.FilePattern (FilePattern)
+import LaTeX.Types (LaTeXOptions)
 import JSON
 
 data Options = Options
   { mount :: FilePath
-  , serveAt :: FilePath
+  , exclude :: [FilePattern]
+  , orgAttachDir :: FilePath
+  , publicTags :: [Text]
+  , privateTags :: [Text]
+  , latexOptions :: LaTeXOptions
   }
   deriving (Eq, Ord, Show, Generic)
 

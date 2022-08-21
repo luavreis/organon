@@ -21,7 +21,7 @@ processRoam ::
   HasCallStack =>
   OrgDocument ->
   Place ->
-  m (Endo Model)
+  m (Model -> Model)
 processRoam post place = do
   let fp = relative place
   preamble <- getKaTeXPreamble place post
@@ -62,7 +62,7 @@ processRoam post place = do
 
   let endo = queryOrgInContext processSectionsWithId postWithTags
 
-  getAp $ endo <> addToModel postWithTags Nothing
+  fmap appEndo $ getAp $ endo <> addToModel postWithTags Nothing
 
   where
     -- Walks over the document but only maps the "zero-level" elements (no nesting)
@@ -82,7 +82,7 @@ processRoam post place = do
             PlainList attrs ltype [ListItem bul con' box tag els]
     processBlock blk = zip (query processLink blk) (repeat [blk])
 
-    processLink :: OrgInline -> [RoamID]
+    processLink :: OrgObject -> [RoamID]
     processLink (Link (URILink "id" uid) _) = [RoamID uid]
     processLink _ = []
 

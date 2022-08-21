@@ -12,13 +12,10 @@ import Data.Generics.Product
 import Data.Generics.Sum
 import Routes
 import Ema (IsRoute, Asset (AssetStatic))
-import Heist (HeistState)
-import Org.Exporters.Heist (Exporter)
 import Generics.SOP qualified as SOP
 import Common (walkOrgInContext, queryOrgInContext)
 import Optics.Operators
 import Ema.Route.Generic
-import Generics.SOP hiding (Generic)
 
 type OrgID = Text
 
@@ -29,7 +26,7 @@ data AttachModel = AttachM { attachments :: Set AttachPath, attachDirs :: Map Or
   deriving (Show, Generic)
 
 data AttachPath = AttachPath OrgID Text
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
   deriving (IsRoute) via (SetRoute AttachPath)
 
 instance StringRoute AttachPath where
@@ -39,18 +36,21 @@ instance StringRoute AttachPath where
                  _ -> Nothing)
 
 newtype AttachRoute = AttachRoute AttachPath
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving anyclass (SOP.Generic, SOP.HasDatatypeInfo)
-  deriving (HasSubRoutes) via (AttachRoute `WithSubRoutes` '[AttachPath])
-  deriving (IsRoute) via (AttachRoute `WithModel` AttachModel)
-
-instance HasSubModels AttachRoute where
-  subModels m = I (attachments m) :* Nil
+  deriving
+    (HasSubRoutes, HasSubModels, IsRoute)
+    via ( GenericRoute
+            AttachRoute
+            '[ WithModel AttachModel
+             , WithSubRoutes '[AttachPath]
+             ]
+        )
 
 emptyAttachModel :: AttachModel
 emptyAttachModel = AttachM mempty mempty
 
-getAttachment :: OrgInline -> Set FilePath
+getAttachment :: OrgObject -> Set FilePath
 getAttachment (Link (URILink "attachment" att) _) = one (toString att)
 getAttachment (Image (URILink "attachment" att))  = one (toString att)
 getAttachment _ = mempty
@@ -61,7 +61,7 @@ processAttachInDoc ::
   Subtype AttachOptions options =>
   (MonadIO m, MonadReader (options, _c) m) =>
   OrgDocument ->
-  m (Endo model)
+  m (model -> model)
 processAttachInDoc doc = do
   attDir <- liftA2 (</>) (asks (mount . upcast . fst)) (asks (orgAttachDir . upcast . fst))
   docEndo <-
@@ -73,11 +73,11 @@ processAttachInDoc doc = do
       case lookupSectionProperty "id" section of
         Just uid -> Ap $ processAttachInSection attDir uid section
         Nothing -> pure mempty
-  pure $ sectionsEndo <> docEndo
+  pure . appEndo $ sectionsEndo <> docEndo
 
 processAttachInSection ::
   forall model a m.
-  Walkable OrgInline a =>
+  Walkable OrgObject a =>
   HasType AttachModel model =>
   MonadIO m =>
   FilePath ->
@@ -109,8 +109,8 @@ processAttachInSection attDir key@(toString -> rid) obj = do
 
 renderAttachment ::
   HasType AttachModel model =>
-  AttachRoute -> model -> HeistState Exporter -> Asset LByteString
-renderAttachment (AttachRoute (AttachPath rid path)) m _hs =
+  AttachRoute -> model -> Asset LByteString
+renderAttachment (AttachRoute (AttachPath rid path)) m =
   case lookup rid (attachDirs (getTyped m)) of
     Just dir -> AssetStatic (dir </> toString path)
     Nothing  -> error "This should not happen. Unknown org-attach dir."
@@ -123,7 +123,7 @@ resolveAttachLinks route = walkOrgInContext resolve
   where
     resolve _ p = maybe id resolveLink (lookup "id" p)
 
-    resolveLink :: OrgID -> OrgInline -> OrgInline
+    resolveLink :: OrgID -> OrgObject -> OrgObject
     resolveLink rid (Link (URILink "attachment" path) content) =
       Link (URILink "file" $ route (injectTyped $ AttachRoute (AttachPath rid path))) content
     resolveLink rid (Image (URILink "attachment" path)) =

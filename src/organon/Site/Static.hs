@@ -4,11 +4,10 @@
 module Site.Static (StaticRoute, Model, Options (..)) where
 
 import Ema
-import Prefix
-import Site.Static.Options
-import Ema.Route.Encoder
 import System.FilePath.Posix ((</>))
 import Routes (strPrism, StringRoute, FileRoute' (..))
+import Config (Options, mount)
+import Render (OndimOutput (OAsset))
 
 newtype Route = Route {unStaticRoute :: FilePath}
   deriving stock (Show, Eq)
@@ -16,14 +15,16 @@ newtype Route = Route {unStaticRoute :: FilePath}
 
 instance IsRoute Route where
   type RouteModel Route = Options
-  routeEncoder = prismRouteEncoder strPrism
-  allRoutes _ = [Route ""]
+  routePrism _ = toPrism_ strPrism
+  routeUniverse _ = [Route ""]
 
 instance EmaSite Route where
   type SiteArg Route = (Options, ()) -- Sorry
+  type SiteOutput Route = OndimOutput
   siteInput _ (opt,_) = pure $ pure opt
-  siteOutput _ m (Route fp) = Ema.AssetStatic $ mount m </> fp
+  siteOutput _ m (Route fp) =
+    pure $ OAsset $ const $ Ema.AssetStatic $ mount m </> fp
 
-type StaticRoute = PrefixedRoute Route
+type StaticRoute = Route
 
 type Model = Options

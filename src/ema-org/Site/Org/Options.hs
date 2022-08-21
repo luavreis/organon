@@ -8,7 +8,6 @@ import JSON
 data Options = Options
   { mount :: FilePath
   , exclude :: [FilePattern]
-  , serveAt :: FilePath
   , latexOptions :: LaTeXOptions
   , orgAttachDir :: FilePath
   }

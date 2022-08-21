@@ -9,13 +9,25 @@ import LaTeX.Types
 import Data.Aeson.KeyMap qualified as KM
 import Site.Roam.Options qualified as Roam
 import Site.Org.Options qualified as Content
-import Site.Static.Options qualified as Static
+
+newtype Options = Options
+  { mount :: FilePath
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON Options where
+  toJSON = genericToJSON customOptions
+  toEncoding = genericToEncoding customOptions
+
+instance FromJSON Options where
+  parseJSON = genericParseJSON customOptions
 
 data Config = Config
-  { static :: Static.Options
+  { static :: Options
   , zettelkasten :: Roam.Options
   , content :: Content.Options
   , templates :: FilePath
+  , layouts :: FilePath
   , cacheFile :: FilePath
   }
   deriving (Eq, Ord, Show, Generic)
@@ -48,7 +60,6 @@ defaultConfig = Config
   { zettelkasten = Roam.Options
     { Roam.orgAttachDir = "data"
     , Roam.mount = "zettel"
-    , Roam.serveAt = "zettel"
     , Roam.publicTags = ["public"]
     , Roam.privateTags = ["noexport"]
     , Roam.exclude = defExclude
@@ -57,15 +68,14 @@ defaultConfig = Config
   , content = Content.Options
     { Content.mount = "content"
     , Content.exclude = defExclude
-    , Content.serveAt = ""
     , Content.latexOptions = defLaTeXOptions
     , Content.orgAttachDir = "data"
     }
-  , static = Static.Options
-    { Static.mount = "assets"
-    , Static.serveAt = "assets"
+  , static = Options
+    { mount = "assets"
     }
   , templates = "templates"
+  , layouts = "layouts"
   , cacheFile = "site.cache"
   }
   where
