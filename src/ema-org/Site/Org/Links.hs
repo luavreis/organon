@@ -6,7 +6,7 @@ import Org.Walk
 import System.FilePath (takeExtension, (</>), normalise)
 import Control.Monad.Trans.Writer
 
-processLink :: FilePath -> OrgInline -> Writer (Set FilePath) OrgInline
+processLink :: FilePath -> OrgObject -> Writer (Set FilePath) OrgObject
 processLink dir (Link (URILink "file" (toString -> path)) contents) = do
     when (takeExtension path `notElem` [".org", ".html"]) $ -- TODO
       tell (one $ normalise $ dir </> path)

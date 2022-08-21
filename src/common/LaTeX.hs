@@ -180,10 +180,10 @@ processLaTeX plc doc = do
     wSection :: OrgSection -> m OrgSection
     wSection = mapSectionContentM wContent
 
-    wAll :: (Walkable OrgElement a, Walkable OrgInline a) => a -> m a
+    wAll :: (Walkable OrgElement a, Walkable OrgObject a) => a -> m a
     wAll = walkM wBlock >=> walkM wInline
 
-    wInline :: OrgInline -> m OrgInline
+    wInline :: OrgObject -> m OrgObject
     wInline (ExportSnippet "latex" s) =
       Image . makeDataURI <$> doProcess s
     wInline x = pure x

@@ -1,5 +1,5 @@
-cabal-version:        3.4
-name:                 abacateiro
+cabal-version:        3.8
+name:                 organon
 version:              0.1.0.0
 
 common common-options
@@ -13,16 +13,17 @@ common common-options
                     , binary
                     , bytestring
                     , containers
-                    , ema >= 0.7.1
+                    , ema >= 0.8
                     , filepath
                     , filepattern
                     , generics-sop
                     , generic-optics
-                    , heist-emanote >= 1.2.1
                     , map-syntax
                     , monad-logger
+                    , ondim
                     , optics-core
                     , org-parser
+                    , org-exporters
                     , relude
                     , transformers >= 0.5
                     , unionmount >= 0.2
@@ -66,24 +67,23 @@ library common
                       LaTeX.Types
                       OrgAttach
                       Place
-                      Prefix
                       Render
                       Routes
 
 library ema-org
   import:             common-options
-  hs-source-dirs:     src/org
+  hs-source-dirs:     src/ema-org
   visibility:         public
-  build-depends:      abacateiro:common
+  build-depends:      organon:common
   exposed-modules:    Site.Org
                       Site.Org.Options
                       Site.Org.Links
 
 library ema-roam
   import:             common-options
-  hs-source-dirs:     src/roam
+  hs-source-dirs:     src/ema-roam
   visibility:         public
-  build-depends:      abacateiro:common
+  build-depends:      organon:common
   exposed-modules:    Site.Roam
                       Site.Roam.Graph
                       Site.Roam.Model
@@ -91,17 +91,16 @@ library ema-roam
                       Site.Roam.Process
                       Site.Roam.Render
 
-executable abacateiro
+executable organon
   import:             common-options
-  hs-source-dirs:     src/abacateiro
+  hs-source-dirs:     src/organon
   main-is:            Main.hs
-  build-depends:      abacateiro:common
-                    , abacateiro:ema-org
-                    , abacateiro:ema-roam
+  build-depends:      organon:common
+                    , organon:ema-org
+                    , organon:ema-roam
   ghc-options:        -threaded
                       -j8
                       -Wall
                       -fprint-potential-instances
   other-modules:      Site.Static
-                      Site.Static.Options
                       Config

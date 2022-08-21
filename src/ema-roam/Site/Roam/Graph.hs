@@ -3,11 +3,11 @@
 module Site.Roam.Graph where
 import Site.Roam.Model
 import Data.Aeson
-import Heist (HeistState)
-import Org.Exporters.Heist (Exporter, toSplice, renderSplice)
-import Render (renderSettings)
+import Render (renderSettings, OS)
 import Org.Types (documentTitle)
 import Relude.Extra (toPairs, member)
+import Org.Exporters.Common
+import Org.Exporters.HTML (renderFragment)
 
 data Node = Node { nodeId :: RoamID, nodeName :: Text } deriving Generic
 data Link = Link { linkSource :: RoamID, linkTarget :: RoamID } deriving Generic
@@ -25,12 +25,13 @@ instance ToJSON Graph where
   toEncoding (Graph nodes links) =
     pairs ( "nodes" .= nodes <> "links" .= links )
 
-buildRoamGraph :: Model -> HeistState Exporter -> Graph
-buildRoamGraph m hs = Graph nodes links
+buildRoamGraph :: Model -> OS -> Graph
+buildRoamGraph m st = Graph nodes links
   where
-    render = decodeUtf8 . renderSplice hs renderSettings . toSplice
+    render = decodeUtf8 . fromRight "" . renderFragment renderSettings st
     pageToNode (uuid, Post page _parent) =
-      Node uuid (render (documentTitle page))
+      let e = expandOrgObjects $ documentTitle page
+      in Node uuid (render e)
     nodes = map pageToNode (toPairs $ posts m)
     backlinksToLinks (target, backlinks)
       -- Ensure target exists

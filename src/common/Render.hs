@@ -1,37 +1,46 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Render where
-import Ema
-import Heist
-import Heist.Interpreted
-import Heist.Splices (ifElseISplice)
-import Org.Exporters.Heist
+
 import Data.Generics.Product
+import Ema
+import Ondim
+import Ondim.HTML (HtmlNode)
 import Optics.Core
+import Org.Exporters.Common
+import Org.Exporters.HTML
+import Relude.Extra.Map ((!?))
+import Text.XmlHtml qualified as X
 
-ifElseSpliceWith :: Monad m => Bool -> Splices (Splice m) -> Splice m
-ifElseSpliceWith p splices = localHS (bindSplices splices) $ ifElseISplice p
+type OS = OndimS HTag HtmlNode
 
-type HeistS = Maybe (HeistState Exporter)
+type Layouts = Map Text X.Document
 
-type HSModel s = HasType HeistS s
+type OndimModel s =
+  ( HasType OS s,
+    HasType Layouts s
+  )
 
-heistOutput ::
-  (HSModel model) =>
-  (r -> Prism' FilePath r -> model -> HeistState Exporter -> Asset LByteString) ->
-  Prism' FilePath r -> model -> r -> Asset LByteString
-heistOutput f pr m r =
-  case getTyped m of
-   Just hs -> f r pr m hs
-   Nothing -> error "Heist exporter state is empty!"
+data OndimOutput
+  = OAsset (OS -> Asset LByteString)
+  | OPage Text (OS -> X.Document -> Either OndimException LByteString)
 
-renderAsset :: Splice Exporter -> HeistState Exporter -> Asset LByteString
-renderAsset s hs = AssetGenerated Html $ renderSpliceToDoc hs renderSettings s
+renderWithLayout :: OndimModel m => m -> OndimOutput -> Asset LByteString
+renderWithLayout m =
+  let layouts :: Map Text X.Document = m ^. typed
+      ostate :: OS = m ^. typed
+   in \case
+        OAsset x -> x ostate
+        OPage lname doc
+          | Just layout <- layouts !? lname ->
+              AssetGenerated Html $
+                either (error . show) id $
+                  doc ostate layout
+          | otherwise -> error $ "Could not find layout " <> lname
 
 renderSettings :: ExporterSettings
-renderSettings = defaultExporterSettings
-  { headlineLevelShift = 1
-  , orgExportHeadlineLevels = 8
-  }
+renderSettings =
+  defaultExporterSettings
+    { headlineLevelShift = 1,
+      orgExportHeadlineLevels = 8
+    }
