@@ -166,12 +166,13 @@ processLaTeX plc doc = do
     doProcess txt = do
       cache <- readTVarIO cVar
       let lcache = latexCache cache
-          ckey = (txt, absolute plc, opt)
+          preamble' = getPreamble doc
+          ckey = (preamble', txt, absolute plc, opt)
       case lookup ckey lcache of
         Just cached -> pure cached
         Nothing -> do
-          result <- renderLaTeX plc process (getPreamble doc) txt
-          atomically $ modifyTVar cVar (field' @"latexCache" %~ insert ckey result)
+          result <- renderLaTeX plc process preamble' txt
+          atomically $ modifyTVar cVar (#latexCache %~ insert ckey result)
           pure result
 
     wContent :: OrgContent -> m OrgContent

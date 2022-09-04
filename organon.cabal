@@ -10,10 +10,13 @@ common common-options
   ghc-options:       -Wall
   build-depends:      aeson >= 2.0
                     , base >= 4.16
+                    , base64 >= 0.4
+                    , binary-instances
+                    , neat-interpolation
                     , binary
                     , bytestring
                     , containers
-                    , ema >= 0.8
+                    , ema >= 0.8.2
                     , filepath
                     , filepattern
                     , generics-sop
@@ -57,9 +60,6 @@ library common
   import:             common-options
   hs-source-dirs:     src/common
   visibility:         public
-  build-depends:      base64 >= 0.4
-                    , binary-instances
-                    , neat-interpolation
   exposed-modules:    Cache
                       Common
                       JSON
@@ -95,9 +95,7 @@ executable organon
   import:             common-options
   hs-source-dirs:     src/organon
   main-is:            Main.hs
-  build-depends:      organon:common
-                    , organon:ema-org
-                    , organon:ema-roam
+  build-depends:      organon:{common, ema-org, ema-roam}
   ghc-options:        -threaded
                       -j8
                       -Wall

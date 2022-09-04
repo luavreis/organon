@@ -7,29 +7,30 @@ import Config
 import Control.Monad.Logger
 import Data.Binary (encodeFile)
 import Data.Generics.Sum (AsAny (_As))
+import Data.Map (singleton)
 import Data.Yaml qualified as Y
 import Ema
 import Ema.Route.Generic
+import Ema.Route.Lib.Extra.StaticRoute (staticRouteUrl)
+import Ema.Route.Lib.Extra.StaticRoute qualified as SR
 import Generics.SOP qualified as SOP
-import Ondim (OndimS (expansions))
-import Ondim.HTML (fromDocument)
+import Ondim
+import Ondim.Extra.Loading.HTML (loadTemplatesDynamic)
 import Optics.Core
 import Org.Exporters.HTML
 import Relude.Extra.Map
+import Render
 import Site.Org qualified as C
 import Site.Roam qualified as R
-import Site.Static qualified as S
 import System.FilePath (takeBaseName, (</>))
 import System.UnionMount as UM
 import Text.XmlHtml qualified as X
 import UnliftIO (MonadUnliftIO, catch, finally)
 import UnliftIO.Directory (setCurrentDirectory)
-import Render
-import Data.Map (singleton)
 
 data Route
   = RouteRoam R.RoamRoute
-  | RouteStatic S.StaticRoute
+  | RouteStatic (SR.StaticRoute "assets")
   | RouteContent C.ContentRoute
   deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
   deriving
@@ -38,7 +39,7 @@ data Route
             Route
             '[ WithSubRoutes
                  '[ FolderRoute "zettel" R.RoamRoute,
-                    FolderRoute "assets" S.StaticRoute,
+                    FolderRoute "assets" (SR.StaticRoute "assets"),
                     C.ContentRoute
                   ],
                WithModel Model
@@ -47,7 +48,7 @@ data Route
 
 data Model = Model
   { roamM :: R.Model,
-    staticM :: S.Model,
+    staticM :: SR.Model,
     contentM :: C.Model,
     ondimS :: OS,
     layouts :: Layouts
@@ -58,7 +59,7 @@ instance EmaSite Route where
   type SiteArg Route = (Config, TVar Cache)
   siteInput act (cfg, cVar) = do
     dR <- siteInput @R.RoamRoute act (zettelkasten cfg, cVar)
-    dS <- siteInput @S.StaticRoute act (static cfg, ())
+    dS <- siteInput @(SR.StaticRoute "assets") act ()
     dC <- siteInput @C.ContentRoute act (content cfg, cVar)
     dO <- ondimDynamic (templates cfg)
     dL <- layoutDynamic (Config.layouts cfg)
@@ -66,8 +67,8 @@ instance EmaSite Route where
     where
       layoutDynamic :: (MonadUnliftIO m, MonadLogger m) => FilePath -> m (Dynamic m Layouts)
       layoutDynamic dir = do
-        Dynamic <$>
-          UM.mount dir [((), "**/*.html")] [] mempty \() fp _fa ->
+        Dynamic
+          <$> UM.mount dir [((), "**/*.html")] [] mempty \() fp _fa ->
             X.parseHTML fp <$> readFileBS (dir </> fp) >>= \case
               Left e -> logErrorNS "Template Loading" (toText e) >> liftIO (fail e)
               Right tpl -> do
@@ -75,19 +76,47 @@ instance EmaSite Route where
                 pure $ (singleton name tpl <>)
       ondimDynamic :: (MonadUnliftIO m, MonadLogger m) => FilePath -> m (Dynamic m OS)
       ondimDynamic dir = do
-        s0 <- liftIO $ loadTemplates =<< htmlTemplateDir
-        Dynamic <$> UM.mount dir [((), "**/*.tpl")] [] s0 \_tag fp _fa ->
-          X.parseHTML fp <$> readFileBS (dir </> fp) >>= \case
-            Left e -> logErrorNS "Template Loading" (toText e) >> liftIO (fail e)
-            Right tpl -> do
-              let name = fromString $ takeBaseName fp
-                  expansion = fromDocument tpl
-              pure $ \s -> s {expansions = insert name expansion (expansions s)}
-  siteOutput rp model =
-    fmap (renderWithLayout model) . \case
-      RouteRoam r -> siteOutput (rp % _As @"RouteRoam") (roamM model) r
-      RouteContent r -> siteOutput (rp % _As @"RouteContent") (contentM model) r
+        ddir <- liftIO htmlTemplateDir
+        Dynamic <$> loadTemplatesDynamic [dir, ddir]
+  siteOutput rp model route =
+    case route of
+      RouteRoam r -> ondimOutput (rp % _As @R.RoamRoute) roamM r
+      RouteContent r -> ondimOutput (rp % _As @C.ContentRoute) contentM r
       RouteStatic r -> siteOutput (rp % _As @"RouteStatic") (staticM model) r
+    where
+      ondimOutput ::
+        (MonadLoggerIO m, SiteOutput r ~ OndimOutput, EmaSite r) =>
+        Prism' FilePath r ->
+        (Model -> RouteModel r) ->
+        r ->
+        m (SiteOutput Route)
+      ondimOutput p s r =
+        liftIO . renderWithLayout =<< siteOutput p (s model) r
+
+      renderWithLayout = \case
+        OAsset x -> x ostate
+        OPage lname doc
+          | Just layout <- (model ^. #layouts) !? lname ->
+              AssetGenerated Html
+                . either (error . show) id
+                <$> doc ostate layout
+          | otherwise -> error $ "Could not find layout " <> lname
+        where
+          files = keys $ model ^. #staticM ^. #modelFiles
+          encExps =
+            files <&> \file ->
+              ( "asset:" <> toText file,
+                pure $
+                  staticRouteUrl
+                    (rp % _As @"RouteStatic")
+                    (model ^. #staticM)
+                    file
+              )
+          extraTextExps = ("page:url", pure $ routeUrl rp route) : encExps
+          ostate :: OS =
+            model ^. #ondimS
+              & lensVL ondimGState
+                %~ (#textExpansions %~ (fromList extraTextExps <>))
 
 main :: IO ()
 main = do

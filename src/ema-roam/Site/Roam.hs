@@ -44,6 +44,6 @@ instance EmaSite Route where
     Route_Index -> renderIndex rp m
     Route_Graph -> OAsset $ renderGraph m
     Route_Post uid -> renderPost uid rp m
-    Route_Attach path -> OAsset $ pure $ renderAttachment path m
+    Route_Attach path -> OAsset $ const $ pure $ renderAttachment path m
 
 type RoamRoute = Route
