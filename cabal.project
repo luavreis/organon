@@ -2,7 +2,11 @@ packages: .
           /home/lucas/dados/projetos/codigo/haskell/org-hs/org-parser/
           /home/lucas/dados/projetos/codigo/haskell/org-hs/org-exporters/
           /home/lucas/dados/projetos/codigo/haskell/ondim/
+          /home/lucas/dados/projetos/codigo/haskell/ema/
 optimization: 1
+
+package org-exporters
+  flags: +engrave-faces
 
 -- source-repository-package
 --     type: git

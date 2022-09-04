@@ -23,7 +23,7 @@ instance EmaSite Route where
   type SiteOutput Route = OndimOutput
   siteInput _ (opt,_) = pure $ pure opt
   siteOutput _ m (Route fp) =
-    pure $ OAsset $ const $ Ema.AssetStatic $ mount m </> fp
+    pure $ OAsset $ const $ pure $ Ema.AssetStatic $ mount m </> fp
 
 type StaticRoute = Route
 

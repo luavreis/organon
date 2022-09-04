@@ -5,7 +5,7 @@ import JSON
 import Data.Binary (Binary)
 import Data.Binary.Instances.UnorderedContainers ()
 
-type LaTeXCache = HashMap (Text, FilePath, LaTeXOptions) (Text, ByteString)
+type LaTeXCache = HashMap (Text, Text, FilePath, LaTeXOptions) (Text, ByteString)
 
 data MathLaTeXProcess = MathLaTeXProcess
   { preamble :: Text

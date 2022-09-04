@@ -2,41 +2,23 @@
 
 module Render where
 
-import Data.Generics.Product
 import Ema
 import Ondim
-import Ondim.HTML (HtmlNode)
-import Optics.Core
 import Org.Exporters.Common
 import Org.Exporters.HTML
-import Relude.Extra.Map ((!?))
+import Org.Exporters.Extras.EngraveFaces
 import Text.XmlHtml qualified as X
 
-type OS = OndimS HTag HtmlNode
+type OS = OndimMS (HTag IO)
 
 type Layouts = Map Text X.Document
 
-type OndimModel s =
-  ( HasType OS s,
-    HasType Layouts s
-  )
-
 data OndimOutput
-  = OAsset (OS -> Asset LByteString)
-  | OPage Text (OS -> X.Document -> Either OndimException LByteString)
+  = OAsset (OS -> IO (Asset LByteString))
+  | OPage Text (OS -> X.Document -> IO (Either OndimException LByteString))
 
-renderWithLayout :: OndimModel m => m -> OndimOutput -> Asset LByteString
-renderWithLayout m =
-  let layouts :: Map Text X.Document = m ^. typed
-      ostate :: OS = m ^. typed
-   in \case
-        OAsset x -> x ostate
-        OPage lname doc
-          | Just layout <- layouts !? lname ->
-              AssetGenerated Html $
-                either (error . show) id $
-                  doc ostate layout
-          | otherwise -> error $ "Could not find layout " <> lname
+backend :: HtmlBackend IO
+backend = defHtmlBackend { srcPretty = engraveSrcLinesHtml }
 
 renderSettings :: ExporterSettings
 renderSettings =

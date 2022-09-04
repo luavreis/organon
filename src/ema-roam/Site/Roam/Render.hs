@@ -21,7 +21,7 @@ import Site.Roam.Model
 
 resolveLink :: (Route -> Text) -> RoamID -> OrgObject -> OrgObject
 resolveLink route _ (Link (URILink "id" rid) content) =
-  Link (URILink "http" $ route (Route_Post $ RoamID rid)) content
+  Link (UnresolvedLink $ route (Route_Post $ RoamID rid)) content
 resolveLink _ _ x = x
 
 resolveLinksInDoc :: (Route -> Text) -> OrgDocument -> OrgDocument
@@ -33,7 +33,7 @@ renderPost :: RoamID -> Prism' FilePath Route -> Model -> OndimOutput
 renderPost rid rp m =
   OPage "roam-post" \st ly ->
     render renderSettings st $
-      liftDocument doc' ly
+      liftDocument backend doc' ly
         `binding` do
           "roam:tags" ## \inner ->
             join <$> forM (view docTag post) \tag ->
@@ -50,10 +50,10 @@ renderPost rid rp m =
                       `bindingText` do
                         "backlink:route" ## pure $ router (Route_Post $ backlinkID bl)
                       `binding` do
-                        "backlink:title" ## const $ expandOrgObjects (backlinkTitle bl)
+                        "backlink:title" ## const $ expandOrgObjects backend (backlinkTitle bl)
                         "backlink:excerpt" ## const $
                           clearAttrs
-                            <$> expandOrgElements (postProcessBl (backlinkID bl) $ backlinkExcerpt bl)
+                            <$> expandOrgElements backend (postProcessBl (backlinkID bl) $ backlinkExcerpt bl)
   where
     router = routeUrl rp
 
@@ -81,9 +81,9 @@ renderIndex rp m =
           join <$> forM (assocs $ posts m) \(rid, post) ->
             children @HtmlNode inner
               `binding` do
-                "post:title" ## const $ expandOrgObjects (documentTitle (doc post))
+                "post:title" ## const $ expandOrgObjects backend (documentTitle (doc post))
               `bindingText` do
                 "post:link" ## pure (routeUrl rp $ Route_Post rid)
 
-renderGraph :: Model -> OS -> Asset LByteString
-renderGraph m = AssetGenerated Other . encode . buildRoamGraph m
+renderGraph :: Model -> OS -> IO (Asset LByteString)
+renderGraph m = fmap (AssetGenerated Other . encode) . buildRoamGraph m

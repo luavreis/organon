@@ -3,7 +3,7 @@
 module Site.Roam.Graph where
 import Site.Roam.Model
 import Data.Aeson
-import Render (renderSettings, OS)
+import Render (renderSettings, OS, backend)
 import Org.Types (documentTitle)
 import Relude.Extra (toPairs, member)
 import Org.Exporters.Common
@@ -25,14 +25,14 @@ instance ToJSON Graph where
   toEncoding (Graph nodes links) =
     pairs ( "nodes" .= nodes <> "links" .= links )
 
-buildRoamGraph :: Model -> OS -> Graph
-buildRoamGraph m st = Graph nodes links
+buildRoamGraph :: Model -> OS -> IO Graph
+buildRoamGraph m st = Graph <$> nodes ?? links
   where
-    render = decodeUtf8 . fromRight "" . renderFragment renderSettings st
+    render = fmap (decodeUtf8 . fromRight "") . renderFragment renderSettings st
     pageToNode (uuid, Post page _parent) =
-      let e = expandOrgObjects $ documentTitle page
-      in Node uuid (render e)
-    nodes = map pageToNode (toPairs $ posts m)
+      let e = expandOrgObjects backend $ documentTitle page
+      in Node uuid <$> render e
+    nodes = mapM pageToNode (toPairs $ posts m)
     backlinksToLinks (target, backlinks)
       -- Ensure target exists
       | target `member` posts m =

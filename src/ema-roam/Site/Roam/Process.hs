@@ -80,6 +80,7 @@ processRoam post place = do
           con' <- gets Just
           pure . zip (query processLink els) . repeat . one $
             PlainList attrs ltype [ListItem bul con' box tag els]
+    processBlock (GreaterBlock _ _ els) = query processBlock els
     processBlock blk = zip (query processLink blk) (repeat [blk])
 
     processLink :: OrgObject -> [RoamID]

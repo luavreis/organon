@@ -11,6 +11,7 @@ import Ema.Route.Generic
 import Generics.SOP qualified as SOP
 import LaTeX
 import Optics.Core
+import Org.Exporters.HTML (renderDoc)
 import Org.Parser
 import Org.Types
 import OrgAttach
@@ -24,7 +25,6 @@ import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
 import Text.XmlHtml qualified as X
 import UnliftIO.Concurrent (threadDelay)
-import Org.Exporters.HTML (renderDoc)
 
 data Model = Model
   { mount :: FilePath,
@@ -68,8 +68,9 @@ instance EmaSite Route where
   type SiteArg Route = (Options, TVar Cache)
   type SiteOutput Route = OndimOutput
   siteInput _ arg@(opt, _) =
-    Dynamic <$> UM.mount source include exclude' model0 handler
+    Dynamic <$> UM.mount source include exclude' m0 handler
     where
+      m0 = model0 {Site.Org.mount = opt ^. #mount}
       source = opt ^. #mount
       include = [((), "**/*.org")]
       exclude' = exclude opt
@@ -96,12 +97,16 @@ instance EmaSite Route where
   siteOutput enc m =
     pure . \case
       Attch att ->
-        OAsset $ pure $ renderAttachment att m
+        OAsset $ pure $ pure $ renderAttachment att m
       File (FileRoute' fp) ->
-        OAsset $ pure $ AssetStatic (m ^. #mount </> fp)
+        OAsset $ pure $ pure $ AssetStatic (m ^. #mount </> fp)
       Doc key ->
         OPage "content" $ \st doc ->
-          renderDoc renderSettings st doc
+          renderDoc
+            backend
+            renderSettings
+            st
+            doc
             (resolveAttachLinks (routeUrl enc) $ (m ^. #docs) ! key)
 
 type ContentRoute = Route

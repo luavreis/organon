@@ -22,7 +22,17 @@ data Route
   deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
   deriving
     (HasSubRoutes, HasSubModels, IsRoute)
-    via (GenericRoute Route '[WithModel Model])
+    via ( GenericRoute
+            Route
+            '[ WithModel Model,
+               WithSubRoutes
+                 '[ FolderRoute "post" RoamID,
+                    FolderRoute "attach" AttachRoute,
+                    FileRoute "graph.json",
+                    FileRoute "index.html"
+                  ]
+             ]
+        )
 
 data Model = Model
   { posts :: Map RoamID Post,
