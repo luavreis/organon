@@ -7,8 +7,7 @@ import Data.Map (singleton)
 import JSON
 import LaTeX.Types
 import Data.Aeson.KeyMap qualified as KM
-import Site.Roam.Options qualified as Roam
-import Site.Org.Options qualified as Content
+import Site.Roam.Options qualified as Org
 
 newtype Options = Options
   { mount :: FilePath
@@ -24,8 +23,7 @@ instance FromJSON Options where
 
 data Config = Config
   { static :: Options
-  , zettelkasten :: Roam.Options
-  , content :: Content.Options
+  , zettelkasten :: Org.Options
   , templates :: FilePath
   , layouts :: FilePath
   , cacheFile :: FilePath
@@ -57,19 +55,13 @@ adjustConfig (toJSON -> v1) v2 =
 
 defaultConfig :: Config
 defaultConfig = Config
-  { zettelkasten = Roam.Options
-    { Roam.orgAttachDir = "data"
-    , Roam.mount = "zettel"
-    , Roam.publicTags = ["public"]
-    , Roam.privateTags = ["noexport"]
-    , Roam.exclude = defExclude
-    , Roam.latexOptions = defLaTeXOptions
-    }
-  , content = Content.Options
-    { Content.mount = "content"
-    , Content.exclude = defExclude
-    , Content.latexOptions = defLaTeXOptions
-    , Content.orgAttachDir = "data"
+  { zettelkasten = Org.Options
+    { Org.orgAttachDir = "data"
+    , Org.mount = ["", "zettel"]
+    , Org.publicTags = ["public"]
+    , Org.privateTags = ["noexport"]
+    , Org.exclude = defExclude
+    , Org.latexOptions = defLaTeXOptions
     }
   , static = Options
     { mount = "assets"

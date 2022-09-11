@@ -20,8 +20,7 @@ import Optics.Core
 import Org.Exporters.HTML
 import Relude.Extra.Map
 import Render
-import Site.Org qualified as C
-import Site.Roam qualified as R
+import Site.Roam qualified as O
 import System.FilePath (takeBaseName, (</>))
 import System.UnionMount as UM
 import Text.XmlHtml qualified as X
@@ -29,27 +28,24 @@ import UnliftIO (MonadUnliftIO, catch, finally)
 import UnliftIO.Directory (setCurrentDirectory)
 
 data Route
-  = RouteRoam R.RoamRoute
-  | RouteStatic (SR.StaticRoute "assets")
-  | RouteContent C.ContentRoute
+  = RouteStatic (SR.StaticRoute "assets")
+  | RouteContent O.Route
   deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
   deriving
     (HasSubRoutes, HasSubModels, IsRoute)
     via ( GenericRoute
             Route
             '[ WithSubRoutes
-                 '[ FolderRoute "zettel" R.RoamRoute,
-                    FolderRoute "assets" (SR.StaticRoute "assets"),
-                    C.ContentRoute
+                 '[ FolderRoute "assets" (SR.StaticRoute "assets"),
+                    O.Route
                   ],
                WithModel Model
              ]
         )
 
 data Model = Model
-  { roamM :: R.Model,
+  { roamM :: O.Model,
     staticM :: SR.Model,
-    contentM :: C.Model,
     ondimS :: OS,
     layouts :: Layouts
   }
@@ -58,12 +54,11 @@ data Model = Model
 instance EmaSite Route where
   type SiteArg Route = (Config, TVar Cache)
   siteInput act (cfg, cVar) = do
-    dR <- siteInput @R.RoamRoute act (zettelkasten cfg, cVar)
+    dR <- siteInput @O.Route act (zettelkasten cfg, cVar)
     dS <- siteInput @(SR.StaticRoute "assets") act ()
-    dC <- siteInput @C.ContentRoute act (content cfg, cVar)
     dO <- ondimDynamic (templates cfg)
     dL <- layoutDynamic (Config.layouts cfg)
-    pure $ Model <$> dR <*> dS <*> dC <*> dO <*> dL
+    pure $ Model <$> dR <*> dS <*> dO <*> dL
     where
       layoutDynamic :: (MonadUnliftIO m, MonadLogger m) => FilePath -> m (Dynamic m Layouts)
       layoutDynamic dir = do
@@ -80,8 +75,7 @@ instance EmaSite Route where
         Dynamic <$> loadTemplatesDynamic [dir, ddir]
   siteOutput rp model route =
     case route of
-      RouteRoam r -> ondimOutput (rp % _As @R.RoamRoute) roamM r
-      RouteContent r -> ondimOutput (rp % _As @C.ContentRoute) contentM r
+      RouteContent r -> ondimOutput (rp % _As @O.Route) roamM r
       RouteStatic r -> siteOutput (rp % _As @"RouteStatic") (staticM model) r
     where
       ondimOutput ::
@@ -122,7 +116,7 @@ main :: IO ()
 main = do
   setCurrentDirectory "/home/lucas/dados/projetos/sites/gatil"
   cfg <-
-    Y.decodeFileThrow "abacate.yaml"
+    loadConfigWithDefault "abacate.yaml"
       `catch` (error . toText . Y.prettyPrintParseException)
   cVar <- newTVarIO cache0
   let cFile = cacheFile cfg

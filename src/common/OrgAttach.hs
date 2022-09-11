@@ -1,28 +1,27 @@
 {-# LANGUAGE UndecidableInstances #-}
--- |
-
 module OrgAttach where
-import Org.Types
-import Org.Walk
-import UnliftIO.Directory (doesDirectoryExist)
-import System.FilePath ((</>), splitDirectories)
-import Relude.Extra (insert, lookup)
-import Data.Set qualified as Set
+
+import Common (queryOrgInContext, walkOrgInContext)
 import Data.Generics.Product
 import Data.Generics.Sum
-import Routes
-import Ema (IsRoute, Asset (AssetStatic))
-import Generics.SOP qualified as SOP
-import Common (walkOrgInContext, queryOrgInContext)
-import Optics.Operators
+import Data.Set qualified as Set
+import Ema (Asset (AssetStatic), IsRoute)
 import Ema.Route.Generic
+import Generics.SOP qualified as SOP
+import Optics.Operators
+import Org.Types
+import Org.Walk
+import Relude.Extra (insert, lookup)
+import Routes
+import System.FilePath (splitDirectories, (</>))
+import UnliftIO.Directory (doesDirectoryExist)
 
 type OrgID = Text
 
-data AttachOptions = AttachO { mount :: FilePath, orgAttachDir :: FilePath }
+data AttachOptions = AttachO {mount :: FilePath, orgAttachDir :: FilePath}
   deriving (Generic)
 
-data AttachModel = AttachM { attachments :: Set AttachPath, attachDirs :: Map OrgID FilePath }
+data AttachModel = AttachM {attachments :: Set AttachPath, attachDirs :: Map OrgID FilePath}
   deriving (Show, Generic)
 
 data AttachPath = AttachPath OrgID Text
@@ -30,10 +29,12 @@ data AttachPath = AttachPath OrgID Text
   deriving (IsRoute) via (SetRoute AttachPath)
 
 instance StringRoute AttachPath where
-  strPrism' = (\(AttachPath rid txt) -> toString rid </> toString txt,
-               \case
-                 (splitDirectories -> [fromString -> rid, fromString -> txt]) -> Just $ AttachPath rid txt
-                 _ -> Nothing)
+  strRoutePrism' =
+    ( \(AttachPath rid txt) -> toString rid </> toString txt,
+      \case
+        (splitDirectories -> [fromString -> rid, fromString -> txt]) -> Just $ AttachPath rid txt
+        _ -> Nothing
+    )
 
 newtype AttachRoute = AttachRoute AttachPath
   deriving stock (Eq, Show, Generic)
@@ -42,8 +43,8 @@ newtype AttachRoute = AttachRoute AttachPath
     (HasSubRoutes, HasSubModels, IsRoute)
     via ( GenericRoute
             AttachRoute
-            '[ WithModel AttachModel
-             , WithSubRoutes '[AttachPath]
+            '[ WithModel AttachModel,
+               WithSubRoutes '[AttachPath]
              ]
         )
 
@@ -52,7 +53,7 @@ emptyAttachModel = AttachM mempty mempty
 
 getAttachment :: OrgObject -> Set FilePath
 getAttachment (Link (URILink "attachment" att) _) = one (toString att)
-getAttachment (Image (URILink "attachment" att))  = one (toString att)
+getAttachment (Image (URILink "attachment" att)) = one (toString att)
 getAttachment _ = mempty
 
 processAttachInDoc ::
@@ -69,10 +70,11 @@ processAttachInDoc doc = do
       Just uid -> processAttachInSection @model attDir uid doc
       Nothing -> pure mempty
   sectionsEndo <-
-    getAp $ flip queryOrgInContext doc $ \ _ _ section ->
-      case lookupSectionProperty "id" section of
-        Just uid -> Ap $ processAttachInSection attDir uid section
-        Nothing -> pure mempty
+    getAp $
+      flip queryOrgInContext doc $ \_ _ section ->
+        case lookupSectionProperty "id" section of
+          Just uid -> Ap $ processAttachInSection attDir uid section
+          Nothing -> pure mempty
   pure . appEndo $ sectionsEndo <> docEndo
 
 processAttachInSection ::
@@ -85,18 +87,22 @@ processAttachInSection ::
   a ->
   m (Endo model)
 processAttachInSection attDir key@(toString -> rid) obj = do
-
-  let possibleDirs = map (attDir </>) [ orgAttachIdTSFolderFormat
-                                      , orgAttachIdUUIDFolderFormat
-                                      , rid ]
+  let possibleDirs =
+        map
+          (attDir </>)
+          [ orgAttachIdTSFolderFormat,
+            orgAttachIdUUIDFolderFormat,
+            rid
+          ]
 
   findM doesDirectoryExist possibleDirs >>= \case
     Just dir ->
       pure $ Endo \m ->
         let m' = getTyped @AttachModel m
-            m'' = m' & field' @"attachDirs" %~ insert key dir
-                     & field' @"attachments" %~ Set.union atts
-        in setTyped m'' m
+            m'' =
+              m' & field' @"attachDirs" %~ insert key dir
+                & field' @"attachments" %~ Set.union atts
+         in setTyped m'' m
     Nothing -> pure mempty
   where
     toAttach = AttachPath key . toText
@@ -109,16 +115,20 @@ processAttachInSection attDir key@(toString -> rid) obj = do
 
 renderAttachment ::
   HasType AttachModel model =>
-  AttachRoute -> model -> Asset LByteString
+  AttachRoute ->
+  model ->
+  Asset LByteString
 renderAttachment (AttachRoute (AttachPath rid path)) m =
   case lookup rid (attachDirs (getTyped m)) of
     Just dir -> AssetStatic (dir </> toString path)
-    Nothing  -> error "This should not happen. Unknown org-attach dir."
+    Nothing -> error "This should not happen. Unknown org-attach dir."
 
 resolveAttachLinks ::
   forall route.
   AsType AttachRoute route =>
-  (route -> Text) -> OrgDocument -> OrgDocument
+  (route -> Text) ->
+  OrgDocument ->
+  OrgDocument
 resolveAttachLinks route = walkOrgInContext resolve
   where
     resolve _ p = maybe id resolveLink (lookup "id" p)

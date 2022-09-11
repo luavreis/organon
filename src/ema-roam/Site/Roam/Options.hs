@@ -6,7 +6,7 @@ import LaTeX.Types (LaTeXOptions)
 import JSON
 
 data Options = Options
-  { mount :: FilePath
+  { mount :: [FilePath]
   , exclude :: [FilePattern]
   , orgAttachDir :: FilePath
   , publicTags :: [Text]
