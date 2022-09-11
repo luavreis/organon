@@ -1,6 +1,6 @@
-module Site.Roam.Render where
+module Site.Org.Render where
 
-import Data.Aeson (encode)
+import Data.IxSet.Typed qualified as Ix
 import Data.Map.Syntax ((##))
 import Ema
 import Ondim
@@ -8,13 +8,30 @@ import Ondim.Extra
 import Ondim.HTML (HtmlNode (..))
 import Optics.Core
 import Org.Exporters.Common
-import Org.Exporters.HTML (render)
+import Org.Exporters.HTML (HTag, HtmlBackend, defHtmlBackend, render)
+import Org.Exporters.Highlighting.EngraveFaces (engraveFacesHtml)
 import Org.Types
-import Render
-import Site.Roam.Graph (buildRoamGraph)
-import Site.Roam.Model
 import Relude.Unsafe (fromJust)
-import Data.IxSet.Typed qualified as Ix
+import Site.Org.Model
+import Text.XmlHtml qualified as X
+
+type OS = OndimMS (HTag IO)
+
+type Layouts = Map Text X.Document
+
+data OndimOutput
+  = OAsset (OS -> IO (Asset LByteString))
+  | OPage Text (OS -> X.Document -> IO (Either OndimException LByteString))
+
+backend :: HtmlBackend IO
+backend = defHtmlBackend {srcPretty = engraveFacesHtml}
+
+renderSettings :: ExporterSettings
+renderSettings =
+  defaultExporterSettings
+    { headlineLevelShift = 1,
+      orgExportHeadlineLevels = 8
+    }
 
 -- resolveLink :: (Route -> Text) -> RoamID -> OrgObject -> OrgObject
 -- resolveLink route _ (Link (URILink "id" rid) content) =
@@ -68,6 +85,3 @@ renderPost identifier rp m =
         _linksTo page <&> \bl -> do
           blPage <- lookupBacklink bl (m ^. pages)
           return (blPage, _blExcerpt bl)
-
-renderGraph :: Model -> OS -> IO (Asset LByteString)
-renderGraph m = fmap (AssetGenerated Other . encode) . buildRoamGraph (m ^. pages)

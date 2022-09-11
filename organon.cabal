@@ -57,36 +57,29 @@ common common-options
                       TypeApplications
                       ViewPatterns
 
-library common
+library
   import:             common-options
-  hs-source-dirs:     src/common
+  hs-source-dirs:     src/ema-org
   visibility:         public
-  exposed-modules:    Cache
-                      Common
-                      JSON
-                      LaTeX
-                      LaTeX.Types
-                      OrgAttach
-                      Render
-                      Routes
-
-library ema-org
-  import:             common-options
-  hs-source-dirs:     src/ema-roam
-  visibility:         public
-  build-depends:      organon:common
-  exposed-modules:    Site.Roam
-                      Site.Roam.Graph
-                      Site.Roam.Model
-                      Site.Roam.Options
-                      Site.Roam.Process
-                      Site.Roam.Render
+  exposed-modules:    Site.Org
+                      Site.Org.Graph
+                      Site.Org.Model
+                      Site.Org.Options
+                      Site.Org.Process
+                      Site.Org.Render
+                      Site.Org.Cache
+                      Site.Org.Common
+                      Site.Org.JSON
+                      Site.Org.LaTeX
+                      Site.Org.LaTeX.Types
+                      Site.Org.OrgAttach
+                      Site.Org.Routes
 
 executable organon
   import:             common-options
   hs-source-dirs:     src/organon
   main-is:            Main.hs
-  build-depends:      organon:{common, ema-org}
+  build-depends:      organon
   ghc-options:        -threaded
                       -j8
                       -Wall

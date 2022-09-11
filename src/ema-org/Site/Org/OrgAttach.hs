@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
-module OrgAttach where
+module Site.Org.OrgAttach where
 
-import Common (queryOrgInContext, walkOrgInContext)
+import Site.Org.Common (queryOrgInContext, walkOrgInContext)
 import Data.Generics.Product
 import Data.Generics.Sum
 import Data.Set qualified as Set
@@ -12,7 +12,7 @@ import Optics.Operators
 import Org.Types
 import Org.Walk
 import Relude.Extra (insert, lookup)
-import Routes
+import Site.Org.Routes
 import System.FilePath (splitDirectories, (</>))
 import UnliftIO.Directory (doesDirectoryExist)
 

@@ -1,112 +1,57 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
-module Site.Org (ContentRoute, Model (..), Options (..)) where
+module Site.Org (Route, Model (..)) where
 
-import Cache (Cache)
-import Data.Map (delete, insert, (!))
-import Data.Set qualified as Set (map)
+import Site.Org.Cache (Cache)
+import Data.IxSet.Typed qualified as Ix
 import Ema
-import Ema.Route.Generic
-import Generics.SOP qualified as SOP
-import LaTeX
-import Optics.Core
-import Org.Exporters.HTML (renderDoc)
-import Org.Parser
-import Org.Types
-import OrgAttach
-import Place
-import Render
-import Routes qualified as R
-import Site.Org.Links
-import Site.Org.Options
-import System.FilePath (dropExtension, takeDirectory, (</>))
+import Site.Org.LaTeX (processKaTeX, processLaTeX)
+import Optics.Operators
+import Org.Parser (defaultOrgOptions, parseOrgIO)
+import Site.Org.OrgAttach (renderAttachment)
+import Relude.Extra (minimumOn1, toPairs)
+import Site.Org.Render (OndimOutput (OAsset))
+import Site.Org.Model
+import Site.Org.Options (latexOptions)
+import Site.Org.Options qualified as O
+import Site.Org.Process
+import Site.Org.Render (renderPost)
+import System.FilePath ((</>))
 import System.UnionMount (FileAction (..))
 import System.UnionMount qualified as UM
-import Text.XmlHtml qualified as X
-import UnliftIO.Concurrent (threadDelay)
-
-data Model = Model
-  { mount :: FilePath,
-    serveAt :: FilePath,
-    docs :: Map DocRoute OrgDocument,
-    files :: Set FileRoute',
-    attachments :: AttachModel,
-    layouts :: Map Text X.Document
-  }
-  deriving (Generic)
-
-model0 :: Model
-model0 = Model "" mempty mempty mempty emptyAttachModel mempty
-
-newtype DocRoute = DocRoute Text
-  deriving (Eq, Ord, Show)
-  deriving (R.StringRoute) via (R.HtmlRoute Text)
-  deriving (IsRoute) via (R.MapRoute DocRoute OrgDocument)
-  deriving newtype (IsString)
-
-newtype FileRoute' = FileRoute' FilePath
-  deriving (Eq, Ord, Show)
-  deriving (R.StringRoute) via (R.FileRoute' String)
-  deriving (IsRoute) via (R.SetRoute FileRoute')
-
-data Route
-  = Doc DocRoute
-  | File FileRoute'
-  | Attch AttachRoute
-  deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
-  deriving
-    (HasSubRoutes, HasSubModels, IsRoute)
-    via ( GenericRoute
-            Route
-            '[ WithSubRoutes '[DocRoute, FileRoute', AttachRoute],
-               WithModel Model
-             ]
-        )
+import Site.Org.Graph (renderGraph)
 
 instance EmaSite Route where
-  type SiteArg Route = (Options, TVar Cache)
+  type SiteArg Route = (O.Options, TVar Cache)
   type SiteOutput Route = OndimOutput
-  siteInput _ arg@(opt, _) =
-    Dynamic <$> UM.mount source include exclude' m0 handler
+  siteInput _ (opt, cache) =
+    Dynamic
+      <$> UM.unionMount sources include exclude model0 \chg ->
+        appEndo . mconcat . coerce . join
+          <$> forM (toPairs chg) \((), chg') ->
+            forM (toPairs chg') \(file, fa) ->
+              let deleteAll m =
+                    let matching = m Ix.@= fromRawPath file
+                     in foldr Ix.delete m matching
+               in case fa of
+                    Refresh _ ls -> do
+                      let source = snd $ minimumOn1 fst (fst <$> ls)
+                          absfp = source </> file
+                      doc <-
+                        parseOrgIO defaultOrgOptions absfp
+                          >>= processLaTeX (latexOptions opt) cache absfp
+                          >>= processKaTeX absfp
+                      -- >>= processAttachInDoc TODO
+                      newPages <- loadOrgFile opt source file doc
+                      pure $ pages %~ Ix.insertList newPages . deleteAll
+                    Delete -> pure $ #_mPages %~ deleteAll
     where
-      m0 = model0 {Site.Org.mount = opt ^. #mount}
-      source = opt ^. #mount
+      sources = fromList (zip (zip [(1 :: Int) ..] (O.mount opt)) (O.mount opt))
       include = [((), "**/*.org")]
-      exclude' = exclude opt
-      run x = runReaderT x arg
-      handler () fp =
-        let place = Place fp source
-            key = fromString $ dropExtension fp
-         in \case
-              Refresh _ () -> do
-                threadDelay 200
-                run do
-                  orgdoc <-
-                    parseOrgIO defaultOrgOptions (source </> fp)
-                      >>= processLaTeX place
-                      >>= putKaTeXPreamble place
-                  let (orgdoc', files') = processLinks (takeDirectory fp) orgdoc
-                  att <- processAttachInDoc orgdoc'
-                  pure $
-                    over #docs (insert key orgdoc')
-                      . over #files (Set.map FileRoute' files' <>)
-                      . att
-              Delete -> pure $ over #docs (delete key)
+      exclude = O.exclude opt
 
-  siteOutput enc m =
+  siteOutput rp m =
     pure . \case
-      Attch att ->
-        OAsset $ pure $ pure $ renderAttachment att m
-      File (FileRoute' fp) ->
-        OAsset $ pure $ pure $ AssetStatic (m ^. #mount </> fp)
-      Doc key ->
-        OPage "content" $ \st doc ->
-          renderDoc
-            backend
-            renderSettings
-            st
-            doc
-            (resolveAttachLinks (routeUrl enc) $ (m ^. #docs) ! key)
-
-type ContentRoute = Route
+      Route_Graph -> OAsset $ renderGraph m
+      Route_Page identifier -> renderPost identifier rp m
+      Route_Attach path -> OAsset $ const $ pure $ renderAttachment path m

@@ -4,26 +4,13 @@
 module Config where
 import Data.Yaml as Y
 import Data.Map (singleton)
-import JSON
-import LaTeX.Types
+import Site.Org.JSON
+import Site.Org.LaTeX.Types
 import Data.Aeson.KeyMap qualified as KM
-import Site.Roam.Options qualified as Org
-
-newtype Options = Options
-  { mount :: FilePath
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-instance ToJSON Options where
-  toJSON = genericToJSON customOptions
-  toEncoding = genericToEncoding customOptions
-
-instance FromJSON Options where
-  parseJSON = genericParseJSON customOptions
+import Site.Org.Options qualified as Org
 
 data Config = Config
-  { static :: Options
-  , zettelkasten :: Org.Options
+  { orgFiles :: Org.Options
   , templates :: FilePath
   , layouts :: FilePath
   , cacheFile :: FilePath
@@ -55,16 +42,13 @@ adjustConfig (toJSON -> v1) v2 =
 
 defaultConfig :: Config
 defaultConfig = Config
-  { zettelkasten = Org.Options
+  { orgFiles = Org.Options
     { Org.orgAttachDir = "data"
     , Org.mount = ["", "zettel"]
     , Org.publicTags = ["public"]
     , Org.privateTags = ["noexport"]
     , Org.exclude = defExclude
     , Org.latexOptions = defLaTeXOptions
-    }
-  , static = Options
-    { mount = "assets"
     }
   , templates = "templates"
   , layouts = "layouts"

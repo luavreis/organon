@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 -- | General instances to be used with deriving via.
-module Routes where
+module Site.Org.Routes where
 import Ema
 import Data.Map (keys, keysSet)
 import Data.Set (member)
