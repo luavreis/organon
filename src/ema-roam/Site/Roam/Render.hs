@@ -1,8 +1,6 @@
 module Site.Roam.Render where
 
-import Common
 import Data.Aeson (encode)
-import Data.Map (assocs, (!))
 import Data.Map.Syntax ((##))
 import Ema
 import Ondim
@@ -12,31 +10,30 @@ import Optics.Core
 import Org.Exporters.Common
 import Org.Exporters.HTML (render)
 import Org.Types
-import Org.Walk
-import OrgAttach
-import Relude.Extra (lookup)
 import Render
 import Site.Roam.Graph (buildRoamGraph)
 import Site.Roam.Model
+import Relude.Unsafe (fromJust)
+import Data.IxSet.Typed qualified as Ix
 
-resolveLink :: (Route -> Text) -> RoamID -> OrgObject -> OrgObject
-resolveLink route _ (Link (URILink "id" rid) content) =
-  Link (UnresolvedLink $ route (Route_Post $ RoamID rid)) content
-resolveLink _ _ x = x
+-- resolveLink :: (Route -> Text) -> RoamID -> OrgObject -> OrgObject
+-- resolveLink route _ (Link (URILink "id" rid) content) =
+--   Link (UnresolvedLink $ route (Route_Post $ RoamID rid)) content
+-- resolveLink _ _ x = x
 
-resolveLinksInDoc :: (Route -> Text) -> OrgDocument -> OrgDocument
-resolveLinksInDoc route = walkOrgInContext resolve
-  where
-    resolve _ p = maybe id (resolveLink route) (RoamID <$> lookup "id" p)
+-- resolveLinksInDoc :: (Route -> Text) -> OrgDocument -> OrgDocument
+-- resolveLinksInDoc route = walkOrgInContext resolve
+--   where
+--     resolve _ p = maybe id (resolveLink route) (RoamID <$> lookup "id" p)
 
-renderPost :: RoamID -> Prism' FilePath Route -> Model -> OndimOutput
-renderPost rid rp m =
+renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
+renderPost identifier rp m =
   OPage "roam-post" \st ly ->
     render renderSettings st $
-      liftDocument backend doc' ly
+      liftDocument backend (_document page) ly
         `binding` do
           "roam:tags" ## \inner ->
-            join <$> forM (view docTag post) \tag ->
+            join <$> forM (_tags page) \tag ->
               children @HtmlNode inner `bindingText` do
                 "roam:tag" ## pure tag
           "roam:backlinks" ## \inner ->
@@ -45,21 +42,19 @@ renderPost rid rp m =
                 "backlinks:number" ## pure $ show (length backlinks)
               `binding` do
                 "backlinks:entries" ## \inner' ->
-                  join <$> forM (toList backlinks) \bl ->
+                  join <$> forM (toList backlinks) \(blPage, excerpt) ->
                     children @HtmlNode inner'
                       `bindingText` do
-                        "backlink:route" ## pure $ router (Route_Post $ backlinkID bl)
+                        "backlink:route" ## pure $ router (Route_Page $ _identifier blPage)
                       `binding` do
-                        "backlink:title" ## const $ expandOrgObjects backend (backlinkTitle bl)
+                        "backlink:title" ## const $ expandOrgObjects backend (documentTitle $ _document blPage)
                         "backlink:excerpt" ## const $
                           clearAttrs
-                            <$> expandOrgElements backend (postProcessBl (backlinkID bl) $ backlinkExcerpt bl)
+                            <$> expandOrgElements backend excerpt
   where
+    page = fromJust $ Ix.getOne $ (m ^. pages) Ix.@= identifier
+
     router = routeUrl rp
-
-    doc' = resolveAttachLinks router $ resolveLinksInDoc router post
-
-    postProcessBl blId = walk (resolveLink router blId)
 
     clearAttr :: HtmlNode -> HtmlNode
     clearAttr el@Element {} = el {elementAttrs = []}
@@ -68,22 +63,11 @@ renderPost rid rp m =
     clearAttrs :: [HtmlNode] -> [HtmlNode]
     clearAttrs = map clearAttr
 
-    Post post _parent = posts m ! rid
-    backlinks = fromMaybe mempty $ lookup rid (database m)
-
-renderIndex :: Prism' FilePath Route -> Model -> OndimOutput
-renderIndex rp m =
-  OPage "roam-index" \st ly ->
-    render renderSettings st $
-      liftSubstructures ly
-      `binding` do
-        "roam:posts" ## \inner ->
-          join <$> forM (assocs $ posts m) \(rid, post) ->
-            children @HtmlNode inner
-              `binding` do
-                "post:title" ## const $ expandOrgObjects backend (documentTitle (doc post))
-              `bindingText` do
-                "post:link" ## pure (routeUrl rp $ Route_Post rid)
+    backlinks =
+      catMaybes $
+        _linksTo page <&> \bl -> do
+          blPage <- lookupBacklink bl (m ^. pages)
+          return (blPage, _blExcerpt bl)
 
 renderGraph :: Model -> OS -> IO (Asset LByteString)
-renderGraph m = fmap (AssetGenerated Other . encode) . buildRoamGraph m
+renderGraph m = fmap (AssetGenerated Other . encode) . buildRoamGraph (m ^. pages)

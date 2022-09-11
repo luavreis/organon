@@ -17,6 +17,7 @@ common common-options
                     , bytestring
                     , containers
                     , ema >= 0.8.2
+                    , ixset-typed
                     , filepath
                     , filepattern
                     , generics-sop
@@ -66,20 +67,10 @@ library common
                       LaTeX
                       LaTeX.Types
                       OrgAttach
-                      Place
                       Render
                       Routes
 
 library ema-org
-  import:             common-options
-  hs-source-dirs:     src/ema-org
-  visibility:         public
-  build-depends:      organon:common
-  exposed-modules:    Site.Org
-                      Site.Org.Options
-                      Site.Org.Links
-
-library ema-roam
   import:             common-options
   hs-source-dirs:     src/ema-roam
   visibility:         public
@@ -95,10 +86,9 @@ executable organon
   import:             common-options
   hs-source-dirs:     src/organon
   main-is:            Main.hs
-  build-depends:      organon:{common, ema-org, ema-roam}
+  build-depends:      organon:{common, ema-org}
   ghc-options:        -threaded
                       -j8
                       -Wall
                       -fprint-potential-instances
-  other-modules:      Site.Static
-                      Config
+  other-modules:      Config

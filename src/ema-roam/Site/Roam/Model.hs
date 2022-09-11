@@ -2,23 +2,22 @@
 
 module Site.Roam.Model where
 
-import Data.Map qualified as Map
-import Data.Set qualified as Set
-import Ema (IsRoute)
+import Data.IxSet.Typed qualified as Ix
+import Ema
 import Ema.Route.Generic
 import Generics.SOP qualified as SOP
 import JSON (FromJSON, ToJSON)
-import Org.Types (OrgDocument, OrgElement, OrgObject)
+import Optics.Core
+import Org.Types (OrgDocument, OrgElement)
 import OrgAttach (AttachModel, AttachRoute, emptyAttachModel)
-import Relude.Extra (delete, insert, member, (!?))
-import Routes (HtmlRoute (..), MapRoute (..), StringRoute)
 import Text.XmlHtml qualified as X
+import Ema.Route.Prism (htmlSuffixPrism)
+import System.FilePath (dropExtension)
 
 data Route
-  = Route_Post RoamID
+  = Route_Page Identifier
   | Route_Attach AttachRoute
   | Route_Graph
-  | Route_Index
   deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
   deriving
     (HasSubRoutes, HasSubModels, IsRoute)
@@ -26,80 +25,139 @@ data Route
             Route
             '[ WithModel Model,
                WithSubRoutes
-                 '[ FolderRoute "post" RoamID,
+                 '[ Identifier,
                     FolderRoute "attach" AttachRoute,
-                    FileRoute "graph.json",
-                    FileRoute "index.html"
+                    FileRoute "graph.json"
                   ]
              ]
         )
 
+type Pages = Ix.IxSet PostIxs OrgData
+
 data Model = Model
-  { posts :: Map RoamID Post,
-    database :: Database,
-    fileAssoc :: Map FilePath (Set RoamID),
-    attachments :: AttachModel,
-    layouts :: Map Text X.Document
+  { _mPages :: Pages,
+    _mFileAssoc :: Map FilePath (Set OrgID),
+    _mAttachments :: AttachModel,
+    _mLayouts :: Map Text X.Document
   }
   deriving (Generic)
 
-data Post = Post
-  { doc :: OrgDocument,
-    parent :: Maybe RoamID
-  }
-  deriving (Eq, Ord, Show)
+pages :: Lens' Model Pages
+pages = #_mPages
 
-newtype RoamID = RoamID {getID :: Text}
-  deriving stock (Eq, Ord, Show)
+data OrgData = OrgData
+  { -- | Entry identifier.
+    _identifier :: Identifier,
+    -- | Entry tags.
+    _tags :: [Text],
+    -- | Document for entry.
+    _document :: OrgDocument,
+    -- | Original level of entry, 0 means file-level.
+    _level :: Int,
+    -- | If entry has a parent, record it here.
+    _parent :: Maybe Identifier,
+    -- | Org-attach directory for this entry.
+    _attachDir :: Maybe FilePath,
+    -- | Filepaths of the static files needed by the entry, relative to identifier path.
+    _staticFiles :: [FilePath],
+    -- | Org files which are linked by this note.
+    _linksTo :: [Backlink]
+  }
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+data Identifier = Identifier {_idPath :: OrgPath, _idId :: (Maybe OrgID)}
+  deriving (Eq, Ord, Show, Typeable, Generic, ToJSON, FromJSON)
+
+instance IsRoute Identifier where
+  type RouteModel Identifier = Pages
+  routePrism m =
+    toPrism_ $ htmlSuffixPrism % prism' to' from'
+    where
+      to' id_ = either toString toString (idToEither id_)
+      from' fp =
+        let i = do
+              let ix_ :: OrgID = fromString fp
+              _identifier <$> Ix.getOne (m Ix.@= ix_)
+            f = do
+              let ix_ :: OrgPath = fromString fp
+              _identifier <$> Ix.getOne (m Ix.@= ix_)
+         in i <|> f
+  routeUniverse m = _identifier <$> toList m
+
+newtype FileSource = FileSource FilePath
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+newtype ParentID = ParentID OrgID
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+newtype ParentPath = ParentPath OrgPath
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+newtype LevelIx = LevelIx Int
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+newtype TagIx = TagIx Text
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+newtype BacklinkPath = BacklinkPath OrgPath
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+newtype BacklinkID = BacklinkID OrgID
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+-- | For indexing a Org document filepath, without its extension.
+newtype OrgPath = OrgPath FilePath
+  deriving stock (Eq, Ord, Show, Typeable, Generic)
   deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
-  deriving (StringRoute) via (HtmlRoute Text)
-  deriving (IsRoute) via (MapRoute RoamID Post)
+
+fromRawPath :: FilePath -> OrgPath
+fromRawPath = OrgPath . dropExtension
+
+newtype OrgID = OrgID {getID :: Text}
+  deriving stock (Eq, Ord, Show, Typeable)
+  deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
+
+type PostIxs =
+  '[ Identifier,
+     OrgPath,
+     OrgID,
+     ParentPath,
+     ParentID,
+     LevelIx,
+     TagIx,
+     BacklinkPath,
+     BacklinkID
+   ]
+
+instance Ix.Indexable PostIxs OrgData where
+  indices =
+    Ix.ixList
+      (Ix.ixFun $ one . _identifier)
+      (Ix.ixFun $ one . _idPath . _identifier)
+      (Ix.ixFun $ maybeToList . _idId . _identifier)
+      (Ix.ixFun $ maybeToList . fmap (coerce . _idPath) . _parent)
+      (Ix.ixFun $ maybeToList . (coerce . _idId =<<) . _parent)
+      (Ix.ixFun $ one . coerce . _level)
+      (Ix.ixFun $ coerce . _tags)
+      (Ix.ixFun $ coerce . mapMaybe (leftToMaybe . _blTarget) . _linksTo)
+      (Ix.ixFun $ coerce . mapMaybe (rightToMaybe . _blTarget) . _linksTo)
 
 data Backlink = Backlink
-  { backlinkID :: RoamID,
-    backlinkTitle :: [OrgObject],
-    backlinkExcerpt :: [OrgElement]
+  { _blTarget :: Either OrgPath OrgID,
+    _blExcerpt :: [OrgElement]
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Typeable, Generic)
 
-type Database = Map RoamID (Set Backlink)
+idToEither :: Identifier -> Either OrgPath OrgID
+idToEither = \case
+  (Identifier _ (Just i)) -> Right i
+  (Identifier path _) -> Left path
 
--- | Delete backlinks made by a set of ids from the database.
-deleteIdsFromRD :: Set RoamID -> Database -> Database
-deleteIdsFromRD ks = Map.mapMaybeWithKey delFilter
-  where
-    delFilter _mentioned mentioners =
-      -- Don't filter "mentioned" because we
-      -- need to store links to nonexisting
-      -- notes, as they may be added later
-      case Set.filter (not . (`member` ks) . backlinkID) mentioners of
-        xs
-          | Set.null xs -> Nothing
-          | otherwise -> Just xs
-
--- | Delete everything that was previously defined by a file, using information
--- from @fileAssoc@.
-deleteAllFromFile :: FilePath -> Model -> Model
-deleteAllFromFile fp m =
-  case fileAssoc m !? fp of
-    Just ids ->
-      m
-        { database = deleteIdsFromRD ids (database m),
-          posts = foldr delete (posts m) ids,
-          fileAssoc = delete fp (fileAssoc m)
-        }
-    Nothing -> m
-
-insertPost :: FilePath -> RoamID -> Post -> [(RoamID, Backlink)] -> Endo Model
-insertPost fp k v blks =
-  let filteredv = mapMaybe (\case (x, y) | x /= k -> Just (x, one y); _ -> Nothing) blks
-      mappedv = Map.fromListWith (<>) filteredv
-   in Endo \m ->
-        m
-          { posts = insert k v (posts m),
-            database = Map.unionWith Set.union mappedv (database m),
-            fileAssoc = Map.insertWith (<>) fp (one k) (fileAssoc m)
-          }
+lookupBacklink :: Backlink -> Pages -> Maybe OrgData
+lookupBacklink bl m =
+  case _blTarget bl of
+    Left path -> Ix.getOne (m Ix.@= BacklinkPath path)
+    Right id_ -> Ix.getOne (m Ix.@= BacklinkID id_)
 
 model0 :: Model
-model0 = Model mempty mempty mempty emptyAttachModel mempty
+model0 = Model mempty mempty emptyAttachModel mempty

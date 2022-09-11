@@ -8,24 +8,27 @@ import Optics.Core
 import System.FilePath (stripExtension, (<.>))
 
 class StringRoute a where
-  strPrism' :: (a -> String, String -> Maybe a)
+  strRoutePrism' :: (a -> String, String -> Maybe a)
 
-strPrism :: StringRoute s => Prism' String s
-strPrism = uncurry prism' strPrism'
+toStrPrism' :: Prism' String a -> (a -> String, String -> Maybe a)
+toStrPrism' p = (review p, preview p)
+
+strRoutePrism :: StringRoute s => Prism' String s
+strRoutePrism = uncurry prism' strRoutePrism'
 
 newtype FileRoute' a = FileRoute' a
   deriving (Eq, Ord, Show)
   deriving newtype (IsString, ToString)
 
 instance (IsString s, ToString s) => StringRoute (FileRoute' s) where
-  strPrism' = (toString, Just . fromString)
+  strRoutePrism' = (toString, Just . fromString)
 
 newtype HtmlRoute s = HtmlRoute s
   deriving (Eq, Ord, Show)
   deriving newtype (IsString, ToString)
 
 instance (IsString s, ToString s) => StringRoute (HtmlRoute s) where
-  strPrism' = ((<.> "html") . toString, fmap fromString . stripExtension "html")
+  strRoutePrism' = ((<.> "html") . toString, fmap fromString . stripExtension "html")
 
 newtype SetRoute a = SetRoute a
   deriving (Eq, Show, Generic)
@@ -34,9 +37,9 @@ newtype SetRoute a = SetRoute a
 instance (StringRoute a, Ord a, Show a) => IsRoute (SetRoute a) where
   type RouteModel (SetRoute a) = Set a
   routePrism m = toPrism_ $
-    prism' (\(SetRoute x) -> fst strPrism' x)
+    prism' (\(SetRoute x) -> fst strRoutePrism' x)
            (\fp -> do
-               x <- snd strPrism' fp
+               x <- snd strRoutePrism' fp
                guard (x `member` m) $> SetRoute x)
   routeUniverse m = SetRoute <$> toList m
 
