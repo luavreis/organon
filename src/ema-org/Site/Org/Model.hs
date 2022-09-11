@@ -1,15 +1,15 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Site.Roam.Model where
+module Site.Org.Model where
 
 import Data.IxSet.Typed qualified as Ix
 import Ema
 import Ema.Route.Generic
 import Generics.SOP qualified as SOP
-import JSON (FromJSON, ToJSON)
+import Site.Org.JSON (FromJSON, ToJSON)
 import Optics.Core
 import Org.Types (OrgDocument, OrgElement)
-import OrgAttach (AttachModel, AttachRoute, emptyAttachModel)
+import Site.Org.OrgAttach (AttachModel, AttachRoute, emptyAttachModel)
 import Text.XmlHtml qualified as X
 import Ema.Route.Prism (htmlSuffixPrism)
 import System.FilePath (dropExtension)

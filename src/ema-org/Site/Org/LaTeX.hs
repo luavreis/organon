@@ -2,9 +2,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module LaTeX where
+module Site.Org.LaTeX where
 
-import Cache
+import Site.Org.Cache
 import Control.Exception (throw)
 import Control.Monad.Logger (MonadLogger, logErrorNS)
 import Data.Bitraversable (bimapM)
@@ -13,7 +13,7 @@ import Data.HashMap.Strict qualified as HM
 import Data.Map qualified as M
 import Data.Text qualified as T
 import Data.Text.IO (hPutStr)
-import LaTeX.Types
+import Site.Org.LaTeX.Types
 import NeatInterpolation
 import Optics.Core ((%~))
 import Org.Types

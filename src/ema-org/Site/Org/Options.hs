@@ -1,15 +1,16 @@
--- |
-
 module Site.Org.Options where
+
+import Site.Org.JSON
+import Site.Org.LaTeX.Types (LaTeXOptions)
 import System.FilePattern (FilePattern)
-import LaTeX.Types (LaTeXOptions)
-import JSON
 
 data Options = Options
-  { mount :: FilePath
-  , exclude :: [FilePattern]
-  , latexOptions :: LaTeXOptions
-  , orgAttachDir :: FilePath
+  { mount :: [FilePath],
+    exclude :: [FilePattern],
+    orgAttachDir :: FilePath,
+    publicTags :: [Text],
+    privateTags :: [Text],
+    latexOptions :: LaTeXOptions
   }
   deriving (Eq, Ord, Show, Generic)
 

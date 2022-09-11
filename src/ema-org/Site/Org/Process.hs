@@ -1,14 +1,14 @@
-module Site.Roam.Process where
+module Site.Org.Process where
 
-import Common (docTag, isolateSection, queryOrgInContext)
+import Site.Org.Common (docTag, isolateSection, queryOrgInContext)
 import Control.Monad.Logger (MonadLogger)
 import Data.List (intersect)
 import Optics.Core
 import Org.Types
 import Org.Walk (Walkable (query))
 import Relude.Extra (lookup)
-import Site.Roam.Model
-import Site.Roam.Options
+import Site.Org.Model
+import Site.Org.Options
 import System.FilePath (isAbsolute, makeRelative, splitDirectories, takeDirectory, takeExtension, (</>))
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Directory (canonicalizePath)

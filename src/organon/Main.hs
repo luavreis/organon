@@ -2,7 +2,7 @@
 
 module Main where
 
-import Cache (Cache, cache0, loadCache)
+import Site.Org.Cache (Cache, cache0, loadCache)
 import Config
 import Control.Monad.Logger
 import Data.Binary (encodeFile)
@@ -19,8 +19,8 @@ import Ondim.Extra.Loading.HTML (loadTemplatesDynamic)
 import Optics.Core
 import Org.Exporters.HTML
 import Relude.Extra.Map
-import Render
-import Site.Roam qualified as O
+import Site.Org.Render
+import Site.Org qualified as O
 import System.FilePath (takeBaseName, (</>))
 import System.UnionMount as UM
 import Text.XmlHtml qualified as X
@@ -54,7 +54,7 @@ data Model = Model
 instance EmaSite Route where
   type SiteArg Route = (Config, TVar Cache)
   siteInput act (cfg, cVar) = do
-    dR <- siteInput @O.Route act (zettelkasten cfg, cVar)
+    dR <- siteInput @O.Route act (orgFiles cfg, cVar)
     dS <- siteInput @(SR.StaticRoute "assets") act ()
     dO <- ondimDynamic (templates cfg)
     dL <- layoutDynamic (Config.layouts cfg)
@@ -116,7 +116,7 @@ main :: IO ()
 main = do
   setCurrentDirectory "/home/lucas/dados/projetos/sites/gatil"
   cfg <-
-    loadConfigWithDefault "abacate.yaml"
+    loadConfigWithDefault "organon.yaml"
       `catch` (error . toText . Y.prettyPrintParseException)
   cVar <- newTVarIO cache0
   let cFile = cacheFile cfg

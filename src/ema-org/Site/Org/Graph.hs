@@ -1,11 +1,13 @@
-module Site.Roam.Graph where
+module Site.Org.Graph where
 
 import Data.Aeson
+import Ema (Asset (..), Format (..))
+import Optics.Operators ((^.))
 import Org.Exporters.Common
 import Org.Exporters.HTML (renderFragment)
 import Org.Types (documentTitle)
-import Render (OS, backend, renderSettings)
-import Site.Roam.Model
+import Site.Org.Model
+import Site.Org.Render (OS, backend, renderSettings)
 
 data Node = Node {nodeId :: Identifier, nodeName :: Text} deriving (Generic)
 
@@ -47,3 +49,6 @@ buildRoamGraph m st = Graph <$> nodes ?? links
             Link (_identifier source)
               <$> _identifier
               <$> lookupBacklink backlink m
+
+renderGraph :: Model -> OS -> IO (Asset LByteString)
+renderGraph m = fmap (AssetGenerated Other . encode) . buildRoamGraph (m ^. pages)
