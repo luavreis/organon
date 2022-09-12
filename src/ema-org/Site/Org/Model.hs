@@ -3,20 +3,21 @@
 module Site.Org.Model where
 
 import Data.IxSet.Typed qualified as Ix
+import Data.Map qualified as M
+import Data.Time
 import Ema
 import Ema.Route.Generic
+import Ema.Route.Prism (htmlSuffixPrism)
 import Generics.SOP qualified as SOP
-import Site.Org.JSON (FromJSON, ToJSON)
 import Optics.Core
 import Org.Types (OrgDocument, OrgElement)
-import Site.Org.OrgAttach (AttachModel, AttachRoute, emptyAttachModel)
-import Text.XmlHtml qualified as X
-import Ema.Route.Prism (htmlSuffixPrism)
-import System.FilePath (dropExtension)
+import Site.Org.JSON (FromJSON, ToJSON)
+import System.FilePath (dropExtension, makeRelative, (</>))
+import qualified Data.Set as Set
 
 data Route
   = Route_Page Identifier
-  | Route_Attach AttachRoute
+  | Route_Static StaticFileIx
   | Route_Graph
   deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
   deriving
@@ -26,7 +27,7 @@ data Route
             '[ WithModel Model,
                WithSubRoutes
                  '[ Identifier,
-                    FolderRoute "attach" AttachRoute,
+                    StaticFileIx,
                     FileRoute "graph.json"
                   ]
              ]
@@ -36,9 +37,7 @@ type Pages = Ix.IxSet PostIxs OrgData
 
 data Model = Model
   { _mPages :: Pages,
-    _mFileAssoc :: Map FilePath (Set OrgID),
-    _mAttachments :: AttachModel,
-    _mLayouts :: Map Text X.Document
+    _mSources :: Map Text FilePath
   }
   deriving (Generic)
 
@@ -56,12 +55,10 @@ data OrgData = OrgData
     _level :: Int,
     -- | If entry has a parent, record it here.
     _parent :: Maybe Identifier,
-    -- | Org-attach directory for this entry.
-    _attachDir :: Maybe FilePath,
     -- | Filepaths of the static files needed by the entry, relative to identifier path.
-    _staticFiles :: [FilePath],
+    _staticFiles :: (Set (FilePath, UTCTime)),
     -- | Org files which are linked by this note.
-    _linksTo :: [Backlink]
+    _linksTo :: Backlinks
   }
   deriving (Eq, Ord, Show, Typeable, Generic)
 
@@ -69,28 +66,47 @@ data Identifier = Identifier {_idPath :: OrgPath, _idId :: (Maybe OrgID)}
   deriving (Eq, Ord, Show, Typeable, Generic, ToJSON, FromJSON)
 
 instance IsRoute Identifier where
-  type RouteModel Identifier = Pages
-  routePrism m =
+  type RouteModel Identifier = Model
+  routePrism (Model m sources) =
     toPrism_ $ htmlSuffixPrism % prism' to' from'
     where
-      to' id_ = either toString toString (idToEither id_)
+      toFp (OrgPath s fp) = toString s </> fp
+      to' id_ = either toFp toString (idToEither id_)
       from' fp =
         let i = do
               let ix_ :: OrgID = fromString fp
               _identifier <$> Ix.getOne (m Ix.@= ix_)
             f = do
-              let ix_ :: OrgPath = fromString fp
-              _identifier <$> Ix.getOne (m Ix.@= ix_)
+              ix_ :: OrgPath <- findUrlSource sources fp
+              _identifier <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
          in i <|> f
-  routeUniverse m = _identifier <$> toList m
+  routeUniverse m = _identifier <$> toList (_mPages m)
 
-newtype FileSource = FileSource FilePath
-  deriving (Eq, Ord, Show, Typeable, Generic)
+instance IsRoute StaticFileIx where
+  type RouteModel StaticFileIx = Model
+  routePrism (Model m sources) =
+    toPrism_ $ prism' toFp from'
+    where
+      toFp (coerce -> OrgPath s fp) = toString s </> fp
+      from' fp = do
+        ix_ <- StaticFileIx <$> findUrlSource sources fp
+        guard $ not $ Ix.null (m Ix.@= ix_)
+        return ix_
+  routeUniverse m =
+    toList $ Set.unions $ pageStaticFiles <$> toList (_mPages m)
+
+pageStaticFiles :: OrgData -> Set StaticFileIx
+pageStaticFiles page =
+  let src = _opSource $ _idPath $ _identifier page
+   in Set.map (StaticFileIx . OrgPath src . fst) $ _staticFiles page
 
 newtype ParentID = ParentID OrgID
   deriving (Eq, Ord, Show, Typeable, Generic)
 
 newtype ParentPath = ParentPath OrgPath
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+newtype StaticFileIx = StaticFileIx OrgPath
   deriving (Eq, Ord, Show, Typeable, Generic)
 
 newtype LevelIx = LevelIx Int
@@ -106,12 +122,20 @@ newtype BacklinkID = BacklinkID OrgID
   deriving (Eq, Ord, Show, Typeable, Generic)
 
 -- | For indexing a Org document filepath, without its extension.
-newtype OrgPath = OrgPath FilePath
+data OrgPath = OrgPath {_opSource :: Text, _opPath :: FilePath}
   deriving stock (Eq, Ord, Show, Typeable, Generic)
-  deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
+  deriving anyclass (ToJSON, FromJSON)
 
-fromRawPath :: FilePath -> OrgPath
-fromRawPath = OrgPath . dropExtension
+fromRawPath :: Text -> FilePath -> OrgPath
+fromRawPath source = OrgPath source . dropExtension
+
+findUrlSource :: Map Text FilePath -> FilePath -> Maybe OrgPath
+findUrlSource sources fp =
+  asum $
+    M.toDescList sources <&> \(srcKey, _) -> do
+      let mbRel = makeRelative (toString srcKey) fp
+      guard (srcKey == "" || mbRel /= fp)
+      return (OrgPath srcKey mbRel)
 
 newtype OrgID = OrgID {getID :: Text}
   deriving stock (Eq, Ord, Show, Typeable)
@@ -126,7 +150,8 @@ type PostIxs =
      LevelIx,
      TagIx,
      BacklinkPath,
-     BacklinkID
+     BacklinkID,
+     StaticFileIx
    ]
 
 instance Ix.Indexable PostIxs OrgData where
@@ -139,12 +164,16 @@ instance Ix.Indexable PostIxs OrgData where
       (Ix.ixFun $ maybeToList . (coerce . _idId =<<) . _parent)
       (Ix.ixFun $ one . coerce . _level)
       (Ix.ixFun $ coerce . _tags)
-      (Ix.ixFun $ coerce . mapMaybe (leftToMaybe . _blTarget) . _linksTo)
-      (Ix.ixFun $ coerce . mapMaybe (rightToMaybe . _blTarget) . _linksTo)
+      (Ix.ixFun $ coerce . mapMaybe leftToMaybe . M.keys . _linksTo)
+      (Ix.ixFun $ coerce . mapMaybe rightToMaybe . M.keys . _linksTo)
+      (Ix.ixFun $ toList . pageStaticFiles)
 
-data Backlink = Backlink
-  { _blTarget :: Either OrgPath OrgID,
-    _blExcerpt :: [OrgElement]
+type Backlinks = Map BacklinkKey BacklinkData
+
+type BacklinkKey = Either OrgPath OrgID
+
+data BacklinkData = BacklinkData
+  { _blExcerpt :: OrgElement
   }
   deriving (Eq, Ord, Show, Typeable, Generic)
 
@@ -153,11 +182,22 @@ idToEither = \case
   (Identifier _ (Just i)) -> Right i
   (Identifier path _) -> Left path
 
-lookupBacklink :: Backlink -> Pages -> Maybe OrgData
+lookupBacklinks :: Pages -> Identifier -> [(OrgData, BacklinkData)]
+lookupBacklinks m (Identifier path id_) =
+  let pPages =
+        toList (m Ix.@= LevelIx 0 Ix.@= BacklinkPath path)
+          <&> \p -> (p, _linksTo p M.! Left path)
+      iPages =
+        flip (maybe mempty) id_ \i ->
+          toList (m Ix.@= BacklinkID i)
+            <&> \p -> (p, _linksTo p M.! Right i)
+   in pPages ++ iPages
+
+lookupBacklink :: BacklinkKey -> Pages -> Maybe OrgData
 lookupBacklink bl m =
-  case _blTarget bl of
+  case bl of
     Left path -> Ix.getOne (m Ix.@= BacklinkPath path)
     Right id_ -> Ix.getOne (m Ix.@= BacklinkID id_)
 
 model0 :: Model
-model0 = Model mempty mempty emptyAttachModel mempty
+model0 = Model mempty mempty

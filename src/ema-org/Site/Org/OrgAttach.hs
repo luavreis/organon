@@ -1,141 +1,102 @@
 {-# LANGUAGE UndecidableInstances #-}
+
 module Site.Org.OrgAttach where
 
-import Site.Org.Common (queryOrgInContext, walkOrgInContext)
-import Data.Generics.Product
-import Data.Generics.Sum
-import Data.Set qualified as Set
-import Ema (Asset (AssetStatic), IsRoute)
-import Ema.Route.Generic
-import Generics.SOP qualified as SOP
-import Optics.Operators
+import Control.Monad.Logger
+import Control.Monad.Trans.Writer.CPS
+import Data.Time (UTCTime)
 import Org.Types
-import Org.Walk
-import Relude.Extra (insert, lookup)
-import Site.Org.Routes
-import System.FilePath (splitDirectories, (</>))
-import UnliftIO.Directory (doesDirectoryExist)
+import Org.Walk (Walkable (walkM), query)
+import Relude.Extra.Map (lookup)
+import Site.Org.Common (walkOrgInContextM)
+import System.FilePath (takeExtension, (</>))
+import UnliftIO (MonadUnliftIO)
+import UnliftIO.Directory (doesDirectoryExist, getModificationTime)
+import UnliftIO.Exception
 
-type OrgID = Text
-
-data AttachOptions = AttachO {mount :: FilePath, orgAttachDir :: FilePath}
-  deriving (Generic)
-
-data AttachModel = AttachM {attachments :: Set AttachPath, attachDirs :: Map OrgID FilePath}
-  deriving (Show, Generic)
-
-data AttachPath = AttachPath OrgID Text
-  deriving (Eq, Ord, Show, Generic)
-  deriving (IsRoute) via (SetRoute AttachPath)
-
-instance StringRoute AttachPath where
-  strRoutePrism' =
-    ( \(AttachPath rid txt) -> toString rid </> toString txt,
-      \case
-        (splitDirectories -> [fromString -> rid, fromString -> txt]) -> Just $ AttachPath rid txt
-        _ -> Nothing
-    )
-
-newtype AttachRoute = AttachRoute AttachPath
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (SOP.Generic, SOP.HasDatatypeInfo)
-  deriving
-    (HasSubRoutes, HasSubModels, IsRoute)
-    via ( GenericRoute
-            AttachRoute
-            '[ WithModel AttachModel,
-               WithSubRoutes '[AttachPath]
-             ]
-        )
-
-emptyAttachModel :: AttachModel
-emptyAttachModel = AttachM mempty mempty
-
-getAttachment :: OrgObject -> Set FilePath
-getAttachment (Link (URILink "attachment" att) _) = one (toString att)
-getAttachment (Image (URILink "attachment" att)) = one (toString att)
-getAttachment _ = mempty
-
-processAttachInDoc ::
-  forall options model m _c.
-  HasType AttachModel model =>
-  Subtype AttachOptions options =>
-  (MonadIO m, MonadReader (options, _c) m) =>
-  OrgDocument ->
-  m (model -> model)
-processAttachInDoc doc = do
-  attDir <- liftA2 (</>) (asks (mount . upcast . fst)) (asks (orgAttachDir . upcast . fst))
-  docEndo <-
-    case lookupProperty "id" doc of
-      Just uid -> processAttachInSection @model attDir uid doc
-      Nothing -> pure mempty
-  sectionsEndo <-
-    getAp $
-      flip queryOrgInContext doc $ \_ _ section ->
-        case lookupSectionProperty "id" section of
-          Just uid -> Ap $ processAttachInSection attDir uid section
-          Nothing -> pure mempty
-  pure . appEndo $ sectionsEndo <> docEndo
-
-processAttachInSection ::
-  forall model a m.
-  Walkable OrgObject a =>
-  HasType AttachModel model =>
-  MonadIO m =>
+processFileLinks ::
+  forall m.
+  (MonadUnliftIO m, MonadLogger m) =>
+  (Text, FilePath) ->
   FilePath ->
-  OrgID ->
-  a ->
-  m (Endo model)
-processAttachInSection attDir key@(toString -> rid) obj = do
-  let possibleDirs =
-        map
-          (attDir </>)
-          [ orgAttachIdTSFolderFormat,
-            orgAttachIdUUIDFolderFormat,
-            rid
-          ]
+  FilePath ->
+  OrgDocument ->
+  m (OrgDocument, Set (FilePath, UTCTime))
+processFileLinks src relDir attDir =
+  runWriterT
+    . walkOrgInContextM \_ props ->
+      processFileLinksInSection src relDir attDir (lookup "id" props)
 
-  findM doesDirectoryExist possibleDirs >>= \case
-    Just dir ->
-      pure $ Endo \m ->
-        let m' = getTyped @AttachModel m
-            m'' =
-              m' & field' @"attachDirs" %~ insert key dir
-                & field' @"attachments" %~ Set.union atts
-         in setTyped m'' m
-    Nothing -> pure mempty
+processFileLinksInSection ::
+  forall m.
+  (MonadUnliftIO m, MonadLogger m) =>
+  (Text, FilePath) ->
+  FilePath ->
+  FilePath ->
+  Maybe Text ->
+  [OrgElement] ->
+  WriterT (Set (FilePath, UTCTime)) m [OrgElement]
+processFileLinksInSection s@(_, srcDir) relDir attDir (Just key) content
+  | hasAttachLink content = do
+      putStrLn $ show possibleDirs
+      findM (doesDirectoryExist . (srcDir </>)) possibleDirs
+        >>= \attDir' -> walkM (processFileLink s relDir attDir') content
   where
-    toAttach = AttachPath key . toText
-    atts = Set.map toAttach $ query getAttachment obj
+    rid = toString key
+    possibleDirs =
+      map
+        (attDir </>)
+        [ orgAttachIdTSFolderFormat,
+          orgAttachIdUUIDFolderFormat,
+          rid
+        ]
 
     orgAttachIdTSFolderFormat = take 6 rid </> drop 6 rid
     orgAttachIdUUIDFolderFormat = take 2 rid </> drop 2 rid
 
     findM p = foldr (\x -> ifM (p x) (pure $ Just x)) (pure Nothing)
+processFileLinksInSection s relDir _ _ content =
+  walkM (processFileLink s relDir Nothing) content
 
-renderAttachment ::
-  HasType AttachModel model =>
-  AttachRoute ->
-  model ->
-  Asset LByteString
-renderAttachment (AttachRoute (AttachPath rid path)) m =
-  case lookup rid (attachDirs (getTyped m)) of
-    Just dir -> AssetStatic (dir </> toString path)
-    Nothing -> error "This should not happen. Unknown org-attach dir."
-
-resolveAttachLinks ::
-  forall route.
-  AsType AttachRoute route =>
-  (route -> Text) ->
-  OrgDocument ->
-  OrgDocument
-resolveAttachLinks route = walkOrgInContext resolve
+processFileLink ::
+  forall m.
+  (MonadUnliftIO m, MonadLogger m) =>
+  (Text, FilePath) ->
+  FilePath ->
+  Maybe FilePath ->
+  OrgObject ->
+  WriterT (Set (FilePath, UTCTime)) m OrgObject
+processFileLink (srcKey, srcDir) relDir attachDir = \case
+  (Link t c) -> Link <$> doTarget t ?? c
+  (Image t) -> Image <$> doTarget t
+  x -> pure x
   where
-    resolve _ p = maybe id resolveLink (lookup "id" p)
+    findAndInclude fp = do
+      lastModified <-
+        lift $
+          (Just <$> getModificationTime (srcDir </> fp))
+            `catch` \(_ :: IOException) -> do
+              logWarnN $ "One file links to " <> toText (srcDir </> fp) <> ", but this file does not exist."
+              pure Nothing
+      whenJust lastModified \lm ->
+        tell (one (fp, lm))
+      return $ URILink ("source:" <> srcKey) (toText fp)
 
-    resolveLink :: OrgID -> OrgObject -> OrgObject
-    resolveLink rid (Link (URILink "attachment" path) content) =
-      Link (URILink "file" $ route (injectTyped $ AttachRoute (AttachPath rid path))) content
-    resolveLink rid (Image (URILink "attachment" path)) =
-      Image (URILink "file" $ route (injectTyped $ AttachRoute (AttachPath rid path)))
-    resolveLink _ x = x
+    doTarget :: LinkTarget -> WriterT (Set (FilePath, UTCTime)) m LinkTarget
+    doTarget (URILink "attachment" att)
+      | Just aDir <- attachDir =
+          findAndInclude (aDir </> toString att)
+    doTarget (URILink "file" fp)
+      | takeExtension (toString fp) /= ".org" =
+          findAndInclude (relDir </> toString fp)
+    doTarget l = pure l
+
+hasAttachLink :: Walkable OrgObject a => a -> Bool
+hasAttachLink = getAny . query isFileLink
+  where
+    isFileLink (Link t _) = isFileTarget t
+    isFileLink (Image t) = isFileTarget t
+    isFileLink _ = mempty
+
+    isFileTarget (URILink "attachment" _) = Any True
+    isFileTarget _ = mempty

@@ -2,6 +2,7 @@ module Site.Org.Render where
 
 import Data.IxSet.Typed qualified as Ix
 import Data.Map.Syntax ((##))
+import Data.Text qualified as T
 import Ema
 import Ondim
 import Ondim.Extra
@@ -11,6 +12,7 @@ import Org.Exporters.Common
 import Org.Exporters.HTML (HTag, HtmlBackend, defHtmlBackend, render)
 import Org.Exporters.Highlighting.EngraveFaces (engraveFacesHtml)
 import Org.Types
+import Org.Walk (walk)
 import Relude.Unsafe (fromJust)
 import Site.Org.Model
 import Text.XmlHtml qualified as X
@@ -33,15 +35,29 @@ renderSettings =
       orgExportHeadlineLevels = 8
     }
 
--- resolveLink :: (Route -> Text) -> RoamID -> OrgObject -> OrgObject
--- resolveLink route _ (Link (URILink "id" rid) content) =
---   Link (UnresolvedLink $ route (Route_Post $ RoamID rid)) content
--- resolveLink _ _ x = x
+resolveLink :: Pages -> (Route -> Text) -> OrgObject -> OrgObject
+resolveLink m route = \case
+  (Link t c) -> Link (resolveTarget t) c
+  (Image t) -> Image (resolveTarget t)
+  x -> x
+  where
+    resolveTarget = \case
+      (URILink "id" id_) ->
+        fromMaybe (error "TODO") do
+          ident <- _identifier <$> Ix.getOne (m Ix.@= OrgID id_)
+          pure $ UnresolvedLink $ route (Route_Page ident)
+      (URILink uri (toString -> path))
+        | Just source <- T.stripPrefix "source:" uri ->
+            let ix_ = OrgPath source path
+                orgRoute = do
+                  ident <- _identifier <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
+                  pure $ Route_Page ident
+                finalRoute = fromMaybe (Route_Static $ StaticFileIx ix_) orgRoute
+             in UnresolvedLink $ route finalRoute
+      x -> x
 
--- resolveLinksInDoc :: (Route -> Text) -> OrgDocument -> OrgDocument
--- resolveLinksInDoc route = walkOrgInContext resolve
---   where
---     resolve _ p = maybe id (resolveLink route) (RoamID <$> lookup "id" p)
+resolveLinksInDoc :: Pages -> (Route -> Text) -> OrgDocument -> OrgDocument
+resolveLinksInDoc m route = walk (resolveLink m route)
 
 renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
 renderPost identifier rp m =
@@ -59,7 +75,7 @@ renderPost identifier rp m =
                 "backlinks:number" ## pure $ show (length backlinks)
               `binding` do
                 "backlinks:entries" ## \inner' ->
-                  join <$> forM (toList backlinks) \(blPage, excerpt) ->
+                  join <$> forM (toList backlinks) \(blPage, blData) ->
                     children @HtmlNode inner'
                       `bindingText` do
                         "backlink:route" ## pure $ router (Route_Page $ _identifier blPage)
@@ -67,9 +83,12 @@ renderPost identifier rp m =
                         "backlink:title" ## const $ expandOrgObjects backend (documentTitle $ _document blPage)
                         "backlink:excerpt" ## const $
                           clearAttrs
-                            <$> expandOrgElements backend excerpt
+                            <$> expandOrgElement backend (_blExcerpt blData)
   where
-    page = fromJust $ Ix.getOne $ (m ^. pages) Ix.@= identifier
+    page =
+      Ix.getOne (_mPages m Ix.@= identifier)
+        & fromJust
+        & #_document %~ resolveLinksInDoc (_mPages m) router
 
     router = routeUrl rp
 
@@ -80,8 +99,4 @@ renderPost identifier rp m =
     clearAttrs :: [HtmlNode] -> [HtmlNode]
     clearAttrs = map clearAttr
 
-    backlinks =
-      catMaybes $
-        _linksTo page <&> \bl -> do
-          blPage <- lookupBacklink bl (m ^. pages)
-          return (blPage, _blExcerpt bl)
+    backlinks = lookupBacklinks (_mPages m) identifier

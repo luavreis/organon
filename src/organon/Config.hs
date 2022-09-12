@@ -44,7 +44,8 @@ defaultConfig :: Config
 defaultConfig = Config
   { orgFiles = Org.Options
     { Org.orgAttachDir = "data"
-    , Org.mount = ["", "zettel"]
+    , Org.mount = [Org.Source "" "content", Org.Source "zettel" "zettel"]
+    , Org.staticPatterns = ["**/*.png", "**/*.jpg", "**/*.svg"]
     , Org.publicTags = ["public"]
     , Org.privateTags = ["noexport"]
     , Org.exclude = defExclude
