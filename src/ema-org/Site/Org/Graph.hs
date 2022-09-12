@@ -1,6 +1,7 @@
 module Site.Org.Graph where
 
 import Data.Aeson
+import Data.Map (keys)
 import Ema (Asset (..), Format (..))
 import Optics.Operators ((^.))
 import Org.Exporters.Common
@@ -45,7 +46,7 @@ buildRoamGraph m st = Graph <$> nodes ?? links
     links =
       toList m >>= \source ->
         catMaybes $
-          _linksTo source <&> \backlink ->
+          keys (_linksTo source) <&> \backlink ->
             Link (_identifier source)
               <$> _identifier
               <$> lookupBacklink backlink m

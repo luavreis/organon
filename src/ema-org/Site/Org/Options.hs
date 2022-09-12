@@ -4,8 +4,22 @@ import Site.Org.JSON
 import Site.Org.LaTeX.Types (LaTeXOptions)
 import System.FilePattern (FilePattern)
 
+data Source = Source {under :: Text, dir :: FilePath}
+  deriving (Eq, Ord, Show, Generic)
+
+srcToPair :: Source -> (Text, FilePath)
+srcToPair (Source x y) = (x, y)
+
+instance ToJSON Source where
+  toJSON = genericToJSON customOptions
+  toEncoding = genericToEncoding customOptions
+
+instance FromJSON Source where
+  parseJSON = genericParseJSON customOptions
+
 data Options = Options
-  { mount :: [FilePath],
+  { mount :: [Source],
+    staticPatterns :: [FilePattern],
     exclude :: [FilePattern],
     orgAttachDir :: FilePath,
     publicTags :: [Text],

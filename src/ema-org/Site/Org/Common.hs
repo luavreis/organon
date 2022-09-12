@@ -4,7 +4,7 @@ import Data.Bitraversable (bimapM)
 import Data.Text qualified as T
 import Optics.Core
 import Org.Types
-import Org.Walk (Walkable (walkM), walk, walkM)
+import Org.Walk (walk)
 
 docTag :: Lens' OrgDocument Tags
 docTag = lens getTags setTags
@@ -22,15 +22,15 @@ docTag = lens getTags setTags
     sepTags _ = []
 
 walkOrgInContextM ::
-  forall m a.
-  (Monad m, Walkable a OrgSection, Walkable a OrgElement) =>
-  (Tags -> Properties -> a -> m a) ->
+  forall m.
+  (Monad m) =>
+  (Tags -> Properties -> [OrgElement] -> m [OrgElement]) ->
   OrgDocument ->
   m OrgDocument
 walkOrgInContextM f doc =
   mapContentM
     ( bimapM
-        (walkM (f docTags docProps))
+        (f docTags docProps)
         (mapM (doSection docTags docProps))
     )
     doc
@@ -43,15 +43,13 @@ walkOrgInContextM f doc =
           inhProps = sectionProperties section <> properties
       mapSectionContentM
         ( bimapM
-            (walkM (f inhTags inhProps))
+            (f inhTags inhProps)
             (mapM (doSection inhTags inhProps))
         )
         section
 
 walkOrgInContext ::
-  forall a.
-  (Walkable a OrgSection, Walkable a OrgElement) =>
-  (Tags -> Properties -> a -> a) ->
+  (Tags -> Properties -> [OrgElement] -> [OrgElement]) ->
   OrgDocument ->
   OrgDocument
 walkOrgInContext f = runIdentity . walkOrgInContextM (\t p -> Identity . f t p)
@@ -87,7 +85,7 @@ isolateSection section doc =
         { documentKeywords =
             ("title", ParsedKeyword [] title) :
             filter (("title" /=) . fst) (documentKeywords doc),
-          documentProperties = sectionProperties section' <> documentProperties doc,
+          documentProperties = sectionProperties section',
           documentChildren = sectionChildren section',
           documentSections = sectionSubsections section'
         }

@@ -4,7 +4,6 @@
 
 module Site.Org.LaTeX where
 
-import Site.Org.Cache
 import Control.Exception (throw)
 import Control.Monad.Logger (MonadLogger, logErrorNS)
 import Data.Bitraversable (bimapM)
@@ -13,11 +12,12 @@ import Data.HashMap.Strict qualified as HM
 import Data.Map qualified as M
 import Data.Text qualified as T
 import Data.Text.IO (hPutStr)
-import Site.Org.LaTeX.Types
 import NeatInterpolation
 import Optics.Core ((%~))
 import Org.Types
 import Org.Walk
+import Site.Org.Cache
+import Site.Org.LaTeX.Types
 import System.Exit
 import System.FilePath (takeDirectory, (-<.>), (</>))
 import System.IO (openTempFile)
@@ -42,18 +42,9 @@ getKaTeXPreamble fp doc = filteredPreamble
     mathOp = "\\newcommand{\\DeclareMathOperator}[2]{\\newcommand{#1}{\\operatorname{#2}}}"
 
     filteredPreamble :: m Text
-    filteredPreamble = do
-      lines' <-
-        unlines . (mathOp :) . filter filt . concat
-          <$> mapM includeInput (lines $ latexHeader doc)
-      return
-        [text|
-                <span class="math display">
-                \[
-                $lines'
-                \]
-                </span>
-             |]
+    filteredPreamble =
+      unlines . (mathOp :) . filter filt . concat
+        <$> mapM includeInput (lines $ latexHeader doc)
 
     includeInput :: Text -> m [Text]
     includeInput txt

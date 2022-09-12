@@ -29,6 +29,7 @@ common common-options
                     , org-parser
                     , org-exporters
                     , relude
+                    , time
                     , transformers >= 0.5
                     , unionmount >= 0.2
                     , unliftio
