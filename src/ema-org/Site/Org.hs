@@ -43,7 +43,6 @@ instance EmaSite Route where
               >>= processLaTeX (O.latexOptions opt) cache absfp
               >>= processKaTeX absfp
               >>= processFileLinks (srcKey, srcFp) relDir (O.orgAttachDir opt)
-          putStrLn $ show staticFiles
           newPages <- loadOrgFile opt sourcesMap orgPath staticFiles doc
           pure $ Ix.insertList newPages . deleteAll
         Delete -> pure $ deleteAll
@@ -58,7 +57,7 @@ instance EmaSite Route where
         pure id
   siteOutput rp m =
     pure . \case
-      Route_Graph -> OAsset $ renderGraph m
+      Route_Graph -> OAsset $ renderGraph rp m
       Route_Static (coerce -> OrgPath s fp) ->
         OAsset $ const $ pure $ AssetStatic (_mSources m ! s </> fp)
       Route_Page identifier -> renderPost identifier rp m

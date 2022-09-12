@@ -2,17 +2,17 @@ module Site.Org.Graph where
 
 import Data.Aeson
 import Data.Map (keys)
-import Ema (Asset (..), Format (..))
-import Optics.Operators ((^.))
+import Ema (Asset (..), Format (..), routeUrl)
+import Optics.Core
 import Org.Exporters.Common
 import Org.Exporters.HTML (renderFragment)
 import Org.Types (documentTitle)
 import Site.Org.Model
 import Site.Org.Render (OS, backend, renderSettings)
 
-data Node = Node {nodeId :: Identifier, nodeName :: Text} deriving (Generic)
+data Node = Node {nodeId :: Text, nodeName :: Text} deriving (Generic)
 
-data Link = Link {linkSource :: Identifier, linkTarget :: Identifier} deriving (Generic)
+data Link = Link {linkSource :: Text, linkTarget :: Text} deriving (Generic)
 
 data Graph = Graph [Node] [Link] deriving (Generic)
 
@@ -28,9 +28,11 @@ instance ToJSON Graph where
   toEncoding (Graph nodes links) =
     pairs ("nodes" .= nodes <> "links" .= links)
 
-buildRoamGraph :: Pages -> OS -> IO Graph
-buildRoamGraph m st = Graph <$> nodes ?? links
+buildRoamGraph :: Prism' FilePath Route -> Pages -> OS -> IO Graph
+buildRoamGraph rp m st = Graph <$> nodes ?? links
   where
+    route = routeUrl rp . Route_Page
+
     render =
       fmap (decodeUtf8 . fromRight (error "TODO: better error hadling in buildRoamGraph"))
         . renderFragment renderSettings st
@@ -40,16 +42,16 @@ buildRoamGraph m st = Graph <$> nodes ?? links
             render $
               expandOrgObjects backend $
                 documentTitle (_document page)
-       in Node (_identifier page) <$> title
+       in Node (route $ _identifier page) <$> title
     nodes = mapM pageToNode (toList m)
 
     links =
       toList m >>= \source ->
         catMaybes $
           keys (_linksTo source) <&> \backlink ->
-            Link (_identifier source)
-              <$> _identifier
+            Link (route $ _identifier source)
+              <$> route . _identifier
               <$> lookupBacklink backlink m
 
-renderGraph :: Model -> OS -> IO (Asset LByteString)
-renderGraph m = fmap (AssetGenerated Other . encode) . buildRoamGraph (m ^. pages)
+renderGraph :: Prism' FilePath Route -> Model -> OS -> IO (Asset LByteString)
+renderGraph rp m = fmap (AssetGenerated Other . encode) . buildRoamGraph rp (m ^. pages)

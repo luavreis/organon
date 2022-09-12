@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Site.Org.Render where
 
 import Data.IxSet.Typed qualified as Ix
@@ -42,10 +44,9 @@ resolveLink m route = \case
   x -> x
   where
     resolveTarget = \case
-      (URILink "id" id_) ->
-        fromMaybe (error "TODO") do
-          ident <- _identifier <$> Ix.getOne (m Ix.@= OrgID id_)
-          pure $ UnresolvedLink $ route (Route_Page ident)
+      (URILink "id" id_)
+        | Just page <- Ix.getOne (m Ix.@= OrgID id_) ->
+            UnresolvedLink $ route (Route_Page $ _identifier page)
       (URILink uri (toString -> path))
         | Just source <- T.stripPrefix "source:" uri ->
             let ix_ = OrgPath source path
@@ -55,9 +56,6 @@ resolveLink m route = \case
                 finalRoute = fromMaybe (Route_Static $ StaticFileIx ix_) orgRoute
              in UnresolvedLink $ route finalRoute
       x -> x
-
-resolveLinksInDoc :: Pages -> (Route -> Text) -> OrgDocument -> OrgDocument
-resolveLinksInDoc m route = walk (resolveLink m route)
 
 renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
 renderPost identifier rp m =
@@ -83,17 +81,23 @@ renderPost identifier rp m =
                         "backlink:title" ## const $ expandOrgObjects backend (documentTitle $ _document blPage)
                         "backlink:excerpt" ## const $
                           clearAttrs
-                            <$> expandOrgElement backend (_blExcerpt blData)
+                            <$> expandOrgElement backend (walk resolve $ _blExcerpt blData)
   where
     page =
       Ix.getOne (_mPages m Ix.@= identifier)
         & fromJust
-        & #_document %~ resolveLinksInDoc (_mPages m) router
+        & #_document %~ walk resolve
+
+    resolve = resolveLink (_mPages m) router
 
     router = routeUrl rp
 
     clearAttr :: HtmlNode -> HtmlNode
-    clearAttr el@Element {} = el {elementAttrs = []}
+    clearAttr el@Element {..} =
+      el
+        { elementAttrs = filter ((`notElem` ["id"]) . fst) elementAttrs,
+          elementChildren = clearAttrs elementChildren
+        }
     clearAttr x = x
 
     clearAttrs :: [HtmlNode] -> [HtmlNode]
