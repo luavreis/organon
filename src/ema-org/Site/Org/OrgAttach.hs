@@ -37,8 +37,7 @@ processFileLinksInSection ::
   [OrgElement] ->
   WriterT (Set (FilePath, UTCTime)) m [OrgElement]
 processFileLinksInSection s@(_, srcDir) relDir attDir (Just key) content
-  | hasAttachLink content = do
-      putStrLn $ show possibleDirs
+  | hasAttachLink content =
       findM (doesDirectoryExist . (srcDir </>)) possibleDirs
         >>= \attDir' -> walkM (processFileLink s relDir attDir') content
   where

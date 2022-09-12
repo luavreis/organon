@@ -196,8 +196,8 @@ lookupBacklinks m (Identifier path id_) =
 lookupBacklink :: BacklinkKey -> Pages -> Maybe OrgData
 lookupBacklink bl m =
   case bl of
-    Left path -> Ix.getOne (m Ix.@= BacklinkPath path)
-    Right id_ -> Ix.getOne (m Ix.@= BacklinkID id_)
+    Left path -> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= path)
+    Right id_ -> Ix.getOne (m Ix.@= id_)
 
 model0 :: Model
 model0 = Model mempty mempty
