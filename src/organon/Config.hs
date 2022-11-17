@@ -8,6 +8,7 @@ import Site.Org.JSON
 import Site.Org.LaTeX.Types
 import Data.Aeson.KeyMap qualified as KM
 import Site.Org.Options qualified as Org
+import Org.Exporters.Processing (defaultExporterSettings)
 
 data Config = Config
   { orgFiles :: Org.Options
@@ -46,10 +47,9 @@ defaultConfig = Config
     { Org.orgAttachDir = "data"
     , Org.mount = [Org.Source "" "content", Org.Source "zettel" "zettel"]
     , Org.staticPatterns = ["**/*.png", "**/*.jpg", "**/*.svg"]
-    , Org.publicTags = ["public"]
-    , Org.privateTags = ["noexport"]
     , Org.exclude = defExclude
     , Org.latexOptions = defLaTeXOptions
+    , Org.exporterSettings = defaultExporterSettings
     }
   , templates = "templates"
   , layouts = "layouts"

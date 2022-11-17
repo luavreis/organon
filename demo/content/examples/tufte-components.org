@@ -1,0 +1,7 @@
+#+title: Tufte Components
+
+Even though you absolutely don't need to use this Tufte theme for you Organon site, this page will show some example implementations of Tufte features in [[id:ondim][Ondim]] that will help you regardless of that, and demonstrate how flexible it is.
+
+* Sidenotes and margin notes
+foo [[marginnote:][This is a test /foo/ bar]]
+

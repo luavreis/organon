@@ -1,0 +1,1 @@
+<if footnote-ref:content><label for="fn.!(footnote-ref:key)" class="margin-toggle sidenote-number"></label><input type="checkbox" id="fn.!(footnote-ref:key)" class="margin-toggle"/><span class="sidenote"><unwrap><footnote-ref:content /></unwrap></span></if>

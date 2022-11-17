@@ -2,7 +2,6 @@
 
 module Main where
 
-import Site.Org.Cache (Cache, cache0, loadCache)
 import Config
 import Control.Monad.Logger
 import Data.Binary (encodeFile)
@@ -19,13 +18,15 @@ import Ondim.Extra.Loading.HTML (loadTemplatesDynamic)
 import Optics.Core
 import Org.Exporters.HTML
 import Relude.Extra.Map
-import Site.Org.Render
 import Site.Org qualified as O
+import Site.Org.Cache (Cache, cache0, loadCache)
+import Site.Org.Query (queryExp)
+import Site.Org.Render
 import System.FilePath (takeBaseName, (</>))
 import System.UnionMount as UM
 import Text.XmlHtml qualified as X
 import UnliftIO (MonadUnliftIO, catch, finally)
-import UnliftIO.Directory (setCurrentDirectory)
+import Control.Monad.Trans.Cont (evalContT)
 
 data Route
   = RouteStatic (SR.StaticRoute "assets")
@@ -68,7 +69,7 @@ instance EmaSite Route where
               Left e -> logErrorNS "Template Loading" (toText e) >> liftIO (fail e)
               Right tpl -> do
                 let name = fromString $ takeBaseName fp
-                pure $ (singleton name tpl <>)
+                pure (singleton name tpl <>)
       ondimDynamic :: (MonadUnliftIO m, MonadLogger m) => FilePath -> m (Dynamic m OS)
       ondimDynamic dir = do
         ddir <- liftIO htmlTemplateDir
@@ -85,19 +86,18 @@ instance EmaSite Route where
         r ->
         m (SiteOutput Route)
       ondimOutput p s r =
-        liftIO . renderWithLayout =<< siteOutput p (s model) r
+        liftIO . evalContT . renderWithLayout =<< siteOutput p (s model) r
 
       renderWithLayout = \case
         OAsset x -> x ostate
         OPage lname doc
           | Just layout <- (model ^. #layouts) !? lname ->
-              AssetGenerated Html
-                . either (error . show) id
-                <$> doc ostate layout
+              AssetGenerated Html . either (error . show) id <$> doc ostate layout
           | otherwise -> error $ "Could not find layout " <> lname
         where
-          files = keys $ model ^. #staticM ^. #modelFiles
+          files = keys $ model ^. (#staticM % #modelFiles)
           encExps =
+            -- TODO this is bad
             files <&> \file ->
               ( "asset:" <> toText file,
                 pure $
@@ -106,15 +106,20 @@ instance EmaSite Route where
                     (model ^. #staticM)
                     file
               )
-          extraTextExps = ("page:url", pure $ routeUrl rp route) : encExps
+          extraExps =
+            [ ("query", queryExp (rp % _As @O.Route) (roamM model)),
+              ("take", takeExp),
+              ("unwrap", unwrapExp)
+            ]
           ostate :: OS =
             model ^. #ondimS
               & lensVL ondimGState
-                %~ (#textExpansions %~ (fromList extraTextExps <>))
+                %~ (#textExpansions %~ (fromList encExps <>))
+              & lensVL ondimState
+                %~ (#expansions %~ (fromList extraExps <>))
 
 main :: IO ()
 main = do
-  setCurrentDirectory "/home/lucas/dados/projetos/sites/gatil"
   cfg <-
     loadConfigWithDefault "organon.yaml"
       `catch` (error . toText . Y.prettyPrintParseException)

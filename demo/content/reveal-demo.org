@@ -1,0 +1,7 @@
+:PROPERTIES:
+:layout:   reveal-js
+:reveal_theme: serif
+:END:
+#+title: Reveal Demo
+* Test
+* Second

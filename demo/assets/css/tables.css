@@ -1,0 +1,33 @@
+/* Tufte CSS has abstained itself from styling tables, so we
+ * do some remediation here.
+*/
+
+table {
+    font-size: large;
+    border-spacing: 0px 1px;
+    border-top: solid 1.5px;
+    border-bottom: solid 1.5px;
+}
+
+table th {
+    text-align: left;
+    letter-spacing: .03em;
+    white-space: nowrap;
+    padding: 0.1rem 0.4rem;
+    border-top: solid 1px;
+    border-bottom: solid 1px;
+}
+
+table td {
+    text-align: left;
+    padding: 0rem 0.3rem;
+}
+
+table tbody tr:first-of-type td {
+    border-top: solid 1px;
+    padding-top: 0.1rem;
+}
+
+table tbody tr:last-of-type td {
+    border-bottom: solid 1px;
+}
