@@ -1,6 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Site.Org.LaTeX where
 
@@ -23,31 +22,29 @@ import System.FilePath (takeDirectory, (-<.>), (</>))
 import System.IO (openTempFile)
 import UnliftIO (IOException, MonadUnliftIO, catch, hClose, modifyTVar, pooledMapConcurrentlyN, withSystemTempDirectory)
 import UnliftIO.Process
+import Org.Exporters.Processing.OrgData (OrgData, keywords)
 
-latexHeader :: OrgDocument -> Text
-latexHeader d = T.unlines . mapMaybe justText $ lookupKeyword "latex_header" d
-  where
-    justText (ValueKeyword _ t) = Just t
-    justText _ = Nothing
+latexHeader :: OrgData -> Text
+latexHeader d = fromMaybe "" $ M.lookup "latex_header" (keywords d)
 
 getKaTeXPreamble ::
   forall m.
   (MonadUnliftIO m, MonadLogger m) =>
   -- | Document's filepath
   FilePath ->
-  OrgDocument ->
+  OrgData ->
   m Text
-getKaTeXPreamble fp doc = filteredPreamble
+getKaTeXPreamble fp datum = filteredPreamble
   where
-    mathOp = "\\newcommand{\\DeclareMathOperator}[2]{\\newcommand{#1}{\\operatorname{#2}}}"
+    mathOp = "\\providecommand{\\DeclareMathOperator}[2]{\\providecommand{#1}{\\operatorname{#2}}}"
 
     filteredPreamble :: m Text
     filteredPreamble =
-      unlines . (mathOp :) . filter filt . concat
-        <$> mapM includeInput (lines $ latexHeader doc)
+      unlines . (mathOp :) . mapMaybe filt . concat
+        <$> mapM includeInput (lines $ latexHeader datum)
 
     includeInput :: Text -> m [Text]
-    includeInput txt
+    includeInput (T.strip -> txt)
       | "\\input" `T.isPrefixOf` txt = do
           let path = do
                 withNoPrefix <- T.stripPrefix "\\input{" txt
@@ -62,22 +59,27 @@ getKaTeXPreamble fp doc = filteredPreamble
           return $ maybe [] (lines . decodeUtf8) file
       | otherwise = return [txt]
 
-    filt :: Text -> Bool
-    filt txt =
-      "\\newcommand" `T.isPrefixOf` txt
-        || "\\renewcommand" `T.isPrefixOf` txt
-        || "\\def" `T.isPrefixOf` txt
-        || "\\DeclareMathOperator" `T.isPrefixOf` txt
+    filt :: Text -> Maybe Text
+    filt t =
+      if
+          | Just txt <- "\\newcommand" `T.stripPrefix` t ->
+              Just $ "\\providecommand" <> txt
+          | "\\providecommand" `T.isPrefixOf` t
+              || "\\renewcommand" `T.isPrefixOf` t
+              || "\\def" `T.isPrefixOf` t
+              || "\\DeclareMathOperator" `T.isPrefixOf` t ->
+              Just t
+          | otherwise -> Nothing
 
 processKaTeX ::
   (MonadUnliftIO m, MonadLogger m) =>
   -- | Document's filepath
   FilePath ->
-  OrgDocument ->
-  m OrgDocument
-processKaTeX fp doc = do
-  preambl <- getKaTeXPreamble fp doc
-  pure $ doc & #documentProperties %~ M.insert "katex_preamble" preambl
+  (OrgDocument, OrgData) ->
+  m (OrgDocument, OrgData)
+processKaTeX fp (doc, datum) = do
+  preambl <- getKaTeXPreamble fp datum
+  pure (doc & #documentProperties %~ M.insert "katex_preamble" preambl, datum)
 
 renderLaTeX ::
   forall m.
@@ -159,9 +161,9 @@ processLaTeX ::
   LaTeXOptions ->
   TVar Cache ->
   FilePath ->
-  OrgDocument ->
-  m OrgDocument
-processLaTeX opt cVar path doc = do
+  (OrgDocument, OrgData) ->
+  m (OrgDocument, OrgData)
+processLaTeX opt cVar path (doc, datum) = do
   let pname = defaultLatexProcess opt -- TODO read from metadata
   process <-
     case M.lookup pname (latexProcesses opt) of
@@ -173,7 +175,7 @@ processLaTeX opt cVar path doc = do
       doProcess txt = do
         cache <- readTVarIO cVar
         let lcache = latexCache cache
-            lHeader = latexHeader doc
+            lHeader = latexHeader datum
             ckey = (lHeader, txt, path, opt)
         case HM.lookup ckey lcache of
           Just cached -> pure cached
@@ -188,22 +190,23 @@ processLaTeX opt cVar path doc = do
       wSection :: OrgSection -> m OrgSection
       wSection = mapSectionContentM wContent
 
-      wAll :: (Walkable OrgElement a, Walkable OrgObject a) => a -> m a
-      wAll = walkM wBlock >=> walkM wInline
+      wAll :: OrgElement -> m OrgElement
+      wAll = buildMultiW \f list ->
+        list .> wBlock f .> wInline f
 
-      wInline :: OrgObject -> m OrgObject
-      wInline (ExportSnippet "latex" s) =
+      wInline :: WalkM m -> OrgObject -> m OrgObject
+      wInline _ (ExportSnippet "latex" s) =
         Image . makeDataURI <$> doProcess s
-      wInline x = pure x
+      wInline f x = f x
 
-      wBlock :: OrgElement -> m OrgElement
-      wBlock (ExportBlock "latex" s) =
+      wBlock :: WalkM m -> OrgElement -> m OrgElement
+      wBlock _ (ExportBlock "latex" s) =
         Paragraph mempty . one . Image . makeDataURI <$> doProcess s
-      wBlock (LaTeXEnvironment _ name s)
+      wBlock _ (LaTeXEnvironment _ name s)
         | name `notElem` leaveToKaTeX =
             Paragraph mempty . one . Image . makeDataURI <$> doProcess s
         where
           leaveToKaTeX = ["equation", "equation*", "align", "align*", "aligned"]
-      wBlock x = pure x
+      wBlock f x = f x
 
-  mapContentM wContent doc
+  (, datum) <$> mapContentM wContent doc

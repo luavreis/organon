@@ -1,0 +1,38 @@
+templates: templates
+
+layouts: layouts
+
+cache-file: site.cache
+
+org-files:
+  mount:
+    - dir: content
+      under: ''
+  org-attach-dir: data
+  exclude:
+    - '**/.*/**/*'
+    - '**/.dir-locals.el'
+    - '**/imports'
+
+  # LaTeX processing
+  latex-options:
+    # "latex" is also available by default
+    default-latex-process: xelatex
+
+    latex-processes:
+      xelatex:
+        preamble: |
+          \documentclass[tikz,preview]{standalone}
+          \usepackage{amsmath}
+          \usepackage{tikz-cd}
+          \usepackage{tikz}
+          \usepackage{quiver}
+          \usepackage{unicode-math}
+        image-input-type: pdf
+        image-output-type: svg
+        image-mime-type: "image/svg+xml"
+        image-size-adjust: 1.8
+        latex-compiler:
+          - "xelatex -output-directory=%o %f"
+        image-converter:
+          - "dvisvgm --pdf --no-fonts -c %S -o %O %f"

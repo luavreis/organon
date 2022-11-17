@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="!(asset:reveal-js/reveal.css)">
+    <if page:prop:reveal_theme>
+      <link rel="stylesheet" href="/assets/reveal-js/theme/!(page:prop:reveal_theme).css">
+      <else />
+      <link rel="stylesheet" href="/assets/reveal-js/theme/white.css">
+    </if>
+    <components:katex />
+    <style type="text/css" media="screen">
+     .katex { font-size: 1.1em; }
+    </style>
+  </head>
+  <body>
+    <bind org:sections><reveal-js:sections /></bind>
+    <div class="reveal">
+      <div class="slides">
+        <page:sections />
+      </div>
+    </div>
+    <script src="!(asset:reveal-js/reveal.js)"></script>
+    <script src="!(asset:reveal-js/plugin/notes/notes.js)"></script>
+    <script>
+     document.addEventListener("DOMContentLoaded", () => {
+
+       // Put whatever you want here.
+       const config = {};
+
+       // If not in live server, just initialize once.
+       if (typeof ema !== 'undefined')
+         Reveal.initialize(config);
+
+       // Below, some custom code (and hacks) to make it work
+       // well on the live server, including live-reload.
+       var state = null;
+
+       window.addEventListener("EMABeforeMorphDOM", () => {
+         if (Reveal.isReady()) {
+           state = Reveal.getState();
+         }
+       });
+
+       window.addEventListener("EMAHotReload", () => {
+         let slides = null;
+         if (Reveal.isReady()) {
+           slides = Reveal.getSlidesElement();
+           slides.style.visibility = 'hidden';
+         }
+         Reveal.initialize(config).then(() => {
+           if (state) {
+             slides.classList.add('disable-slide-transitions');
+             Reveal.setState(state);
+             slides.classList.remove('disable-slide-transitions');
+             slides.style.visibility = null;
+           }
+         });
+       });
+     });
+    </script>
+  </body>
+</html>

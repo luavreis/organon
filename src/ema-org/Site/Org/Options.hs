@@ -3,6 +3,7 @@ module Site.Org.Options where
 import Site.Org.JSON
 import Site.Org.LaTeX.Types (LaTeXOptions)
 import System.FilePattern (FilePattern)
+import Org.Exporters.Processing.OrgData (ExporterSettings)
 
 data Source = Source {under :: Text, dir :: FilePath}
   deriving (Eq, Ord, Show, Generic)
@@ -22,8 +23,7 @@ data Options = Options
     staticPatterns :: [FilePattern],
     exclude :: [FilePattern],
     orgAttachDir :: FilePath,
-    publicTags :: [Text],
-    privateTags :: [Text],
+    exporterSettings :: ExporterSettings,
     latexOptions :: LaTeXOptions
   }
   deriving (Eq, Ord, Show, Generic)

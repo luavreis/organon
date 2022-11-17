@@ -1,41 +1,46 @@
-{-# LANGUAGE RecordWildCards #-}
+module Site.Org.Render
+  ( module Site.Org.Render,
+    module Org.Exporters.Common,
+  )
+where
 
-module Site.Org.Render where
-
+import Control.Monad.Trans.Cont
 import Data.IxSet.Typed qualified as Ix
+import Data.List qualified as L
 import Data.Map.Syntax ((##))
 import Data.Text qualified as T
+import Data.Time
 import Ema
-import Ondim
 import Ondim.Extra
-import Ondim.HTML (HtmlNode (..))
+import Ondim.HTML (HtmlNode (..), HtmlTag)
 import Optics.Core
-import Org.Exporters.Common
-import Org.Exporters.HTML (HTag, HtmlBackend, defHtmlBackend, render)
+import Org.Exporters.Common hiding (Expansion, Ondim, OndimMS)
+import Org.Exporters.Common qualified as EC
+import Org.Exporters.HTML (HtmlBackend, defHtmlBackend, render)
 import Org.Exporters.Highlighting.EngraveFaces (engraveFacesHtml)
+import Org.Exporters.Processing.OrgData (ExporterSettings (..), OrgData (exporterSettings), defaultExporterSettings)
 import Org.Types
 import Org.Walk (walk)
 import Relude.Unsafe (fromJust)
 import Site.Org.Model
 import Text.XmlHtml qualified as X
 
-type OS = OndimMS (HTag IO)
+type M = ContT (Asset LByteString) IO
+
+type OS = EC.OndimMS HtmlTag M
+
+type Ondim a = EC.Ondim HtmlTag M a
+
+type Expansion t = EC.Expansion HtmlTag M t
 
 type Layouts = Map Text X.Document
 
 data OndimOutput
-  = OAsset (OS -> IO (Asset LByteString))
-  | OPage Text (OS -> X.Document -> IO (Either OndimException LByteString))
+  = OAsset (OS -> M (Asset LByteString))
+  | OPage Text (OS -> X.Document -> M (Either OndimException LByteString))
 
-backend :: HtmlBackend IO
+backend :: HtmlBackend M
 backend = defHtmlBackend {srcPretty = engraveFacesHtml}
-
-renderSettings :: ExporterSettings
-renderSettings =
-  defaultExporterSettings
-    { headlineLevelShift = 1,
-      orgExportHeadlineLevels = 8
-    }
 
 resolveLink :: Pages -> (Route -> Text) -> OrgObject -> OrgObject
 resolveLink m route = \case
@@ -53,54 +58,73 @@ resolveLink m route = \case
                 orgRoute = do
                   ident <- _identifier <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
                   pure $ Route_Page ident
-                finalRoute = fromMaybe (Route_Static $ StaticFileIx ix_) orgRoute
+                staticRoute = do
+                  let sroute = StaticFileIx ix_
+                  guard $ not $ Ix.null (m Ix.@= sroute)
+                  pure $ Route_Static sroute
+                finalRoute = fromMaybe (error "TODO") (orgRoute <|> staticRoute)
              in UnresolvedLink $ route finalRoute
       x -> x
 
-renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
-renderPost identifier rp m =
-  OPage "roam-post" \st ly ->
-    render renderSettings st $
-      liftDocument backend (_document page) ly
-        `binding` do
-          "roam:tags" ## \inner ->
-            join <$> forM (_tags page) \tag ->
-              children @HtmlNode inner `bindingText` do
-                "roam:tag" ## pure tag
-          "roam:backlinks" ## \inner ->
-            ifElse (not (null backlinks)) inner
-              `bindingText` do
-                "backlinks:number" ## pure $ show (length backlinks)
-              `binding` do
-                "backlinks:entries" ## \inner' ->
-                  join <$> forM (toList backlinks) \(blPage, blData) ->
-                    children @HtmlNode inner'
-                      `bindingText` do
-                        "backlink:route" ## pure $ router (Route_Page $ _identifier blPage)
-                      `binding` do
-                        "backlink:title" ## const $ expandOrgObjects backend (documentTitle $ _document blPage)
-                        "backlink:excerpt" ## const $
-                          clearAttrs
-                            <$> expandOrgElement backend (walk resolve $ _blExcerpt blData)
+bindPage ::
+  Text ->
+  Prism' FilePath Route ->
+  Pages ->
+  OrgEntry ->
+  Ondim a ->
+  Ondim a
+bindPage pfx rp mPages page' node =
+  bindDocument backend pfx (_document page) node
+    `binding` prefixed pfx do
+      "tags" ## \inner ->
+        join <$> forM (_tags page) \tag ->
+          children @HtmlNode inner
+            `bindingText` do
+              "tag" ## pure tag
+      -- TODO: after Ondim is upated, those two will be textual expansions.
+      forM_ (_ctime page) \t -> "ctime" ## timeExp t
+      forM_ (nonEmpty $ _mtime page) \_ ->
+        "mtimes" ## \inner ->
+          join <$> forM (_mtime page) \t ->
+            children inner
+              `binding` do "mtimes:time" ## timeExp t
+    `bindingText` prefixed pfx do
+      "route" ## pure $ router $ Route_Page $ _identifier page
   where
-    page =
-      Ix.getOne (_mPages m Ix.@= identifier)
-        & fromJust
-        & #_document %~ walk resolve
-
-    resolve = resolveLink (_mPages m) router
-
+    page = page' & #_document %~ walk resolve
+    resolve = resolveLink mPages router
     router = routeUrl rp
 
-    clearAttr :: HtmlNode -> HtmlNode
-    clearAttr el@Element {..} =
-      el
-        { elementAttrs = filter ((`notElem` ["id"]) . fst) elementAttrs,
-          elementChildren = clearAttrs elementChildren
-        }
-    clearAttr x = x
+renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
+renderPost identifier rp m =
+  OPage (_layout page) \st ly ->
+    render (_orgData page) st $
+      bindPage "page:" rp (_mPages m) page $
+        liftSubstructures ly
+  where
+    page = fromJust $ Ix.getOne (_mPages m Ix.@= identifier)
 
-    clearAttrs :: [HtmlNode] -> [HtmlNode]
-    clearAttrs = map clearAttr
+timeExp :: UTCTime -> Expansion HtmlNode
+timeExp time node = do
+  attrs <- attributes node
+  let defFmt = dateTimeFmt defaultTimeLocale
+      fmt = maybe defFmt toString (L.lookup "fmt" attrs)
+  pure $ one $ TextNode $ toText $ formatTime defaultTimeLocale fmt time
 
-    backlinks = lookupBacklinks (_mPages m) identifier
+takeExp :: Expansion HtmlNode
+takeExp node = do
+  attrs <- attributes node
+  let n :: Maybe Int =
+        readMaybe . toString =<< L.lookup "n" attrs
+  maybe id take n <$> children node
+
+unwrapExp :: Expansion HtmlNode
+unwrapExp node = do
+  child <- children node
+  pure $
+    foldMap
+      ( \case
+          Element _ _ _ els -> els
+          n@TextNode {} -> [n]
+      )
+      child

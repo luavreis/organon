@@ -1,33 +1,17 @@
 module Site.Org.Common where
 
 import Data.Bitraversable (bimapM)
-import Data.Text qualified as T
-import Optics.Core
+import Org.Exporters.Processing.OrgData (OrgData (filetags, parsedTitle))
 import Org.Types
 import Org.Walk (walk)
-
-docTag :: Lens' OrgDocument Tags
-docTag = lens getTags setTags
-  where
-    getTags = foldMap sepTags . lookupKeyword "filetags"
-    setTags doc tags =
-      doc
-        { documentKeywords =
-            [("filetags", ValueKeyword "" (":" <> T.intercalate ":" tags <> ":")) | not (null tags)]
-              ++ filter (("filetags" /=) . fst) (documentKeywords doc)
-        }
-    sepTags (ValueKeyword _ t) =
-      t & T.dropAround (':' ==)
-        & T.split (':' ==)
-    sepTags _ = []
 
 walkOrgInContextM ::
   forall m.
   (Monad m) =>
   (Tags -> Properties -> [OrgElement] -> m [OrgElement]) ->
-  OrgDocument ->
+  (OrgDocument, OrgData) ->
   m OrgDocument
-walkOrgInContextM f doc =
+walkOrgInContextM f (doc, datum) =
   mapContentM
     ( bimapM
         (f docTags docProps)
@@ -35,7 +19,7 @@ walkOrgInContextM f doc =
     )
     doc
   where
-    docTags = view docTag doc
+    docTags = filetags datum
     docProps = documentProperties doc
     doSection :: Tags -> Properties -> OrgSection -> m OrgSection
     doSection tags properties section = do
@@ -50,7 +34,7 @@ walkOrgInContextM f doc =
 
 walkOrgInContext ::
   (Tags -> Properties -> [OrgElement] -> [OrgElement]) ->
-  OrgDocument ->
+  (OrgDocument, OrgData) ->
   OrgDocument
 walkOrgInContext f = runIdentity . walkOrgInContextM (\t p -> Identity . f t p)
 
@@ -58,12 +42,12 @@ queryOrgInContext ::
   forall m.
   (Monoid m) =>
   (Tags -> Properties -> OrgSection -> m) ->
-  OrgDocument ->
+  (OrgDocument, OrgData) ->
   m
-queryOrgInContext f doc =
+queryOrgInContext f (doc, datum) =
   foldMap (doSection docTags docProps) (documentSections doc)
   where
-    docTags = view docTag doc
+    docTags = filetags datum
     docProps = documentProperties doc
     doSection :: Tags -> Properties -> OrgSection -> m
     doSection tags properties section = do
@@ -77,16 +61,16 @@ shift i sec@OrgSection {sectionLevel = level}
   | level + i > 0 = sec {sectionLevel = level + i}
   | otherwise = sec {sectionLevel = 1}
 
-isolateSection :: OrgSection -> OrgDocument -> OrgDocument
-isolateSection section doc =
+isolateSection :: OrgSection -> (OrgDocument, OrgData) -> (OrgDocument, OrgData)
+isolateSection section (doc, datum) =
   let section' = walk (shift (-(sectionLevel section) + 1)) section
-      title = sectionTitle section
-   in doc
-        { documentKeywords =
-            ("title", ParsedKeyword [] title) :
-            filter (("title" /=) . fst) (documentKeywords doc),
-          documentProperties = sectionProperties section',
-          documentChildren = sectionChildren section',
-          documentSections = sectionSubsections section'
-        }
-        & set docTag (sectionTags section)
+   in ( doc
+          { documentProperties = sectionProperties section',
+            documentChildren = sectionChildren section',
+            documentSections = sectionSubsections section'
+          },
+        datum
+          { parsedTitle = sectionTitle section,
+            filetags = sectionTags section
+          }
+      )

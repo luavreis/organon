@@ -1,0 +1,58 @@
+#+title: Features
+
+It's a good idea to open the source .org files in Emacs while reading the following demo pages. In this way, you can look at how things are done from the Org side.
+
+#+begin_comment
+aa /aa/
+#+end_comment
+
+#+toc: 
+
+* Live reload
+* Links and backlinks
+* Static files
+* Math, \LaTeX, diagrams, theorems
+Using \(\LaTeX\) inside your Org documents is well supported in Organon. In fact, the developer is a mathematics student, so good support is of particular interest.
+\begin{equation*}
+  \frac{1}{N}\sum_{n = 1}^N \varphi \circ f^{n} \xrightarrow{N \to \infty} \int_M \varphi \;d\mu
+\end{equation*}
+
+You can even use \(\LaTeX\) code that can't be rendered by \(\KaTeX\), like =tikz=. Organon will call an external compiler and inline the resulting image into the page. Configuration for how exactly this is done is [[file:configuration.org][available]] and is very similar to the ~org-preview-latex-process-alist~ Elisp variable.
+\begin{tikzcd}
+  {\mathscr C} && {\mathscr D}
+  \arrow[""{name=0, anchor=center, inner sep=0}, "F", curve={height=-30pt}, from=1-1, to=1-3]
+  \arrow[""{name=1, anchor=center, inner sep=0}, "G"', curve={height=30pt}, from=1-1, to=1-3]
+  \arrow[""{name=2, anchor=center, inner sep=0}, "\sigma"', curve={height=12pt}, shorten <=7pt, shorten >=7pt, Rightarrow, from=0, to=1]
+  \arrow[""{name=3, anchor=center, inner sep=0}, "\tau", curve={height=-12pt}, shorten <=7pt, shorten >=7pt, Rightarrow, from=0, to=1]
+  \arrow["\Gamma", shorten <=4pt, shorten >=4pt, from=2, to=3]
+\end{tikzcd}
+
+=#+latex_header:= keywords will be included in the preamble for both \(\KaTeX\) and the \(\LaTeX\) external process, taking care of filtering lines that aren't macro definitions. Since preambles can get quite big, including external files via =\input{file.tex}= will result in the contents of =file.tex= being inserted into the preamble as well.
+* A plethora of Org elements
+** Tables
+
+#+latex_header: \newcommand{\ground}{\begin{tikzpicture}[scale=0.5] \draw (0,0) -- +(0mm,-4.0mm) {[yshift=-4mm] +(-2mm,0mm) -- +(2mm,0mm) +(-1mm,-1mm) -- +(1mm,-1mm) +(-0.3mm,-2mm) -- +(0.3mm,-2mm)}; \end{tikzpicture}}
+
+| Store                                                                         |               Location               |                                  Revenue |   |   |
+|                                                                               |                 <c>                  |                                      <r> |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| bu                                                                            |              Mississipi              |                                  $ 55,00 |   |   |
+| baz                                                                           |               New York               |                                 $ 122,30 |   |   |
+| biz                                                                           |            Massachusetts             |                                   blabla |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| \[\bigotimes_{k = 1}^{\infty}V_k\]                                                 | Pythagorean Theorem: $a^2 + b^2 = c^2$ | Euler's Formula: \(e^{i\theta}~=~\cos\theta + i\sin\theta\) |   |   |
+|                                                                               |                                      |                                          |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| What about some Tikz inline symbols? Here is a ground symbol: @@latex:\ground@@ drawn by Tikz |                                      |                                          |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| foo                                                                           |                Tokyo                 |                               ¥ 2 232,00 |   |   |
+** Figures & captions
+[[file:img/exports-imports.png]]
+
+* Queries
+* Presentations with reveal.js
+With a few lines of HTML templates, and requiring no special support from the Haskell side, you can make Organon export reveal.js presentations. Personally, I prefer Beamer and don't use reveal.js, so the document below is just a test.
+
+[[file:reveal-demo.org][reveal.js demo]]
+* What is *not* working
+Organon is being built on top and along the [[https://github.com/lucasvreis/org-hs][org-hs parser]], [[https://github.com/lucasvreis/ondim][ondim]] and [[https://github.com/EmaApps/ema][ema]] libraries, which are relatively new. Therefore, this little package ecossystem is still far from being mature or complete. Since my field is not directly related to programming and I have limited time, most of it was written with my use cases in mind, and may not (yet?) support yours. If this is the case, feel free to discuss this in the GitHub repo, while acknowledging I may be unable to act on it.

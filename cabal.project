@@ -3,10 +3,15 @@ packages: .
           /home/lucas/dados/projetos/codigo/haskell/org-hs/org-exporters/
           /home/lucas/dados/projetos/codigo/haskell/ondim/
           /home/lucas/dados/projetos/codigo/haskell/ema/
+          /home/lucas/dados/projetos/codigo/haskell/unionmount/
+          /home/lucas/dados/projetos/codigo/haskell/multiwalk/
 optimization: 1
 
+package ondim
+  flags: -with-pandoc
+
 package org-exporters
-  flags: +engrave-faces
+  flags: +engrave-faces -pandoc
 
 -- source-repository-package
 --     type: git

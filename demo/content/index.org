@@ -1,7 +1,6 @@
-#+begin_export html
-<style>#main h1 { font-size: 60px }</style>
-#+end_export
-#+title: Hello 🥑
+#+title: Hello 📖
+#+subtitle: "...a meticulous organizer who wanted to clarify our concepts..."
 
-This is the demo index page of =abacateiro=.
+This is the demo index page of Organon.
 
+If you are new here, have a look at what's possible under [[file:features.org][features]].
