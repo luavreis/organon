@@ -1,0 +1,8 @@
+#+title: Hello 📖
+#+subtitle: "...a meticulous organizer who wanted to clarify our concepts..."
+
+This is the demo index page of Organon.
+
+If you are new here, have a look at what's possible under [[file:features.org][features]].
+
+
