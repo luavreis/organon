@@ -1,0 +1,97 @@
+#+title: Org Syntax Support
+* Objects
+** Markup
+- Hello org
+- *Hello org*
+- /Hello org/
+- +Hello org+
+- _Hello org_
+- =Hello org=
+- ~Hello org~
+  
+** Entities
+*** UTF8
+#+begin_src html :expand t
+<bind org:object:entity>
+  <entity:utf8 />
+</bind>
+#+end_src
+
+\alpha \beta \approx \gamma
+
+*** LaTeX (rendered via \KaTeX)
+#+begin_src html :expand t
+<bind org:object:entity>
+  <span class="math inline"><entity:latex /></span>
+</bind>
+#+end_src
+
+\alpha \beta \approx \gamma
+*** Mixed
+#+begin_src html :expand t
+<bind org:object:entity>
+  <entity:if-math
+   ><span class="math inline"><entity:latex /></span>
+    <else />
+    <entity:utf8 />
+  </entity:if-math>
+</bind>
+#+end_src
+The following entity is UTF8: "\dots"
+
+The following entity is \LaTeX: "\prec"
+** \LaTeX fragments
+- \mathbb{A} \mathfrak{B}
+- \(e^{i \pi}\)
+- $50,00 dollars and $2 + 2$ cents will not confuse my parser
+- \[\int_{-\infty}^{\infty} f \;d\mu\]
+
+
+** Export snippets
+Here we have inline @@html:<ruby> 漢 <rt>kan</rt> 字 <rt>ji</rt></ruby>@@
+
+** Footnote references
+#+begin_src org :exports both :results value raw
+Environment friendly[fn:1].
+Zero emissions[fn:1::Dude trust me].
+#+end_src
+
+#+RESULTS:
+Environment friendly[fn::Really].
+Zero emissions[fn::Dude trust me].
+
+
+** Timestamps
+#+begin_src org
+- <2022-11-14 seg>
+- <2022-11-14 seg>--<2022-12-14 +2w>
+- [2022-11-14 seg -1d]
+#+end_src
+
+- <2022-11-14 seg>
+- <2022-11-14 seg>--<2022-12-14 +2w>
+- [2022-11-14 seg -1d]
+  
+* Elements
+** Figures
+
+#+caption: This is a caption test
+[[file:img/exports-imports.png]]
+
+** Tables
+
+#+latex_header: \newcommand{\ground}{\begin{tikzpicture}[scale=0.5] \draw (0,0) -- +(0mm,-4.0mm) {[yshift=-4mm] +(-2mm,0mm) -- +(2mm,0mm) +(-1mm,-1mm) -- +(1mm,-1mm) +(-0.3mm,-2mm) -- +(0.3mm,-2mm)}; \end{tikzpicture}}
+
+| Store                                                                         |               Location               |                                  Revenue |   |   |
+|                                                                               |                 <c>                  |                                      <r> |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| bu                                                                            |              Mississipi              |                                  $ 55,00 |   |   |
+| baz                                                                           |               New York               |                                 $ 122,30 |   |   |
+| biz                                                                           |            Massachusetts             |                                   blabla |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| \[\bigotimes_{k = 1}^{\infty}V_k\]                                                 | Pythagorean Theorem: $a^2 + b^2 = c^2$ | Euler's Formula: \(e^{i\theta}~=~\cos\theta + i\sin\theta\) |   |   |
+|                                                                               |                                      |                                          |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| What about some Tikz inline symbols? Here is a ground symbol: @@latex:\ground@@ drawn by Tikz |                                      |                                          |   |   |
+|-------------------------------------------------------------------------------+--------------------------------------+------------------------------------------+---+---|
+| foo                                                                           |                Tokyo                 |                               ¥ 2 232,00 |   |   |

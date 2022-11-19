@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <components:head />
+  <body>
+    <article>
+      <portal>
+        <h1_><doc:title/></h1_>
+        <p_ class="subtitle"><doc:kw:subtitle/></p_>
+        <div class="meta">
+          <doc:tags>
+            <span class="page-tag"><tag /></span>
+          </doc:tags>
+        </div>
+        <section>
+          <doc:children />
+        </section>
+        <doc:sections />
+        <hr />
+      </portal>
+      <query from="notes" links-to="!(doc:routeRaw)">
+        <style type="text/css" media="screen">
+         .backlink-title {
+           font-size: 25px;
+           margin-top: 30px;
+           line-height: 0px;
+           display: block;
+         }
+         .backlink {
+           border-left: 2px solid;
+           padding-left: 10px;
+           color: #444;
+         }
+         .backlink p {
+           font-size: 18px;
+           line-height: unset;
+         }
+        </style>
+        <h3>Links to this doc:</h3>
+        <q:result>
+          <bind-text bl:target>
+            <q:route /><if portal-target>#<portal-target /></if>
+          </bind-text>
+          <a href="!(bl:target)" class="backlink-title"><q:title /></a>
+          <div class="backlink">
+            <portal>
+              <q:children />
+              <q:sections />
+            </portal>
+          </div>
+        </q:result>
+        <else />
+        <i>No other pages reference this page.</i>
+      </query>
+    </article>
+    <components:footer />
+  </body>
+</html>

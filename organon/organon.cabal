@@ -1,0 +1,99 @@
+cabal-version: 3.6
+name:          organon
+version:       0.1.0.0
+
+common common-options
+  default-language:   Haskell2010
+  mixins:
+    base hiding (Prelude),
+    relude (Relude as Prelude),
+    relude
+
+  ghc-options:        -Wall
+  build-depends:
+    , aeson                >=2.0
+    , attoparsec
+    , base                 >=4.16
+    , base64               >=0.4
+    , binary
+    , binary-instances
+    , bytestring
+    , containers
+    , dependent-sum
+    , ema                  >=0.10
+    , ema-extra            >=0.10
+    , ema-generics         >=0.10
+    , ema-org
+    , filepath
+    , filepattern
+    , fsnotify             >=0.4
+    , generic-optics
+    , generics-sop
+    , ixset-typed
+    , map-syntax
+    , monad-logger
+    , monad-logger-extras
+    , mtl
+    , neat-interpolation
+    , ondim
+    , optics-core
+    , org-exporters
+    , org-parser
+    , relude
+    , slugify
+    , time
+    , transformers         >=0.5
+    , transformers-either
+    , unionmount           >=0.2.1
+    , unix
+    , unliftio
+    , websockets
+    , xmlhtml
+    , yaml
+
+  default-extensions:
+    BlockArguments
+    DataKinds
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingVia
+    DuplicateRecordFields
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    ImportQualifiedPost
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    OverloadedLabels
+    OverloadedStrings
+    ScopedTypeVariables
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    ViewPatterns
+
+library
+  import:          common-options
+  hs-source-dirs:  src
+  exposed-modules:
+    Site.Organon.Cache
+    Site.Organon.Config
+    Site.Organon.Dynamic
+    Site.Organon.Extra
+    Site.Organon.Extra.LaTeX
+    Site.Organon.Extra.LaTeX.Render
+    Site.Organon.Extra.LaTeX.Types
+    Site.Organon.Extra.Query
+    Site.Organon.Model
+    Site.Organon.Route
+    Site.Organon.Server
+
+executable organon
+  import:         common-options
+  hs-source-dirs: app
+  main-is:        Main.hs
+  build-depends:  organon
+  ghc-options:    -threaded -j8 -rtsopts -fprint-potential-instances
