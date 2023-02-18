@@ -52,6 +52,7 @@ instance EmaSite Route where
              in foldr Ix.delete m matching
           absfp = O.dir source </> file
       handler _source OtherFile _file = const do
+        -- TODO: perhaps refresh timestamps
         pure id
   siteOutput rp m =
     pure . \case
