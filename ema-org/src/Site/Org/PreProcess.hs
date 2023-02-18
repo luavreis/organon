@@ -11,9 +11,9 @@ import Relude.Extra (lookup)
 import Site.Org.Model
 import Site.Org.Options (Options (..), Source (..))
 import Site.Org.Utils.Document (isolateSection)
-import System.FilePath (isAbsolute, (</>))
+import System.FilePath (addTrailingPathSeparator, isAbsolute, (</>))
 import UnliftIO (MonadUnliftIO)
-import UnliftIO.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, makeAbsolute)
+import UnliftIO.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, getHomeDirectory, makeAbsolute)
 
 class DocLike a where
   getLevel :: a -> Int
@@ -107,11 +107,14 @@ processEntry f s = do
 findLinkSource :: (MonadIO m, MonadLogger m) => FilePath -> PreProcessM m (Maybe OrgPath)
 findLinkSource fp = do
   env <- ask
+  -- HACK: improvised tilde expansion
+  userDir <- getHomeDirectory
+  let fp' = toString $ T.replace "~/" (toText $ addTrailingPathSeparator userDir) (toText fp)
   trueFp <-
     canonicalizePath
-      if isAbsolute fp
-        then fp
-        else srcDir env </> relDir env </> fp
+      if isAbsolute fp'
+        then fp'
+        else srcDir env </> relDir env </> fp'
   exists <- doesFileExist trueFp
   if exists
     then do
@@ -119,7 +122,7 @@ findLinkSource fp = do
       whenNothing_ op $
         lift $
           logWarnNS "findSource" $
-            "File " <> show fp <> " linked from " <> prettyOrgPath (path env) <> " exists but does not belong to a declared source."
+            "File " <> show trueFp <> " linked from " <> prettyOrgPath (path env) <> " exists but does not belong to a declared source."
       return op
     else do
       lift $
