@@ -69,7 +69,8 @@ processTarget t = do
   env <- ask
   case t of
     -- Link to another file.
-    l@(URILink "file" fp) ->
+    l@(URILink protocol fp)
+      | protocol `elem` (env ^. #opts % #fileProtocols) ->
       fromMaybe l <$> findTarget fp
     l@(URILink "attachment" att)
       | Just aDir <- attachDir env ->

@@ -61,7 +61,8 @@ defaultConfig =
             Org.staticPatterns = ["**/*.png", "**/*.jpg", "**/*.svg"],
             Org.exclude = defExclude,
             Org.exporterSettings = defaultExporterSettings,
-            Org.parserSettings = defaultParserSettings
+            Org.parserSettings = defaultParserSettings,
+            Org.fileProtocols = ["file", "pdf"]
           },
       templates = "templates",
       layouts = "layouts",

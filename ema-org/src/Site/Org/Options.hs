@@ -25,7 +25,8 @@ data Options = Options
     exclude :: [FilePattern],
     orgAttachDir :: FilePath,
     exporterSettings :: ExporterSettings,
-    parserSettings :: OrgOptions
+    parserSettings :: OrgOptions,
+    fileProtocols :: [Text]
   }
   deriving (Eq, Ord, Show, Generic, NFData)
 
