@@ -48,22 +48,22 @@ bindPage ::
   Ondim a ->
   Ondim a
 bindPage rp pgs page node =
-  openMetaMap bk (Just "meta") (_meta page) $
-    bindDocument bk (_orgData page) (_document page) node
+  openMetaMap bk (Just "meta") page.meta $
+    bindDocument bk page.orgData page.document node
       `binding` prefixed "doc:" do
         "tags" ## \inner ->
-          join <$> forM (_tags page) \tag ->
+          join <$> forM page.tags \tag ->
             liftChildren @HtmlNode inner
               `bindingText` do
                 "tag" ## pure tag
         -- TODO: after Ondim is upated, those two will be textual expansions.
-        forM_ (_ctime page) \t -> "ctime" ## timeExp t
-        forM_ (_mtime page) \t -> "mtime" ## timeExp t
+        forM_ page.ctime \t -> "ctime" ## timeExp t
+        forM_ page.mtime \t -> "mtime" ## timeExp t
       `bindingText` prefixed "page:" do
-        "route" ## pure $ router $ Route_Page $ _identifier page
-        "routeRaw" ## pure $ toText $ review rp $ Route_Page $ _identifier page
-        "filepath" ## pure $ toText $ toRawPath $ _idPath $ _identifier page
-        for_ (_idId $ _identifier page) $ ("id" ##) . pure . getID
+        "route" ## pure $ router $ Route_Page page.identifier
+        "routeRaw" ## pure $ toText $ review rp $ Route_Page page.identifier
+        "filepath" ## pure $ toText $ toRawPath page.identifier.path
+        for_ page.identifier.orgId \i -> "id" ## pure $ i.idText
   where
     bk = backend pgs rp
     router = routeUrl rp
@@ -77,12 +77,12 @@ evalOutput ostate content = do
 
 renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
 renderPost identifier rp m =
-  PageOutput (_layout page) \ly -> do
-    lifted <- bindPage rp (_mPages m) page do
+  PageOutput page.layout \ly -> do
+    lifted <- bindPage rp m.pages page do
       liftNodes (fromNodeList $ X.docContent ly)
     return $ AssetGenerated Html $ render' $ ly {X.docContent = toNodeList lifted}
   where
-    page = fromJust $ Ix.getOne (_mPages m Ix.@= identifier)
+    page = fromJust $ Ix.getOne (m.pages Ix.@= identifier)
 
 timeExp :: UTCTime -> Expansion HtmlNode
 timeExp time node = do

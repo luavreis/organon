@@ -28,18 +28,18 @@ instance EmaSite Route where
   siteInput _ opt = do
     pages' :: Dynamic m Pages <-
       mconcat <<$>> sequenceA <$> forM sources \source ->
-        Dynamic <$> mountConcurrently (O.dir source) include exclude mempty (handler source)
+        Dynamic <$> mountConcurrently source.dir include exclude mempty (handler source)
     pure $ Model <$> pages' ?? opt
     where
-      sources = O.mount opt
-      include = (OrgFile, "**/*.org") : zip (repeat OtherFile) (O.staticPatterns opt)
-      exclude = O.exclude opt
+      sources = opt.mount
+      include = (OrgFile, "**/*.org") : zip (repeat OtherFile) opt.staticPatterns
+      exclude = opt.exclude
       handler source OrgFile file = \case
         Refresh _ () -> do
           logDebugN $ "Loading " <> prettyOrgPath orgPath
 
           newPages <-
-            parseOrgIO (O.parserSettings opt) absfp
+            parseOrgIO opt.parserSettings absfp
               >>= loadOrgFile opt orgPath
               >>= evaluate . force
 
@@ -50,7 +50,7 @@ instance EmaSite Route where
           deleteAll m =
             let matching = m Ix.@= orgPath
              in foldr Ix.delete m matching
-          absfp = O.dir source </> file
+          absfp = source.dir </> file
       handler _source OtherFile _file = const do
         -- TODO: perhaps refresh timestamps
         pure id
@@ -60,7 +60,7 @@ instance EmaSite Route where
         renderGraph rp m
       Route_Static ix ->
         let OrgPath s fp = coerce ix
-         in AssetOutput $ pure $ AssetStatic (O.dir s </> fp)
+         in AssetOutput $ pure $ AssetStatic (s.dir </> fp)
       Route_Page identifier ->
         renderPost identifier rp m
 

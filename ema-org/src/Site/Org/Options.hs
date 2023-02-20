@@ -10,7 +10,7 @@ data Source = Source {serveAt :: Text, dir :: FilePath, alias :: Text}
   deriving (Eq, Ord, Show, Read, Generic, NFData)
 
 srcToAliasMap :: [Source] -> Map Text Text
-srcToAliasMap = fromList . map (\s -> (alias s, serveAt s))
+srcToAliasMap = fromList . map (\s -> (s.alias, s.serveAt))
 
 instance ToJSON Source where
   toJSON = genericToJSON customOptions

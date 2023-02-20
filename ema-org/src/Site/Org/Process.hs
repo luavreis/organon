@@ -66,8 +66,8 @@ loadOrgFile ::
 loadOrgFile opts path doc0 = do
   let odata0 =
         initialOrgData
-          { exporterSettings = opts ^. #exporterSettings
-          , parserOptions = opts ^. #parserSettings
+          { exporterSettings = opts.exporterSettings
+          , parserOptions = opts.parserSettings
           }
       (doc, datum) = continuePipeline odata0 do
         gatherSettings doc0
@@ -81,11 +81,11 @@ loadOrgFile opts path doc0 = do
   where
     meta = mempty
     anchorCounter = 0
-    sources = mount opts
+    sources = opts.mount
     parent = Nothing
     attachDir = Nothing
-    srcDir = dir $ opSource path
-    relDir = takeDirectory (opPath path)
+    srcDir = path.source.dir
+    relDir = takeDirectory path.relpath
     fpTags =
       if relDir == "."
         then []
@@ -123,7 +123,7 @@ parseTS (T.takeWhile (/= ' ') -> t) = do
     time -> pure time
   where
     warnCouldNotParse = do
-      p <- asks path
+      p <- asks (.path)
       lift $ logWarnNS "Loading" $ "Could not parse timestamp " <> t <> " in " <> prettyOrgPath p
 
 -- processLink first writes backlinks with null internal references to the
@@ -149,7 +149,7 @@ processElement f elm =
       if any (Nothing `NES.member`) blks
         then do
           modify (#anchorCounter %~ (+ 1))
-          n <- gets anchorCounter
+          n <- gets (.anchorCounter)
           let anchor = "bltarget" <> show n
               -- Here, we keep only the outermost backlinks.
               -- That is, if there is a backlink just below this element
@@ -181,21 +181,21 @@ processTarget t = do
     -- File link to another file.
     (URILink uri _)
       | Just sAlias <- T.stripPrefix "source:" uri -> do
-          let oP = fromJust $ readMaybe (toString sAlias)
-          if "org" `isExtensionOf` opPath oP
+          let opath = fromJust $ readMaybe (toString sAlias)
+          if "org" `isExtensionOf` opath.relpath
             then do
-              tellBacklink (Left $ #opPath %~ dropExtension $ oP)
+              tellBacklink (Left $ #relpath %~ dropExtension $ opath)
             else do
-              lift $ logDebugN $ "Adding file " <> prettyOrgPath oP
-              getModificationTime (toRawPath oP) >>= tellFile oP
-              tellBacklink (Left oP)
+              lift $ logDebugN $ "Adding file " <> prettyOrgPath opath
+              getModificationTime (toRawPath opath) >>= tellFile opath
+              tellBacklink (Left opath)
     _ -> pure ()
 
 processEntry :: (DocLike a, MonadLogger m, MonadUnliftIO m, MultiWalk MWTag a) => WalkM (ProcessM m) -> a -> ProcessM m a
 processEntry f s = do
   env <- ask
 
-  let tags = getTags s <> filetags (inhData env)
+  let tags = getTags s <> filetags env.inhData
       sectionId = lookup "id" (getProps s)
       level = getLevel s
       notExclud =
@@ -204,9 +204,9 @@ processEntry f s = do
 
       isEntry = (level == 0 || isJust sectionId) && notExclud
 
-      identifier = Identifier (path env) (OrgID <$> sectionId)
+      identifier = Identifier env.path (OrgID <$> sectionId)
       newData =
-        env ^. #inhData
+        env.inhData
           & #filetags .~ tags
           & #parsedTitle %~ maybe id const (getTitle s)
 
@@ -216,35 +216,35 @@ processEntry f s = do
           & #inhData .~ newData
           & #inhProps %~ (<> getProps s)
 
-  oldMeta <- gets meta
+  oldMeta <- gets (.meta)
 
   (s', (_, subBacklinks, subFiles)) <- listen (local childEnv $ f s)
 
-  newMeta <- gets meta
+  newMeta <- gets (.meta)
 
   when isEntry do
-    let doc = toDoc s' & (#documentProperties %~ (<> inhProps env))
+    let doc = toDoc s' & (#documentProperties %~ (<> env.inhProps))
         layout =
           fromMaybe "org-page" $
-            Map.lookup "layout" (doc ^. #documentProperties)
+            Map.lookup "layout" doc.documentProperties
 
-    ctime <- join <$> forM (Map.lookup "ctime" (doc ^. #documentProperties)) parseTS
-    mtime <- join <$> forM (Map.lookup "mtime" (doc ^. #documentProperties)) parseTS
+    ctime <- join <$> forM (Map.lookup "ctime" doc.documentProperties) parseTS
+    mtime <- join <$> forM (Map.lookup "mtime" doc.documentProperties) parseTS
 
     tellEntry $
       OrgEntry
-        { _identifier = identifier
-        , _ctime = ctime
-        , _mtime = mtime
-        , _tags = tags
-        , _document = doc
-        , _orgData = newData
-        , _meta = newMeta
-        , _level = level
-        , _layout = layout
-        , _parent = parent env
-        , _staticFiles = subFiles
-        , _linksTo = coerce subBacklinks
+        { identifier = identifier
+        , ctime = ctime
+        , mtime = mtime
+        , tags = tags
+        , document = doc
+        , orgData = newData
+        , meta = newMeta
+        , level = level
+        , layout = layout
+        , parent = env.parent
+        , staticFiles = subFiles
+        , linksTo = coerce subBacklinks
         }
 
   modify (#meta .~ oldMeta)

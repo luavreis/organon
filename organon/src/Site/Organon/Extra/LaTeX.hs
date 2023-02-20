@@ -17,7 +17,7 @@ import Org.Types
 import Site.Org.Render (Expansion, Ondim, bindingText, callText, liftChildren, liftRenderT, throwCustom, (##))
 import Site.Organon.Extra.LaTeX.Render (renderLaTeX)
 import Site.Organon.Extra.LaTeX.Types
-import Site.Organon.Model (Model (extraOpts), cacheV)
+import Site.Organon.Model (Model (..))
 import System.FilePath (takeDirectory, (-<.>), (</>))
 import UnliftIO (IOException, MonadUnliftIO, catch, modifyTVar)
 
@@ -92,13 +92,13 @@ makeDataURI (mime, d) = "data:" <> mime <> ";base64," <> encodeBase64 d
 specFromModel :: Model -> Ondim LaTeXProcessSpec
 specFromModel m =
   maybe (throwCustom err) pure $
-    Map.lookup (defaultProcess opt) (processes opt)
+    Map.lookup opt.defaultProcess opt.processes
   where
     opt :: LaTeXOptions =
-      case fromJSON <$> KM.lookup "latex" (extraOpts m) of
+      case fromJSON <$> KM.lookup "latex" m.extraOpts of
         Just (Success x) -> x
         _ -> defLaTeXOptions
-    err = "Could not find LaTeX process named '" <> defaultProcess opt <> "'."
+    err = "Could not find LaTeX process named '" <> opt.defaultProcess <> "'."
 
 renderLaTeXExp ::
   Model ->
@@ -108,7 +108,7 @@ renderLaTeXExp model node = do
   txt <- fromMaybe "" <$> lookupAttr "text" node
   additionalPreamble <- maybe "" ("\n" <>) <$> lookupAttr "preamble" node
   spec' <- specFromModel model
-  let spec = spec' {preamble = preamble spec' <> additionalPreamble}
+  let spec = spec' {preamble = spec'.preamble <> additionalPreamble}
       ckey = (txt, filepath, spec)
   cache <- readTVarIO cacheVar
   result <-
@@ -124,4 +124,4 @@ renderLaTeXExp model node = do
       "latex:datauri" ## pure $ makeDataURI result
       "latex:mimetype" ## pure $ fst result
   where
-    cacheVar = cacheV model
+    cacheVar = model.cache

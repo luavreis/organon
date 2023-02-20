@@ -12,7 +12,6 @@ import Data.Map qualified as Map
 import Ema.Dynamic (Dynamic (..))
 import GHC.IO.Handle.FD (withFileBlocking)
 import Ondim.Targets.HTML.Load (loadTemplatesDynamic)
-import Optics.Core
 import Org.Exporters.HTML (htmlTemplateDir)
 import Site.Org.Model (OrgID (..), findSource, prettyOrgPath)
 import Site.Org.Options (Options (..))
@@ -84,6 +83,6 @@ lastPathDynamic cfg = Dynamic (Nothing, watch)
                   return $ TargetLocation (Left source) anchor
             loop
       loop `finally` removeFile fifoFp
-    sources = cfg ^. #orgFiles % #mount
+    sources = cfg.orgFiles.mount
     log :: LogLevel -> Text -> m ()
     log = logWithoutLoc "Organon Socket"

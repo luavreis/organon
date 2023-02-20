@@ -46,43 +46,40 @@ data Route
 type Pages = Ix.IxSet PostIxs OrgEntry
 
 data Model = Model
-  { _mPages :: Pages
-  , _mOptions :: Options
+  { pages :: Pages
+  , options :: Options
   }
   deriving (Generic)
 
-pages :: Lens' Model Pages
-pages = #_mPages
-
 data OrgEntry = OrgEntry
-  { _identifier :: Identifier
+  { identifier :: Identifier
   -- ^ Entry identifier.
-  , _ctime :: Maybe UTCTime
+  , ctime :: Maybe UTCTime
   -- ^ Creation time
-  , _mtime :: Maybe UTCTime
+  , mtime :: Maybe UTCTime
   -- ^ Modification times
-  , _tags :: [Text]
+  , tags :: [Text]
   -- ^ Entry tags.
-  , _layout :: Text
+  , layout :: Text
   -- ^ Entry layout
-  , _document :: OrgDocument
+  , document :: OrgDocument
   -- ^ Document for entry.
-  , _orgData :: OrgData
+  , orgData :: OrgData
   -- ^ Export data for entry.
-  , _meta :: MetaMap
+  , meta :: MetaMap
   -- ^ Vulpea-style metadata
-  , _level :: Int
+  , level :: Int
   -- ^ Original level of entry, 0 means file-level.
-  , _parent :: Maybe Identifier
+  , parent :: Maybe Identifier
   -- ^ If entry has a parent, record it here.
-  , _staticFiles :: Set (OrgPath, UTCTime)
+  , staticFiles :: Set (OrgPath, UTCTime)
   -- ^ Filepaths of the static files needed by the entry, relative to identifier path.
-  , _linksTo :: Map UnresolvedLocation (NES.NESet (Maybe InternalRef))
+  , linksTo :: Map UnresolvedLocation (NES.NESet (Maybe InternalRef))
   -- ^ Org files which are referenced by this note.
   }
   deriving (Eq, Ord, Show, Typeable, Generic)
 
-data Identifier = Identifier {_idPath :: OrgPath, _idId :: Maybe OrgID}
+data Identifier = Identifier {path :: OrgPath, orgId :: Maybe OrgID}
   deriving (Eq, Ord, Show, Typeable, Generic, ToJSON, FromJSON)
 
 instance IsRoute Identifier where
@@ -92,34 +89,34 @@ instance IsRoute Identifier where
     where
       to' = \case
         Identifier _ (Just id_) -> toString id_
-        Identifier (OrgPath s fp) _ -> toString (serveAt s) </> fp
+        Identifier (OrgPath s fp) _ -> toString s.serveAt </> fp
       from' fp =
         let idRoute = do
               let ix_ :: OrgID = fromString fp
-              _identifier <$> Ix.getOne (m Ix.@= ix_)
+              (.identifier) <$> Ix.getOne (m Ix.@= ix_)
             fpRoute = do
-              ix_ :: OrgPath <- findUrlSource (mount o) fp
-              x <- _identifier <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
-              guard (isNothing $ _idId x)
+              ix_ :: OrgPath <- findUrlSource o.mount fp
+              x <- (.identifier) <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
+              guard (isNothing x.orgId)
               pure x
          in idRoute <|> fpRoute
-  routeUniverse m = _identifier <$> toList (_mPages m)
+  routeUniverse m = (.identifier) <$> toList m.pages
 
 instance IsRoute StaticFileIx where
   type RouteModel StaticFileIx = Model
   routePrism (Model m o) =
     toPrism_ $ prism' toFp from'
     where
-      toFp (coerce -> OrgPath s fp) = toString (serveAt s) </> fp
+      toFp (coerce -> OrgPath s fp) = toString s.serveAt </> fp
       from' fp = do
-        ix_ <- StaticFileIx <$> findUrlSource (mount o) fp
+        ix_ <- StaticFileIx <$> findUrlSource o.mount fp
         guard $ not $ Ix.null (m Ix.@= ix_)
         return ix_
   routeUniverse m =
-    toList $ Set.unions $ pageStaticFiles <$> toList (_mPages m)
+    toList $ Set.unions $ pageStaticFiles <$> toList m.pages
 
 pageStaticFiles :: OrgEntry -> Set StaticFileIx
-pageStaticFiles page = Set.map (StaticFileIx . fst) $ _staticFiles page
+pageStaticFiles page = Set.map (StaticFileIx . fst) page.staticFiles
 
 newtype ParentID = ParentID OrgID
   deriving (Eq, Ord, Show, Typeable, Generic)
@@ -149,20 +146,20 @@ newtype SourceIx = SourceIx Text
   deriving (Eq, Ord, Show, Typeable, Generic)
 
 -- | For indexing a Org document filepath, without its extension.
-data OrgPath = OrgPath {opSource :: Source, opPath :: FilePath}
+data OrgPath = OrgPath {source :: Source, relpath :: FilePath}
   deriving stock (Eq, Ord, Show, Read, Typeable, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
 prettyOrgPath :: OrgPath -> Text
 prettyOrgPath path =
   "file '"
-    <> toText (opPath path)
+    <> toText path.relpath
     <> "' from source '"
-    <> alias (opSource path)
+    <> path.source.alias
     <> "'"
 
 toRawPath :: OrgPath -> FilePath
-toRawPath (OrgPath src fp) = dir src </> fp
+toRawPath (OrgPath src fp) = src.dir </> fp
 
 fromRawPath :: Source -> FilePath -> OrgPath
 fromRawPath source = OrgPath source . dropExtension
@@ -171,23 +168,23 @@ findUrlSource :: [Source] -> FilePath -> Maybe OrgPath
 findUrlSource sources fp =
   asum $
     sortBy descLength sources <&> \source -> do
-      let mbRel = makeRelative (toString $ serveAt source) fp
-      guard (serveAt source == "" || mbRel /= fp)
+      let mbRel = makeRelative (toString source.serveAt) fp
+      guard (source.serveAt == "" || mbRel /= fp)
       return (OrgPath source mbRel)
   where
-    descLength = flip $ comparing serveAt
+    descLength = flip $ comparing (.serveAt)
 
 findSource :: (MonadIO m) => [Source] -> FilePath -> m (Maybe OrgPath)
 findSource sources trueFp = do
   asum <$> forM sources \source -> do
-    absSrc <- canonicalizePath (dir source)
+    absSrc <- canonicalizePath source.dir
     let mbRel = normalise $ makeRelative absSrc trueFp
     return $
       if isRelative mbRel
         then Just $ OrgPath source mbRel
         else Nothing
 
-newtype OrgID = OrgID {getID :: Text}
+newtype OrgID = OrgID {idText :: Text}
   deriving stock (Eq, Ord, Show, Typeable, Generic)
   deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
 
@@ -209,18 +206,18 @@ type PostIxs =
 instance Ix.Indexable PostIxs OrgEntry where
   indices =
     Ix.ixList
-      (Ix.ixFun $ one . _identifier)
-      (Ix.ixFun $ one . _idPath . _identifier)
-      (Ix.ixFun $ one . coerce . serveAt . opSource . _idPath . _identifier)
-      (Ix.ixFun $ maybeToList . _idId . _identifier)
-      (Ix.ixFun $ maybeToList . coerce . _ctime)
-      (Ix.ixFun $ maybeToList . coerce . _mtime)
-      (Ix.ixFun $ maybeToList . fmap (coerce . _idPath) . _parent)
-      (Ix.ixFun $ maybeToList . ((coerce . _idId) <=< _parent))
-      (Ix.ixFun $ one . coerce . _level)
-      (Ix.ixFun $ coerce . _tags)
-      (Ix.ixFun $ coerce . M.keys . _linksTo)
-      (Ix.ixFun $ toList . pageStaticFiles)
+      (Ix.ixFun $ \x -> [x.identifier])
+      (Ix.ixFun $ \x -> [x.identifier.path])
+      (Ix.ixFun $ \x -> [coerce x.identifier.path.source.serveAt])
+      (Ix.ixFun $ \x -> maybeToList x.identifier.orgId)
+      (Ix.ixFun $ \x -> maybeToList $ coerce x.ctime)
+      (Ix.ixFun $ \x -> maybeToList $ coerce x.mtime)
+      (Ix.ixFun $ \x -> maybeToList $ coerce $ (.path) <$> x.parent)
+      (Ix.ixFun $ \x -> maybeToList $ coerce $ (.orgId) =<< x.parent)
+      (Ix.ixFun $ \x -> [coerce x.level])
+      (Ix.ixFun $ \x -> coerce x.tags)
+      (Ix.ixFun $ \x -> coerce $ M.keys x.linksTo)
+      (Ix.ixFun $ \x -> toList $ pageStaticFiles x)
 
 {- | This is like Identifier, but matches information present in links, where
  there is either a path or an ID.
@@ -241,11 +238,11 @@ lookupBacklinks :: Pages -> Identifier -> [(OrgEntry, Maybe InternalRef)]
 lookupBacklinks m (Identifier path id_) =
   let pPages =
         toList (m Ix.@= LinksToIx (Left path))
-          >>= \p -> (p,) <$> toList (_linksTo p M.! Left path)
+          >>= \p -> (p,) <$> toList (p.linksTo M.! Left path)
       iPages =
         flip (maybe []) id_ \i ->
           toList (m Ix.@= LinksToIx (Right i))
-            >>= \p -> (p,) <$> toList (_linksTo p M.! Right i)
+            >>= \p -> (p,) <$> toList (p.linksTo M.! Right i)
    in pPages ++ iPages
 
 lookupOrgLocation :: Pages -> UnresolvedLocation -> Maybe OrgEntry

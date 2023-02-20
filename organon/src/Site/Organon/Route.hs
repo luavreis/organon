@@ -42,51 +42,50 @@ data Route
 instance EmaSite Route where
   type SiteArg Route = Config.Config
   siteInput act cfg = do
-    dR <- siteInput @O.Route act (Config.orgFiles cfg)
+    dR <- siteInput @O.Route act cfg.orgFiles
     dS <- siteInput @(SR.StaticRoute "assets") act ()
-    dO <- ondimDynamic (Config.templates cfg)
-    dL <- layoutDynamic (Config.layouts cfg)
-    dC <- cacheDynamic (Config.cacheFile cfg)
+    dO <- ondimDynamic cfg.templates
+    dL <- layoutDynamic cfg.layouts
+    dC <- cacheDynamic cfg.cacheFile
     let dP = lastPathDynamic cfg
-    return $ Model <$> dR <*> dS <*> dO <*> dL <*> dC ?? Config.extraOptions cfg ?? isLiveServer act <*> dP
+    return $ Model <$> dR <*> dS <*> dO <*> dL <*> dC ?? cfg.extraOptions ?? isLiveServer act <*> dP
 
   siteOutput rp model route =
     case route of
-      RouteContent r -> ondimOutput (rp % _As @O.Route) orgM r
-      RouteStatic r -> siteOutput (rp % _As @"RouteStatic") (staticM model) r
+      RouteContent r -> ondimOutput (rp % _As @O.Route) model.org r
+      RouteStatic r -> siteOutput (rp % _As @"RouteStatic") model.static r
     where
       ondimOutput ::
         (RenderM m, SiteOutput r ~ OndimOutput, EmaSite r) =>
         Prism' FilePath r ->
-        (Model -> RouteModel r) ->
+        RouteModel r ->
         r ->
         m (SiteOutput Route)
-      ondimOutput p s r =
-        renderWithLayout =<< siteOutput p (s model) r
+      ondimOutput p m r = renderWithLayout =<< siteOutput p m r
 
       renderWithLayout :: RenderM m => OndimOutput -> m (Asset LByteString)
       renderWithLayout =
         handleErrors . evalOutput ostate . \case
           AssetOutput x -> x
           PageOutput lname doc
-            | Just layout <- (model ^. #layouts) !? lname ->
+            | Just layout <- model.layouts !? lname ->
                 doc layout
                   `bindingText` do
-                    when (liveServer model) $ "organon:live-server" ## pure ""
+                    when model.liveServer $ "organon:live-server" ## pure ""
                     prefixed "asset:" $ forM_ files \file ->
-                      toText file ## pure $ SR.staticRouteUrl (rp % _As @"RouteStatic") (model ^. #staticM) file
+                      toText file ## pure $ SR.staticRouteUrl (rp % _As @"RouteStatic") model.static file
                   `binding` do
-                    "query" ## queryExp (rp % _As @O.Route) (orgM model)
+                    "query" ## queryExp (rp % _As @O.Route) model.org
                     "organon:latex" ## renderLaTeXExp model
                     "utils:regex" ## regexExp
                     "unwrap" ## unwrapExp
                     "portal" ## portalExp
-                    "o:parse" ## parseObjectsExp (backend (orgM model ^. #_mPages) (rp % _As @O.Route))
+                    "o:parse" ## parseObjectsExp (backend model.org.pages (rp % _As @O.Route))
             | otherwise -> throwCustom $ "Could not find layout " <> lname
         where
           handleErrors = fmap (either (error . show) id)
-          files = keys $ model ^. (#staticM % #modelFiles)
-          ostate = model ^. #ondimS
+          files = keys model.static.modelFiles
+          ostate = model.ondim
 
 targetFilter :: Text -> Filter HtmlNode
 targetFilter p thunk = do

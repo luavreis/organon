@@ -29,7 +29,7 @@ renderLaTeX path process txt = do
     pipeline `catch` \(_ :: IOException) -> do
       logErrorNS "LaTeX Rendering" ("Failed to render LaTeX in file " <> toText path)
       logErrorNS "LaTeX Rendering" (T.strip $ "LaTeX content:\n" <> finalText)
-      pure (imageMIMEType process, "")
+      pure (process.imageMIMEType, "")
   where
     pipeline :: LoggingT IO (Text, ByteString)
     pipeline =
@@ -39,8 +39,8 @@ renderLaTeX path process txt = do
         liftIO $ hClose texInH
         -- Here I'm reimplementing Org's `org-compile-file`, which mandates that the
         -- process produces exactly the same filepath but with replaced extension.
-        let texOutFp = texInFp -<.> imageInputType process
-        forM_ (latexCompiler process) \cmd ->
+        let texOutFp = texInFp -<.> process.imageInputType
+        forM_ process.latexCompiler \cmd ->
           callCreateProcess
             ( shell . toString $
                 cmd
@@ -50,22 +50,22 @@ renderLaTeX path process txt = do
             )
               { cwd = Just dir
               }
-        let iOutFp = texOutFp -<.> imageOutputType process
-        forM_ (imageConverter process) \cmd ->
+        let iOutFp = texOutFp -<.> process.imageOutputType
+        forM_ process.imageConverter \cmd ->
           callCreateProcess
             ( shell . toString $
                 cmd
                   & T.replace "%o" (toText tmpDir)
                   & T.replace "%O" (toText iOutFp)
                   & T.replace "%f" (toText texOutFp)
-                  & T.replace "%S" (show $ imageSizeAdjust process)
+                  & T.replace "%S" (show process.imageSizeAdjust)
             )
               { cwd = Just dir
               }
-        (imageMIMEType process,) <$> readFileBS iOutFp
+        (process.imageMIMEType,) <$> readFileBS iOutFp
 
     finalText =
-      let pPreamble = preamble process
+      let pPreamble = process.preamble
        in [text|
           $pPreamble
           \begin{document}
