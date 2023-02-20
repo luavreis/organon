@@ -16,11 +16,10 @@ import Org.Types
 import Org.Walk
 import Relude.Extra (lookup)
 import Relude.Unsafe (fromJust)
-import Site.Org.Meta.Types (MetaMap, elementToMetaMap)
+import Site.Org.Meta.Types
 import Site.Org.Model
-import Site.Org.Options (Options (..), Source (..))
-import Site.Org.PreProcess (DocLike (..), walkPreProcess)
-import Site.Org.PreProcess qualified as PP
+import Site.Org.Options
+import Site.Org.PreProcess
 import Site.Org.Utils.MonoidalMap
 import System.FilePath (dropExtension, isExtensionOf, splitDirectories, takeDirectory)
 import UnliftIO (MonadUnliftIO)
@@ -72,7 +71,7 @@ loadOrgFile opts path doc0 = do
       (doc, datum) = continuePipeline odata0 do
         gatherSettings doc0
         pure <$> withCurrentData (pruneDoc doc0)
-  doc' <- runReaderT (walkPreProcess doc) (PP.PreProcessEnv {..})
+  doc' <- runReaderT (walkPreProcess doc) (PreProcessEnv {..})
   let (doc'', datum') = continuePipeline datum do
         getCompose $ resolveLinks doc'
       inhData = datum' & #filetags %~ (<> fpTags)
@@ -223,7 +222,7 @@ processEntry f s = do
   newMeta <- gets (.meta)
 
   when isEntry do
-    let doc = toDoc s' & (#documentProperties %~ (<> env.inhProps))
+    let doc = toDoc s' & #documentProperties %~ (<> env.inhProps)
         layout =
           fromMaybe "org-page" $
             Map.lookup "layout" doc.documentProperties

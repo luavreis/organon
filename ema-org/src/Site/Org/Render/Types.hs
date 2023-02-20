@@ -15,7 +15,7 @@ import Ondim.Targets.HTML (HtmlNode, HtmlTag)
 import Optics.Core (Prism')
 import Org.Exporters.Common hiding (Expansion, Filter, Ondim, OndimMS)
 import Org.Exporters.Common qualified as EC
-import Site.Org.Model (Route)
+import Site.Org.Route
 import Text.XmlHtml qualified as X
 
 type RenderM m = (MonadIO m, MonadLoggerIO m)

@@ -78,7 +78,7 @@ objectExpMap ::
   MapSyntaxM Text (Expansion HtmlNode) ()
 objectExpMap bk name obj = prefixed name do
   ":open" ## \node ->
-    filteringExpansions @HtmlNode (not . T.isPrefixOf name) $ do
+    filteringExpansions @HtmlNode (not . T.isPrefixOf name) do
       pfx <- lookupAttr "prefix" node
       openMetaMap bk pfx obj $ liftChildren node
   ":list" ## listMetaMap bk obj

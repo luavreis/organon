@@ -12,7 +12,7 @@ import Ema.CLI qualified as CLI
 import Ema.Server (EmaServerOptions (..), EmaWsRenderer, decodeUrlRoute, defaultEmaWsRenderer)
 import GHC.IO.Handle.FD (withFileBlocking)
 import Network.WebSockets qualified as WS
-import Site.Org.Model hiding (Route)
+import Site.Org.Model
 import Site.Organon.Model
 import Site.Organon.Route (Route)
 import System.FilePath ((</>))
@@ -61,7 +61,7 @@ customEmaWs conn model path =
               anchor = maybe "" (("#" <>) . slugify) targetLoc.locationAnchor
           liftIO $ WS.sendTextData conn $ "REDIRECT " <> pagePath <> anchor
           return Nothing
-          -- defaultEmaWsRenderer @Route conn s pagePath
+    -- defaultEmaWsRenderer @Route conn s pagePath
     _ -> defaultEmaWsRenderer @Route conn model path
   where
     log = logWithoutLoc "Organon WS"

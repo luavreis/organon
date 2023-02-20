@@ -14,8 +14,8 @@ import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core ((%~))
 import Org.Exporters.Processing.OrgData (OrgData, keywords)
 import Org.Types
-import Site.Org.Render (Expansion, Ondim, bindingText, callText, liftChildren, liftRenderT, throwCustom, (##))
-import Site.Organon.Extra.LaTeX.Render (renderLaTeX)
+import Site.Org.Render.Types
+import Site.Organon.Extra.LaTeX.Render
 import Site.Organon.Extra.LaTeX.Types
 import Site.Organon.Model (Model (..))
 import System.FilePath (takeDirectory, (-<.>), (</>))

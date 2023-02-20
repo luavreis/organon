@@ -1,6 +1,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Site.Organon.Extra.LaTeX.Render where
+module Site.Organon.Extra.LaTeX.Render (
+  renderLaTeX,
+) where
 
 import Control.Monad.Logger
 import Data.Text qualified as T
@@ -33,7 +35,7 @@ renderLaTeX path process txt = do
   where
     pipeline :: LoggingT IO (Text, ByteString)
     pipeline =
-      withSystemTempDirectory "tex-conversion" $ \tmpDir -> do
+      withSystemTempDirectory "tex-conversion" \tmpDir -> do
         (texInFp, texInH) <- liftIO $ openTempFile tmpDir "orgtex.tex"
         liftIO $ hPutStr texInH finalText
         liftIO $ hClose texInH

@@ -8,6 +8,7 @@ import Org.Exporters.HTML (renderFragment')
 import Org.Exporters.Processing.OrgData (OrgData (parsedTitle))
 import Site.Org.Model
 import Site.Org.Render
+import Site.Org.Route
 
 data Node = Node {nodeId :: Text, nodeName :: Text} deriving (Generic)
 

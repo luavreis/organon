@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Site.Organon.Route where
+module Site.Organon.Route (Route) where
 
 import Data.Generics.Sum.Any
 import Data.List qualified as L
@@ -14,18 +14,19 @@ import Ondim.Extra (getAttrs, lookupAttr', prefixed)
 import Ondim.Targets.HTML (HtmlNode, HtmlTag)
 import Optics.Core
 import Site.Org ()
-import Site.Org.Model qualified as O
+import Site.Org.Model qualified
 import Site.Org.Render
-import Site.Organon.Config qualified as Config
+import Site.Org.Route qualified as Org
+import Site.Organon.Config
 import Site.Organon.Dynamic
-import Site.Organon.Extra.LaTeX (renderLaTeXExp)
-import Site.Organon.Extra.Query (queryExp)
-import Site.Organon.Extra.Regex (regexExp)
-import Site.Organon.Model (Model (..))
+import Site.Organon.Extra.LaTeX
+import Site.Organon.Extra.Query
+import Site.Organon.Extra.Regex
+import Site.Organon.Model
 
 data Route
   = RouteStatic (SR.StaticRoute "assets")
-  | RouteContent O.Route
+  | RouteContent Org.Route
   deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
   deriving
     (HasSubRoutes, HasSubModels, IsRoute)
@@ -33,16 +34,16 @@ data Route
             Route
             '[ WithSubRoutes
                 '[ FolderRoute "assets" (SR.StaticRoute "assets")
-                 , O.Route
+                 , Org.Route
                  ]
              , WithModel Model
              ]
         )
 
 instance EmaSite Route where
-  type SiteArg Route = Config.Config
+  type SiteArg Route = Config
   siteInput act cfg = do
-    dR <- siteInput @O.Route act cfg.orgFiles
+    dR <- siteInput @Org.Route act cfg.orgFiles
     dS <- siteInput @(SR.StaticRoute "assets") act ()
     dO <- ondimDynamic cfg.templates
     dL <- layoutDynamic cfg.layouts
@@ -52,7 +53,7 @@ instance EmaSite Route where
 
   siteOutput rp model route =
     case route of
-      RouteContent r -> ondimOutput (rp % _As @O.Route) model.org r
+      RouteContent r -> ondimOutput (rp % _As @Org.Route) model.org r
       RouteStatic r -> siteOutput (rp % _As @"RouteStatic") model.static r
     where
       ondimOutput ::
@@ -75,12 +76,12 @@ instance EmaSite Route where
                     prefixed "asset:" $ forM_ files \file ->
                       toText file ## pure $ SR.staticRouteUrl (rp % _As @"RouteStatic") model.static file
                   `binding` do
-                    "query" ## queryExp (rp % _As @O.Route) model.org
+                    "query" ## queryExp (rp % _As @Org.Route) model.org
                     "organon:latex" ## renderLaTeXExp model
                     "utils:regex" ## regexExp
                     "unwrap" ## unwrapExp
                     "portal" ## portalExp
-                    "o:parse" ## parseObjectsExp (backend model.org.pages (rp % _As @O.Route))
+                    "o:parse" ## parseObjectsExp (backend model.org.pages (rp % _As @Org.Route))
             | otherwise -> throwCustom $ "Could not find layout " <> lname
         where
           handleErrors = fmap (either (error . show) id)

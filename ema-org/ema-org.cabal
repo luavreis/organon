@@ -82,11 +82,13 @@ library
     Site.Org.Meta.Types
     Site.Org.Model
     Site.Org.Options
+    Site.Org.Parsing.Options
     Site.Org.PreProcess
     Site.Org.Process
     Site.Org.Render
     Site.Org.Render.Backend
     Site.Org.Render.Types
+    Site.Org.Route
     Site.Org.Utils.Document
     Site.Org.Utils.JSON
     Site.Org.Utils.MonoidalMap
