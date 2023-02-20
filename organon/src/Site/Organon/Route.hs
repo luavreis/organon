@@ -21,6 +21,7 @@ import Site.Organon.Dynamic
 import Site.Organon.Extra.LaTeX (renderLaTeXExp)
 import Site.Organon.Extra.Query (queryExp)
 import Site.Organon.Model (Model (..))
+import Site.Organon.Extra.Regex (regexExp)
 
 data Route
   = RouteStatic (SR.StaticRoute "assets")
@@ -77,6 +78,7 @@ instance EmaSite Route where
                   `binding` do
                     "query" ## queryExp (rp % _As @O.Route) (orgM model)
                     "organon:latex" ## renderLaTeXExp model
+                    "utils:regex" ## regexExp
                     "unwrap" ## unwrapExp
                     "portal" ## portalExp
                     "o:parse" ## parseObjectsExp (backend (orgM model ^. #_mPages) (rp % _As @O.Route))

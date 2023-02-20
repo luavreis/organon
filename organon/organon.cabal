@@ -39,6 +39,7 @@ common common-options
     , optics-core
     , org-exporters
     , org-parser
+    , regex-pcre-builtin
     , relude
     , slugify
     , time
@@ -87,6 +88,7 @@ library
     Site.Organon.Extra.LaTeX.Render
     Site.Organon.Extra.LaTeX.Types
     Site.Organon.Extra.Query
+    Site.Organon.Extra.Regex
     Site.Organon.Model
     Site.Organon.Route
     Site.Organon.Server
