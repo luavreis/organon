@@ -68,7 +68,7 @@ s @+? ix = s Ix.@+ ix
 s @/* ix = foldl' Ix.intersection s $ map (s @/) ix
 
 filterFiles :: [QueryMod Text] -> Pages -> Pages
-filterFiles q p = p Ix.@+ filter (fPred . opPath) files
+filterFiles q p = p Ix.@+ filter (fPred . (.relpath)) files
   where
     files :: [OrgPath] = Ix.indexKeys p
     (en, ph, ex) = groupQuery q
@@ -121,17 +121,17 @@ queryExp rp m node = do
       doSort =
         maybe id sorting $ L.lookup "sort-by" attrs
 
-      srcAliases = srcToAliasMap (mount $ _mOptions m)
+      srcAliases = srcToAliasMap m.options.mount
 
       pages' =
         doTake . doSort . doLinksTo . doRoute . doTags . doFiles . doSources $
-          _mPages m
+          m.pages
 
   ifElse (not (null pages')) node
     `binding` do
       "q:result" ## \node' ->
         join <$> forM pages' \(p, ref) ->
-          let page = bindPage rp (_mPages m) p (liftChildren @HtmlNode node')
+          let page = bindPage rp m.pages p (liftChildren @HtmlNode node')
            in case ref of
                 Just (Anchor ref') ->
                   page `bindingText` do
@@ -144,7 +144,7 @@ queryExp rp m node = do
             _ -> (id, s')
        in sortBy $
             rev case s of
-              "title" -> comparing $ parsedTitle . _orgData . fst
-              "created" -> comparing $ _ctime . fst
-              "modified" -> comparing $ _mtime . fst
+              "title" -> comparing $ parsedTitle . (.orgData) . fst
+              "created" -> comparing $ (.ctime) . fst
+              "modified" -> comparing $ (.mtime) . fst
               _ -> comparing $ const ()

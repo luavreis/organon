@@ -38,17 +38,17 @@ buildRoamGraph rp m = Graph <$> nodes ?? links
       title <-
         render page $
           expandOrgObjects (backend m rp) $
-            parsedTitle (_orgData page)
-      return $ Node (route $ _identifier page) title
+            parsedTitle page.orgData
+      return $ Node (route page.identifier) title
 
     nodes = mapM pageToNode (toList m)
 
     links =
       toList m >>= \source ->
         catMaybes $
-          keys (_linksTo source) <&> \backlink -> do
+          keys source.linksTo <&> \backlink -> do
             page <- lookupOrgLocation m backlink
-            return $ Link (route $ _identifier source) (route $ _identifier page)
+            return $ Link (route source.identifier) (route page.identifier)
 
 renderGraph :: Prism' FilePath Route -> Model -> OndimOutput
-renderGraph rp m = AssetOutput $ AssetGenerated Other . encode <$> buildRoamGraph rp (m ^. pages)
+renderGraph rp m = AssetOutput $ AssetGenerated Other . encode <$> buildRoamGraph rp m.pages

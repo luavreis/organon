@@ -70,10 +70,10 @@ processTarget t = do
   case t of
     -- Link to another file.
     l@(URILink protocol fp)
-      | protocol `elem` (env ^. #opts % #fileProtocols) ->
+      | protocol `elem` env.opts.fileProtocols ->
       fromMaybe l <$> findTarget fp
     l@(URILink "attachment" att)
-      | Just aDir <- attachDir env ->
+      | Just aDir <- env.attachDir ->
           fromMaybe l <$> findTarget (toText $ aDir </> toString att)
     l -> pure l
   where
@@ -92,7 +92,7 @@ processEntry f s = do
   let sectionId = lookup "id" (getProps s)
 
       updateId = case sectionId of
-        Just x | sectionId /= lookup "id" (inhProps env) -> Just x
+        Just x | sectionId /= lookup "id" env.inhProps -> Just x
         _ -> Nothing
 
   newAttachDir <- join <$> forM updateId getAttachDir
@@ -115,20 +115,20 @@ findLinkSource fp = do
     canonicalizePath
       if isAbsolute fp'
         then fp'
-        else srcDir env </> relDir env </> fp'
+        else env.srcDir </> env.relDir </> fp'
   exists <- doesFileExist trueFp
   if exists
     then do
-      op <- findSource (sources env) trueFp
+      op <- findSource env.sources trueFp
       whenNothing_ op $
         lift $
           logWarnNS "findSource" $
-            "File " <> show trueFp <> " linked from " <> prettyOrgPath (path env) <> " exists but does not belong to a declared source."
+            "File " <> show trueFp <> " linked from " <> prettyOrgPath env.path <> " exists but does not belong to a declared source."
       return op
     else do
       lift $
         logWarnNS "findSource" $
-          "File " <> show trueFp <> " linked from " <> prettyOrgPath (path env) <> " does not exist."
+          "File " <> show trueFp <> " linked from " <> prettyOrgPath env.path <> " does not exist."
       return Nothing
 
 getAttachDir :: MonadIO m => Text -> PreProcessM m (Maybe FilePath)
@@ -140,7 +140,7 @@ getAttachDir key = do
 
   possibleDirs <-
     mapM makeAbsolute $
-      (srcDir env </>) . (orgAttachDir (opts env) </>)
+      (env.srcDir </>) . (env.opts.orgAttachDir </>)
         <$> [ orgAttachIdTSFolderFormat
             , orgAttachIdUUIDFolderFormat
             , rid

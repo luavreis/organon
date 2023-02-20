@@ -53,6 +53,7 @@ common common-options
     , yaml
 
   default-extensions:
+    NoFieldSelectors
     BlockArguments
     DataKinds
     DeriveAnyClass
@@ -68,6 +69,7 @@ common common-options
     MultiParamTypeClasses
     MultiWayIf
     OverloadedLabels
+    OverloadedRecordDot
     OverloadedStrings
     ScopedTypeVariables
     TupleSections

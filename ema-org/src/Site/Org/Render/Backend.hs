@@ -91,13 +91,13 @@ resolveTarget m rp = \case
     | (id_, anchor) <- breakInternalRef id',
       Just page <- Ix.getOne (m Ix.@= OrgID id_) ->
         Just . UnresolvedLink $
-          route (Route_Page $ _identifier page) <> anchor
+          route (Route_Page page.identifier) <> anchor
   (URILink uri (maybeAddHash -> anchor))
     | Just rawOPath <- T.stripPrefix "source:" uri ->
         Just . UnresolvedLink $
           let ix_ :: OrgPath = removeOrgExt $ fromJust $ readMaybe (toString rawOPath)
               orgRoute = do
-                ident <- _identifier <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
+                ident <- (.identifier) <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
                 pure $ Route_Page ident
               staticRoute = do
                 let sroute = StaticFileIx ix_
@@ -112,7 +112,7 @@ resolveTarget m rp = \case
                       <> " but it does not exist in the model. Please report it as a bug."
   _ -> Nothing
   where
-    removeOrgExt = #opPath %~ \p -> if "org" `isExtensionOf` p then dropExtension p else p
+    removeOrgExt = #relpath %~ \p -> if "org" `isExtensionOf` p then dropExtension p else p
     maybeAddHash x = maybe x ("#" <>) (T.stripPrefix "::" x)
     breakInternalRef = second maybeAddHash . T.breakOn "::"
     route = routeUrl rp

@@ -10,7 +10,6 @@ import Ema
 import Ema.CLI qualified as CLI
 import Ema.Server (EmaServerOptions (..), EmaWsRenderer, decodeUrlRoute, defaultEmaWsRenderer)
 import Network.WebSockets qualified as WS
-import Optics.Core
 import Site.Org.Model hiding (Route)
 import Site.Organon.Model
 import Site.Organon.Route (Route)
@@ -56,10 +55,10 @@ customEmaWs conn s path =
             _ -> log LevelError "Opening files in this OS is not supported."
           return Nothing
     Right (Just _)
-      | Just targetLoc <- s ^. #targetLocation
-      , Just r' <- _identifier <$> lookupOrgLocation (s ^. #orgM % #_mPages) (targetLoc ^. #locationPage) -> do
-          let pagePath = routeUrl (fromPrism_ $ routePrism (s ^. #orgM)) r'
-              anchor = maybe "" (("#" <>) . slugify) (targetLoc ^. #locationAnchor)
+      | Just targetLoc <- s.targetLocation
+      , Just r' <- (.identifier) <$> lookupOrgLocation s.org.pages targetLoc.locationPage -> do
+          let pagePath = routeUrl (fromPrism_ $ routePrism s.org) r'
+              anchor = maybe "" (("#" <>) . slugify) targetLoc.locationAnchor
           liftIO $ WS.sendTextData conn $ "REDIRECT " <> pagePath <> anchor
           return Nothing
     -- defaultEmaWsRenderer @Route conn s path'
