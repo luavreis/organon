@@ -16,5 +16,6 @@ data Model = Model
   , cache :: TVar Cache
   , extraOpts :: Object
   , liveServer :: Bool
+  , wsNextMsg :: IO ByteString
   }
   deriving (Generic)

@@ -5,26 +5,21 @@ module Site.Organon.Server (runOrganon) where
 import Control.Monad.Logger
 import Control.Monad.Logger.Extras (runLoggerLoggingT)
 import Data.Aeson (decodeStrict)
-import Data.ByteString (hGetLine)
 import Data.Dependent.Sum (DSum (..))
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Ema
 import Ema.CLI qualified as CLI
 import Ema.Server (EmaServerOptions (..), EmaWsHandler)
-import GHC.IO.Handle.FD (withFileBlocking)
 import Network.WebSockets qualified as WS
 import Site.Org.Model
 import Site.Org.Options
 import Site.Organon.Model
 import Site.Organon.Route (Route)
-import System.FilePath (dropExtension, (</>))
-import System.IO.Error (IOError)
+import System.FilePath (dropExtension)
 import System.Info qualified as Info
-import System.Posix (createNamedPipe, fileExist, getFileStatus, isNamedPipe, ownerModes)
 import Text.Slugify (slugify)
-import UnliftIO (catch, conc, runConc)
-import UnliftIO.Directory (getTemporaryDirectory, removeFile)
+import UnliftIO (conc, runConc)
 import UnliftIO.Process (callCommand)
 
 runOrganon ::
@@ -48,7 +43,7 @@ customEmaWs conn model =
   runConc $
     asum
       [ conc customMessage
-      , conc namedPipeRedirect
+      , conc followRedirect
       ]
   where
     customMessage = do
@@ -65,17 +60,8 @@ customEmaWs conn model =
               customMessage
           | otherwise -> pure msg
 
-    namedPipeRedirect = do
-      tmpDir <- getTemporaryDirectory
-      let fifoFp = tmpDir </> "organon.fifo"
-      input <- liftIO do
-        whenM (fileExist fifoFp) $
-          unlessM (isNamedPipe <$> getFileStatus fifoFp) $
-            removeFile fifoFp
-        unlessM (fileExist fifoFp) $
-          createNamedPipe fifoFp ownerModes
-        withFileBlocking fifoFp ReadMode hGetLine
-          `catch` (\(_ :: IOError) -> pure "")
+    followRedirect = do
+      input <- liftIO $ model.wsNextMsg
       log LevelDebug $ "Received signal " <> show input
       _ <- runMaybeT do
         obj :: Map Text (Maybe Text) <- hoistMaybe $ decodeStrict input
@@ -92,6 +78,6 @@ customEmaWs conn model =
         let pagePath = routeUrl (fromPrism_ $ routePrism model.org) entry.identifier
             anchor' = maybe "" slugify anchor
         liftIO $ WS.sendTextData conn $ "SWITCH " <> pagePath <> "#" <> anchor'
-      namedPipeRedirect
+      followRedirect
 
     log = logWithoutLoc "Organon WS"

@@ -48,7 +48,8 @@ instance EmaSite Route where
     dO <- ondimDynamic cfg.templates
     dL <- layoutDynamic cfg.layouts
     dC <- cacheDynamic cfg.cacheFile
-    return $ Model <$> dR <*> dS <*> dO <*> dL <*> dC ?? cfg.extraOptions ?? isLiveServer act
+    dW <- wsConnDynamic
+    return $ Model <$> dR <*> dS <*> dO <*> dL <*> dC ?? cfg.extraOptions ?? isLiveServer act <*> dW
 
   siteOutput rp model route =
     case route of
