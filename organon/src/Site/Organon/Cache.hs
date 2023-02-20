@@ -1,8 +1,8 @@
-module Site.Organon.Cache
-  ( Cache (..),
-    cache0,
-    loadCache,
-  )
+module Site.Organon.Cache (
+  Cache (..),
+  cache0,
+  loadCache,
+)
 where
 
 import Control.Monad.Logger (MonadLogger, logDebugN, logWarnN)

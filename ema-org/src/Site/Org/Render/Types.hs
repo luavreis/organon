@@ -1,21 +1,22 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FieldSelectors #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Site.Org.Render.Types
-  ( module Site.Org.Render.Types,
-    module Org.Exporters.Common,
-  )
-  where
+module Site.Org.Render.Types (
+  module Site.Org.Render.Types,
+  module Org.Exporters.Common,
+)
+where
 
 import Control.Monad.Logger (MonadLogger (..), MonadLoggerIO (..))
 import Control.Monad.Trans.Either (EitherT, runEitherT)
+import Ema.Asset (Asset)
 import Ondim.Targets.HTML (HtmlNode, HtmlTag)
 import Optics.Core (Prism')
-import Org.Exporters.Common hiding (Ondim, OndimMS, Expansion, Filter)
+import Org.Exporters.Common hiding (Expansion, Filter, Ondim, OndimMS)
 import Org.Exporters.Common qualified as EC
 import Site.Org.Model (Route)
 import Text.XmlHtml qualified as X
-import Ema.Asset (Asset)
 
 type RenderM m = (MonadIO m, MonadLoggerIO m)
 

@@ -64,9 +64,9 @@ shift i sec@OrgSection {sectionLevel = level}
 isolateSection :: OrgSection -> OrgDocument
 isolateSection section =
   OrgDocument
-    { documentProperties = sectionProperties section,
-      documentChildren = sectionChildren section,
-      documentSections =
+    { documentProperties = sectionProperties section
+    , documentChildren = sectionChildren section
+    , documentSections =
         sectionSubsections $
           walk (shift (2 - sectionLevel section)) section
     }

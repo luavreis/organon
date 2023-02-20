@@ -1,5 +1,3 @@
--- |
-
 module Site.Org.Meta.Types where
 
 import Org.Parser.Definitions (ListItem (..), ListType (..), OrgElement (..), OrgObject (..))

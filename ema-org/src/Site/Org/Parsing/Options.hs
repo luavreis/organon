@@ -6,8 +6,8 @@ parsingOptions :: OrgOptions
 parsingOptions =
   def
     { orgElementParsedKeywords =
-        orgElementParsedKeywords def ++ ["transclude", "excerpt"],
-      orgElementAffiliatedKeywords =
+        orgElementParsedKeywords def ++ ["transclude", "excerpt"]
+    , orgElementAffiliatedKeywords =
         orgElementAffiliatedKeywords def ++ ["meta"]
     }
   where

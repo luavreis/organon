@@ -13,13 +13,13 @@ data TargetLocation = TargetLocation {locationPage :: O.UnresolvedLocation, loca
   deriving (Eq, Ord, Show, Generic)
 
 data Model = Model
-  { org :: O.Model,
-    static :: SR.Model,
-    ondim :: OndimMS,
-    layouts :: Layouts,
-    cache :: TVar Cache,
-    extraOpts :: Object,
-    liveServer :: Bool,
-    targetLocation :: Maybe TargetLocation
+  { org :: O.Model
+  , static :: SR.Model
+  , ondim :: OndimMS
+  , layouts :: Layouts
+  , cache :: TVar Cache
+  , extraOpts :: Object
+  , liveServer :: Bool
+  , targetLocation :: Maybe TargetLocation
   }
   deriving (Generic)

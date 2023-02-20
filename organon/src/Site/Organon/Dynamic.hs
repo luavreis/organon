@@ -18,6 +18,7 @@ import Site.Org.Options (Options (..))
 import Site.Org.Render.Types (Layouts, OndimMS)
 import Site.Organon.Cache (Cache, loadCache)
 import Site.Organon.Config (Config (..))
+import Site.Organon.Model (TargetLocation (TargetLocation))
 import System.FilePath (dropExtension, takeBaseName, (</>))
 import System.IO.Error (IOError)
 import System.Posix
@@ -26,7 +27,6 @@ import Text.XmlHtml qualified as X
 import UnliftIO (MonadUnliftIO, catch, finally)
 import UnliftIO.Concurrent (threadDelay)
 import UnliftIO.Directory (getTemporaryDirectory, removeFile)
-import Site.Organon.Model (TargetLocation (TargetLocation))
 
 layoutDynamic :: (MonadUnliftIO m, MonadLogger m) => FilePath -> m (Dynamic m Layouts)
 layoutDynamic dir = do

@@ -20,8 +20,8 @@ import Site.Organon.Config qualified as Config
 import Site.Organon.Dynamic
 import Site.Organon.Extra.LaTeX (renderLaTeXExp)
 import Site.Organon.Extra.Query (queryExp)
-import Site.Organon.Model (Model (..))
 import Site.Organon.Extra.Regex (regexExp)
+import Site.Organon.Model (Model (..))
 
 data Route
   = RouteStatic (SR.StaticRoute "assets")
@@ -32,10 +32,10 @@ data Route
     via ( GenericRoute
             Route
             '[ WithSubRoutes
-                 '[ FolderRoute "assets" (SR.StaticRoute "assets"),
-                    O.Route
-                  ],
-               WithModel Model
+                '[ FolderRoute "assets" (SR.StaticRoute "assets")
+                 , O.Route
+                 ]
+             , WithModel Model
              ]
         )
 

@@ -67,11 +67,11 @@ instance EmaSite Route where
 -- | Conturrent version of `UnionMount.mount`
 mountConcurrently ::
   forall model m b.
-  ( MonadIO m,
-    MonadUnliftIO m,
-    MonadLogger m,
-    Show b,
-    Ord b
+  ( MonadIO m
+  , MonadUnliftIO m
+  , MonadLogger m
+  , Show b
+  , Ord b
   ) =>
   FilePath ->
   [(b, FilePattern)] ->

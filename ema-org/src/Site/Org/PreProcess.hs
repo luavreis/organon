@@ -71,7 +71,7 @@ processTarget t = do
     -- Link to another file.
     l@(URILink protocol fp)
       | protocol `elem` env.opts.fileProtocols ->
-      fromMaybe l <$> findTarget fp
+          fromMaybe l <$> findTarget fp
     l@(URILink "attachment" att)
       | Just aDir <- env.attachDir ->
           fromMaybe l <$> findTarget (toText $ aDir </> toString att)

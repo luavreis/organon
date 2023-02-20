@@ -1,12 +1,12 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Site.Org.Render
-  ( module Site.Org.Render,
-    module Site.Org.Render.Types,
-    module Site.Org.Render.Backend,
-    module Org.Exporters.Common,
-  )
+module Site.Org.Render (
+  module Site.Org.Render,
+  module Site.Org.Render.Types,
+  module Site.Org.Render.Backend,
+  module Org.Exporters.Common,
+)
 where
 
 import Control.Monad.Except (liftEither)

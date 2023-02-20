@@ -26,9 +26,9 @@ backend p rp = fix \self ->
       m "o" [e] = callExpansion e (nullObj def)
       m _ _ = pure []
    in def
-        { macro = m,
-          customElement = customElementPipeline p rp self,
-          customObject = customObjectPipeline p rp self
+        { macro = m
+        , customElement = customElementPipeline p rp self
+        , customObject = customObjectPipeline p rp self
         }
 
 customObjectPipeline ::
@@ -45,8 +45,8 @@ customElementPipeline ::
 customElementPipeline m rp bk x =
   asum $
     flap
-      [ customSourceBlock bk,
-        customFigure m rp bk
+      [ customSourceBlock bk
+      , customFigure m rp bk
       ]
       x
 
@@ -88,8 +88,8 @@ customFigure m rp bk = \case
 resolveTarget :: Pages -> RPrism -> LinkTarget -> Maybe LinkTarget
 resolveTarget m rp = \case
   (URILink "id" id')
-    | (id_, anchor) <- breakInternalRef id',
-      Just page <- Ix.getOne (m Ix.@= OrgID id_) ->
+    | (id_, anchor) <- breakInternalRef id'
+    , Just page <- Ix.getOne (m Ix.@= OrgID id_) ->
         Just . UnresolvedLink $
           route (Route_Page page.identifier) <> anchor
   (URILink uri (maybeAddHash -> anchor))
