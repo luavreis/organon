@@ -91,7 +91,7 @@ customEmaWs conn model =
         entry <- hoistMaybe $ lookupOrgLocation model.org.pages loc
         let pagePath = routeUrl (fromPrism_ $ routePrism model.org) entry.identifier
             anchor' = maybe "" slugify anchor
-        liftIO $ WS.sendTextData conn $ "REDIRECT " <> pagePath <> "#" <> anchor'
+        liftIO $ WS.sendTextData conn $ "SWITCH " <> pagePath <> "#" <> anchor'
       namedPipeRedirect
 
     log = logWithoutLoc "Organon WS"
