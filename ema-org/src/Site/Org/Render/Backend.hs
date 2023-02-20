@@ -17,6 +17,7 @@ import Org.Types (LinkTarget (..), OrgElement (..), OrgObject (..), srcLinesToTe
 import Relude.Unsafe (fromJust)
 import Site.Org.Model
 import Site.Org.Render.Types
+import Site.Org.Route
 import System.FilePath (dropExtension, isExtensionOf)
 import Text.XmlHtml qualified as X
 

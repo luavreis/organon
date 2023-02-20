@@ -1,15 +1,18 @@
 module Site.Organon.Cache (
   Cache (..),
   cache0,
-  loadCache,
+  cacheDynamic,
 )
 where
 
-import Control.Monad.Logger (MonadLogger, logDebugN, logWarnN)
-import Data.Binary (Binary, decodeFileOrFail)
+import Control.Monad.Logger (MonadLogger, logDebugN, logInfoNS, logWarnN)
+import Data.Binary (Binary, decodeFileOrFail, encodeFile)
 import Data.Binary.Instances.UnorderedContainers ()
 import Data.HashMap.Strict qualified as HMap
-import UnliftIO (IOException, MonadUnliftIO, catch)
+import Ema.Dynamic (Dynamic (..))
+import UnliftIO (MonadUnliftIO)
+import UnliftIO.Concurrent (threadDelay)
+import UnliftIO.Exception (IOException, catch, finally)
 
 newtype Cache = Cache
   { cacheStore :: HMap.HashMap LByteString LByteString
@@ -36,3 +39,13 @@ loadCache cFile = do
         Left (_, s) -> do
           logWarnN "Error decoding cache file. Starting with an empty one."
           logDebugN $ toText s
+
+cacheDynamic :: (MonadUnliftIO m, MonadLogger m) => FilePath -> m (Dynamic m (TVar Cache))
+cacheDynamic file = do
+  cVar <- loadCache file
+  let close _ =
+        forever (threadDelay maxBound) `finally` do
+          logInfoNS "cacheDynamic" "Writing cache to disk."
+          cache <- readTVarIO cVar
+          liftIO $ encodeFile file cache
+  pure $ Dynamic (cVar, close)

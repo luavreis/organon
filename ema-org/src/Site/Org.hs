@@ -7,11 +7,12 @@ import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as Map
 import Ema
 import Org.Parser (parseOrgIO)
-import Site.Org.Graph (renderGraph)
+import Site.Org.Graph
 import Site.Org.Model
-import Site.Org.Options qualified as O
+import Site.Org.Options
 import Site.Org.Process
-import Site.Org.Render (OndimOutput (AssetOutput), renderPost)
+import Site.Org.Render
+import Site.Org.Route
 import System.FilePath ((</>))
 import System.FilePattern (FilePattern)
 import System.UnionMount (FileAction (..))
@@ -23,7 +24,7 @@ data FileType = OrgFile | OtherFile
   deriving (Eq, Ord, Show)
 
 instance EmaSite Route where
-  type SiteArg Route = O.Options
+  type SiteArg Route = Options
   type SiteOutput Route = OndimOutput
   siteInput _ opt = do
     pages' :: Dynamic m Pages <-
@@ -80,7 +81,7 @@ mountConcurrently ::
   (b -> FilePath -> FileAction () -> m (model -> model)) ->
   m (model, (model -> m ()) -> m ())
 mountConcurrently folder pats ignore var0 toAction =
-  UM.unionMount (one ((), folder)) pats ignore var0 $ \chg ->
+  UM.unionMount (one ((), folder)) pats ignore var0 \chg ->
     chain . join <$> forM (Map.toList chg) \(tag, chg') ->
       pooledForConcurrently (Map.toList chg') $
         uncurry (toAction tag) . second void

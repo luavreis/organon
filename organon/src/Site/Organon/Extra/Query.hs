@@ -16,6 +16,7 @@ import Relude.Extra (lookup)
 import Site.Org.Model
 import Site.Org.Options (mount, srcToAliasMap)
 import Site.Org.Render
+import Site.Org.Route
 import System.FilePattern ((?==))
 import Prelude hiding (takeWhile)
 
@@ -106,7 +107,7 @@ queryExp rp m node = do
             forM terms $
               traverse $
                 fmap SourceIx . (`lookup` srcAliases)
-        pure $ \p -> p Ix.@* en @+? ph @/* ex
+        pure \p -> p Ix.@* en @+? ph @/* ex
     doFiles =
       maybe id filterFiles $
         parse' "paths"

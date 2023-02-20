@@ -1,10 +1,3 @@
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use camelCase" #-}
-
 module Site.Org.Model where
 
 import Data.IxSet.Typed qualified as Ix
@@ -13,9 +6,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty qualified as NES
 import Data.Time
 import Ema
-import Ema.Route.Generic
 import Ema.Route.Prism (htmlSuffixPrism)
-import Generics.SOP qualified as SOP
 import Optics.Core
 import Org.Exporters.Processing.OrgData (OrgData)
 import Org.Types (OrgDocument)
@@ -24,24 +15,6 @@ import Site.Org.Options (Options (..), Source (..))
 import Site.Org.Utils.JSON (FromJSON, ToJSON)
 import System.FilePath (dropExtension, isRelative, makeRelative, normalise, (</>))
 import UnliftIO.Directory (canonicalizePath)
-
-data Route
-  = Route_Page Identifier
-  | Route_Static StaticFileIx
-  | Route_Graph
-  deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
-  deriving
-    (HasSubRoutes, HasSubModels, IsRoute)
-    via ( GenericRoute
-            Route
-            '[ WithModel Model
-             , WithSubRoutes
-                '[ Identifier
-                 , StaticFileIx
-                 , FileRoute "graph.json"
-                 ]
-             ]
-        )
 
 type Pages = Ix.IxSet PostIxs OrgEntry
 
@@ -267,6 +240,3 @@ instance NFData LinksToIx
 instance NFData StaticFileIx
 instance NFData InternalRef
 instance NFData OrgEntry
-deriving instance Generic TimeLocale
-instance NFData TimeLocale
-instance NFData OrgData

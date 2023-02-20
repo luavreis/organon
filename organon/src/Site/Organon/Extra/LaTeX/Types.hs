@@ -1,22 +1,19 @@
-module Site.Organon.Extra.LaTeX.Types where
+module Site.Organon.Extra.LaTeX.Types (
+  LaTeXProcessSpec (..),
+  LaTeXOptions (..),
+  defLaTeXOptions,
+  LaTeXCacheKey,
+  LaTeXCacheVal,
+  lookupLaTeXCache,
+  insertLaTeXCache,
+)
+where
 
 import Data.Binary (Binary, decode, encode)
 import Data.HashMap.Strict qualified as HMap
 import Data.Map qualified as Map
 import Site.Org.Utils.JSON
-import Site.Organon.Cache (Cache (..))
-
-type LaTeXCacheKey = (Text, FilePath, LaTeXProcessSpec)
-
-type LaTeXCacheVal = (Text, ByteString)
-
-lookupLaTeXCache :: LaTeXCacheKey -> Cache -> Maybe LaTeXCacheVal
-lookupLaTeXCache key Cache {cacheStore = store} =
-  decode <$> HMap.lookup (encode key) store
-
-insertLaTeXCache :: LaTeXCacheKey -> LaTeXCacheVal -> Cache -> Cache
-insertLaTeXCache key val Cache {cacheStore = store} =
-  Cache {cacheStore = HMap.insert (encode key) (encode val) store}
+import Site.Organon.Cache
 
 data LaTeXProcessSpec = LaTeXProcessSpec
   { preamble :: Text
@@ -66,3 +63,17 @@ defLaTeXOptions =
             , imageConverter = ["dvisvgm %f -n -b min -c %S -o %O"]
             }
     }
+
+-- * Cache stuff
+
+type LaTeXCacheKey = (Text, FilePath, LaTeXProcessSpec)
+
+type LaTeXCacheVal = (Text, ByteString)
+
+lookupLaTeXCache :: LaTeXCacheKey -> Cache -> Maybe LaTeXCacheVal
+lookupLaTeXCache key Cache {cacheStore = store} =
+  decode <$> HMap.lookup (encode key) store
+
+insertLaTeXCache :: LaTeXCacheKey -> LaTeXCacheVal -> Cache -> Cache
+insertLaTeXCache key val Cache {cacheStore = store} =
+  Cache {cacheStore = HMap.insert (encode key) (encode val) store}

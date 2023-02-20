@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Site.Org.Options where
 
 import Org.Exporters.Processing.OrgData (ExporterSettings)
@@ -37,5 +35,3 @@ instance ToJSON Options where
 
 instance FromJSON Options where
   parseJSON = genericParseJSON customOptions
-
-instance NFData ExporterSettings
