@@ -2,8 +2,8 @@
 
 module Site.Org.Utils.MonoidalMap where
 
-import GHC.Exts (IsList (..))
 import Data.Map qualified as M
+import GHC.Exts (IsList (..))
 
 newtype MonoidalMap k a = MonoidalMap (Map k a)
   deriving (Eq, Ord, Read, Show, Typeable, Generic, Functor, Foldable, Traversable)

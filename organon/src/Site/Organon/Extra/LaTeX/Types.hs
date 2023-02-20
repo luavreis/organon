@@ -19,13 +19,13 @@ insertLaTeXCache key val Cache {cacheStore = store} =
   Cache {cacheStore = HMap.insert (encode key) (encode val) store}
 
 data LaTeXProcessSpec = LaTeXProcessSpec
-  { preamble :: Text,
-    imageInputType :: String,
-    imageOutputType :: String,
-    imageMIMEType :: Text,
-    imageSizeAdjust :: Float,
-    latexCompiler :: [Text],
-    imageConverter :: [Text]
+  { preamble :: Text
+  , imageInputType :: String
+  , imageOutputType :: String
+  , imageMIMEType :: Text
+  , imageSizeAdjust :: Float
+  , latexCompiler :: [Text]
+  , imageConverter :: [Text]
   }
   deriving (Eq, Ord, Show, Generic, Binary, Hashable)
 
@@ -37,8 +37,8 @@ instance FromJSON LaTeXProcessSpec where
   parseJSON = genericParseJSON customOptions
 
 data LaTeXOptions = LaTeXOptions
-  { defaultProcess :: Text,
-    processes :: Map Text LaTeXProcessSpec
+  { defaultProcess :: Text
+  , processes :: Map Text LaTeXProcessSpec
   }
   deriving (Eq, Ord, Show, Generic, Binary, Hashable)
 
@@ -52,17 +52,17 @@ instance FromJSON LaTeXOptions where
 defLaTeXOptions :: LaTeXOptions
 defLaTeXOptions =
   LaTeXOptions
-    { defaultProcess = "latex",
-      processes =
+    { defaultProcess = "latex"
+    , processes =
         Map.singleton
           "latex"
           LaTeXProcessSpec
-            { preamble = "\\documentclass{article}",
-              imageInputType = "dvi",
-              imageOutputType = "svg",
-              imageMIMEType = "image/svg+xml",
-              imageSizeAdjust = 1.7,
-              latexCompiler = ["latex -interaction nonstopmode -output-directory %o %f"],
-              imageConverter = ["dvisvgm %f -n -b min -c %S -o %O"]
+            { preamble = "\\documentclass{article}"
+            , imageInputType = "dvi"
+            , imageOutputType = "svg"
+            , imageMIMEType = "image/svg+xml"
+            , imageSizeAdjust = 1.7
+            , latexCompiler = ["latex -interaction nonstopmode -output-directory %o %f"]
+            , imageConverter = ["dvisvgm %f -n -b min -c %S -o %O"]
             }
     }

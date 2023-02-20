@@ -12,12 +12,12 @@ import Ondim.Extra (attributes, ifElse)
 import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core (Prism', preview, (%))
 import Org.Exporters.Processing.OrgData (OrgData (parsedTitle))
+import Relude.Extra (lookup)
 import Site.Org.Model
+import Site.Org.Options (mount, srcToAliasMap)
 import Site.Org.Render
 import System.FilePattern ((?==))
 import Prelude hiding (takeWhile)
-import Relude.Extra (lookup)
-import Site.Org.Options (srcToAliasMap, mount)
 
 data QueryMod a
   = Ensure a
@@ -47,9 +47,9 @@ queryP = term `sepBy` takeWhile1 isSpace
       f . mconcat
         <$> many
           ( asum
-              [ takeWhile1 (\c -> c /= ' ' && c /= '\\'),
-                escape,
-                T.singleton <$> char '\\'
+              [ takeWhile1 (\c -> c /= ' ' && c /= '\\')
+              , escape
+              , T.singleton <$> char '\\'
               ]
           )
     escape = try do
@@ -81,51 +81,51 @@ queryExp :: Prism' FilePath Route -> Model -> Expansion HtmlNode
 queryExp rp m node = do
   attrs <- attributes node
   let
-      route = T.break (== '#') <$> L.lookup "route" attrs
-      routePath = fst <$> route
-      routeAnchor = Anchor . T.drop 1 . snd <$> route
-      parse' x =
-        parseQuery <$> L.lookup x attrs
-      doRoute =
-        fromMaybe id do
-          path <- routePath
-          return $ fromMaybe (const mempty) do
-            id_ <- preview (rp % _As @Identifier) (toString path)
-            return (Ix.@= id_)
-      doLinksTo =
-        fromMaybe (map (, routeAnchor) . toList) do
-          path <- L.lookup "links-to" attrs
-          pure $ fromMaybe (const []) do
-            id_ <- preview (rp % _As @Identifier) (toString path)
-            pure $ flip lookupBacklinks id_
-      doSources =
-        fromMaybe id do
-          terms <- parse' "sources"
-          (en, ph, ex) <-
-            fmap groupQuery $
-              forM terms $
-                traverse $
-                  fmap SourceIx . (`lookup` srcAliases)
-          pure $ \p -> p Ix.@* en @+? ph @/* ex
-      doFiles =
-        maybe id filterFiles $
-          parse' "paths"
-      doTags =
-        fromMaybe id $
-          (fmap TagIx <<$>> parse' "tags")
-            <&> \(groupQuery -> (en, ph, ex)) p ->
-              p Ix.@* en @+? ph @/* ex
-      doTake =
-        maybe id take $
-          readMaybe . toString =<< L.lookup "take" attrs
-      doSort =
-        maybe id sorting $ L.lookup "sort-by" attrs
+    route = T.break (== '#') <$> L.lookup "route" attrs
+    routePath = fst <$> route
+    routeAnchor = Anchor . T.drop 1 . snd <$> route
+    parse' x =
+      parseQuery <$> L.lookup x attrs
+    doRoute =
+      fromMaybe id do
+        path <- routePath
+        return $ fromMaybe (const mempty) do
+          id_ <- preview (rp % _As @Identifier) (toString path)
+          return (Ix.@= id_)
+    doLinksTo =
+      fromMaybe (map (,routeAnchor) . toList) do
+        path <- L.lookup "links-to" attrs
+        pure $ fromMaybe (const []) do
+          id_ <- preview (rp % _As @Identifier) (toString path)
+          pure $ flip lookupBacklinks id_
+    doSources =
+      fromMaybe id do
+        terms <- parse' "sources"
+        (en, ph, ex) <-
+          fmap groupQuery $
+            forM terms $
+              traverse $
+                fmap SourceIx . (`lookup` srcAliases)
+        pure $ \p -> p Ix.@* en @+? ph @/* ex
+    doFiles =
+      maybe id filterFiles $
+        parse' "paths"
+    doTags =
+      fromMaybe id $
+        (fmap TagIx <<$>> parse' "tags")
+          <&> \(groupQuery -> (en, ph, ex)) p ->
+            p Ix.@* en @+? ph @/* ex
+    doTake =
+      maybe id take $
+        readMaybe . toString =<< L.lookup "take" attrs
+    doSort =
+      maybe id sorting $ L.lookup "sort-by" attrs
 
-      srcAliases = srcToAliasMap m.options.mount
+    srcAliases = srcToAliasMap m.options.mount
 
-      pages' =
-        doTake . doSort . doLinksTo . doRoute . doTags . doFiles . doSources $
-          m.pages
+    pages' =
+      doTake . doSort . doLinksTo . doRoute . doTags . doFiles . doSources $
+        m.pages
 
   ifElse (not (null pages')) node
     `binding` do

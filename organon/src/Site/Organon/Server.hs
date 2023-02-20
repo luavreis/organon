@@ -1,25 +1,25 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Site.Organon.Server where
+module Site.Organon.Server (runOrganon) where
 
 import Control.Monad.Logger
 import Control.Monad.Logger.Extras (runLoggerLoggingT)
+import Data.ByteString (hPut)
 import Data.Dependent.Sum (DSum (..))
 import Data.Text qualified as T
 import Ema
 import Ema.CLI qualified as CLI
 import Ema.Server (EmaServerOptions (..), EmaWsRenderer, decodeUrlRoute, defaultEmaWsRenderer)
+import GHC.IO.Handle.FD (withFileBlocking)
 import Network.WebSockets qualified as WS
 import Site.Org.Model hiding (Route)
 import Site.Organon.Model
 import Site.Organon.Route (Route)
+import System.FilePath ((</>))
 import System.Info qualified as Info
 import Text.Slugify (slugify)
-import UnliftIO.Process (callCommand)
 import UnliftIO.Directory (getTemporaryDirectory)
-import System.FilePath ((</>))
-import GHC.IO.Handle.FD (withFileBlocking)
-import Data.ByteString (hPut)
+import UnliftIO.Process (callCommand)
 
 runOrganon ::
   SiteArg Route ->
@@ -38,8 +38,8 @@ emaServerOptions :: EmaServerOptions Route
 emaServerOptions = EmaServerOptions "" customEmaWs
 
 customEmaWs :: EmaWsRenderer Route
-customEmaWs conn s path =
-  case decodeUrlRoute @Route s path of
+customEmaWs conn model path =
+  case decodeUrlRoute @Route model path of
     Right Nothing
       | path == "#!redirected" -> do
           tmpDir <- getTemporaryDirectory
@@ -55,13 +55,13 @@ customEmaWs conn s path =
             _ -> log LevelError "Opening files in this OS is not supported."
           return Nothing
     Right (Just _)
-      | Just targetLoc <- s.targetLocation
-      , Just r' <- (.identifier) <$> lookupOrgLocation s.org.pages targetLoc.locationPage -> do
-          let pagePath = routeUrl (fromPrism_ $ routePrism s.org) r'
+      | Just targetLoc <- model.targetLocation
+      , Just entry <- lookupOrgLocation model.org.pages targetLoc.locationPage -> do
+          let pagePath = routeUrl (fromPrism_ $ routePrism model.org) entry.identifier
               anchor = maybe "" (("#" <>) . slugify) targetLoc.locationAnchor
           liftIO $ WS.sendTextData conn $ "REDIRECT " <> pagePath <> anchor
           return Nothing
-    -- defaultEmaWsRenderer @Route conn s path'
-    _ -> defaultEmaWsRenderer @Route conn s path
+          -- defaultEmaWsRenderer @Route conn s pagePath
+    _ -> defaultEmaWsRenderer @Route conn model path
   where
     log = logWithoutLoc "Organon WS"
