@@ -4,21 +4,27 @@ module Site.Organon.Server (runOrganon) where
 
 import Control.Monad.Logger
 import Control.Monad.Logger.Extras (runLoggerLoggingT)
-import Data.ByteString (hPut)
+import Data.Aeson (decodeStrict)
+import Data.ByteString (hGetLine)
 import Data.Dependent.Sum (DSum (..))
+import Data.Map qualified as Map
 import Data.Text qualified as T
 import Ema
 import Ema.CLI qualified as CLI
-import Ema.Server (EmaServerOptions (..), EmaWsRenderer, decodeUrlRoute, defaultEmaWsRenderer)
+import Ema.Server (EmaServerOptions (..), EmaWsHandler)
 import GHC.IO.Handle.FD (withFileBlocking)
 import Network.WebSockets qualified as WS
 import Site.Org.Model
+import Site.Org.Options
 import Site.Organon.Model
 import Site.Organon.Route (Route)
-import System.FilePath ((</>))
+import System.FilePath (dropExtension, (</>))
+import System.IO.Error (IOError)
 import System.Info qualified as Info
+import System.Posix (createNamedPipe, fileExist, getFileStatus, isNamedPipe, ownerModes)
 import Text.Slugify (slugify)
-import UnliftIO.Directory (getTemporaryDirectory)
+import UnliftIO (catch, conc, runConc)
+import UnliftIO.Directory (getTemporaryDirectory, removeFile)
 import UnliftIO.Process (callCommand)
 
 runOrganon ::
@@ -37,31 +43,55 @@ runOrganon input = do
 emaServerOptions :: EmaServerOptions Route
 emaServerOptions = EmaServerOptions "" customEmaWs
 
-customEmaWs :: EmaWsRenderer Route
-customEmaWs conn model path =
-  case decodeUrlRoute @Route model path of
-    Right Nothing
-      | path == "#!redirected" -> do
-          tmpDir <- getTemporaryDirectory
-          let fifoFp = tmpDir </> "organon.fifo"
-          liftIO $ withFileBlocking fifoFp WriteMode (`hPut` mempty)
-          return Nothing
-      | Just fp <- T.stripPrefix "#!open:" path -> do
-          log LevelInfo $ "Opening file " <> fp
-          case Info.os of
-            "darwin" -> callCommand $ "open " ++ toString fp
-            "mingw32" -> callCommand $ "start " ++ toString fp
-            "linux" -> callCommand $ "xdg-open " ++ toString fp
-            _ -> log LevelError "Opening files in this OS is not supported."
-          return Nothing
-    Right (Just _)
-      | Just targetLoc <- model.targetLocation
-      , Just entry <- lookupOrgLocation model.org.pages targetLoc.locationPage -> do
-          let pagePath = routeUrl (fromPrism_ $ routePrism model.org) entry.identifier
-              anchor = maybe "" (("#" <>) . slugify) targetLoc.locationAnchor
-          liftIO $ WS.sendTextData conn $ "REDIRECT " <> pagePath <> anchor
-          return Nothing
-    -- defaultEmaWsRenderer @Route conn s pagePath
-    _ -> defaultEmaWsRenderer @Route conn model path
+customEmaWs :: EmaWsHandler Route
+customEmaWs conn model =
+  runConc $
+    asum
+      [ conc customMessage
+      , conc namedPipeRedirect
+      ]
   where
+    customMessage = do
+      msg <- liftIO $ WS.receiveData conn
+      log LevelDebug $ "<~~ " <> show msg
+      if
+          | Just fp <- T.stripPrefix "#!open:" msg -> do
+              log LevelInfo $ "Opening file " <> fp
+              case Info.os of
+                "darwin" -> callCommand $ "open " ++ toString fp
+                "mingw32" -> callCommand $ "start " ++ toString fp
+                "linux" -> callCommand $ "xdg-open " ++ toString fp
+                _ -> log LevelError "Opening files in this OS is not supported."
+              customMessage
+          | otherwise -> pure msg
+
+    namedPipeRedirect = do
+      tmpDir <- getTemporaryDirectory
+      let fifoFp = tmpDir </> "organon.fifo"
+      input <- liftIO do
+        whenM (fileExist fifoFp) $
+          unlessM (isNamedPipe <$> getFileStatus fifoFp) $
+            removeFile fifoFp
+        unlessM (fileExist fifoFp) $
+          createNamedPipe fifoFp ownerModes
+        withFileBlocking fifoFp ReadMode hGetLine
+          `catch` (\(_ :: IOError) -> pure "")
+      log LevelDebug $ "Received signal " <> show input
+      _ <- runMaybeT do
+        obj :: Map Text (Maybe Text) <- hoistMaybe $ decodeStrict input
+        let anchor = join $ Map.lookup "anchor" obj
+        loc <- case join $ Map.lookup "id" obj of
+          Just oId -> return (Right (OrgID oId))
+          Nothing -> do
+            fp <- hoistMaybe $ join $ Map.lookup "file" obj
+            let fp' = dropExtension (toString fp)
+            source <- hoistMaybe =<< findSource model.org.options.mount fp'
+            lift $ log LevelDebug $ "Signal matches " <> prettyOrgPath source
+            return (Left source)
+        entry <- hoistMaybe $ lookupOrgLocation model.org.pages loc
+        let pagePath = routeUrl (fromPrism_ $ routePrism model.org) entry.identifier
+            anchor' = maybe "" slugify anchor
+        liftIO $ WS.sendTextData conn $ "REDIRECT " <> pagePath <> "#" <> anchor'
+      namedPipeRedirect
+
     log = logWithoutLoc "Organon WS"
