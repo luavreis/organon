@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Site.Organon.Route (Route) where
+module Site.Organon.Route (Route (..)) where
 
 import Data.Generics.Sum.Any
 import Data.List qualified as L

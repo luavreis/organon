@@ -14,13 +14,15 @@ import Ema.Server (EmaServerOptions (..), EmaWsHandler)
 import Network.WebSockets qualified as WS
 import Site.Org.Model
 import Site.Org.Options
+import Site.Org.Route qualified as OR
 import Site.Organon.Model
-import Site.Organon.Route (Route)
+import Site.Organon.Route (Route (..))
 import System.FilePath (dropExtension)
 import System.Info qualified as Info
 import Text.Slugify (slugify)
 import UnliftIO (conc, runConc)
 import UnliftIO.Process (callCommand)
+import UnliftIO.STM (readTChan, dupTChan)
 
 runOrganon ::
   SiteArg Route ->
@@ -61,7 +63,8 @@ customEmaWs conn model =
           | otherwise -> pure msg
 
     followRedirect = do
-      input <- liftIO $ model.wsNextMsg
+      c <- atomically $ dupTChan model.wsNextMsg
+      input <- atomically $ readTChan c
       log LevelDebug $ "Received signal " <> show input
       _ <- runMaybeT do
         obj :: Map Text (Maybe Text) <- hoistMaybe $ decodeStrict input
@@ -75,9 +78,9 @@ customEmaWs conn model =
             lift $ log LevelDebug $ "Signal matches " <> prettyOrgPath source
             return (Left source)
         entry <- hoistMaybe $ lookupOrgLocation model.org.pages loc
-        let pagePath = routeUrl (fromPrism_ $ routePrism model.org) entry.identifier
+        let pagePath = routeUrl rp (RouteContent $ OR.Route_Page entry.identifier)
             anchor' = maybe "" slugify anchor
         liftIO $ WS.sendTextData conn $ "SWITCH " <> pagePath <> "#" <> anchor'
       followRedirect
-
+    rp = fromPrism_ $ routePrism @Route model
     log = logWithoutLoc "Organon WS"

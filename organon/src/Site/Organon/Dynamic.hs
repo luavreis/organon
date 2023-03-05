@@ -20,7 +20,7 @@ import Site.Organon.Cache
 import System.FilePath (takeBaseName, (</>))
 import System.UnionMount qualified as UM
 import Text.XmlHtml qualified as X
-import UnliftIO (MonadUnliftIO)
+import UnliftIO (MonadUnliftIO, TChan, writeTChan, newBroadcastTChanIO)
 
 layoutDynamic :: (MonadUnliftIO m, MonadLoggerIO m) => FilePath -> m (Dynamic m Layouts)
 layoutDynamic dir = do
@@ -37,16 +37,15 @@ ondimDynamic dir = do
   ddir <- liftIO htmlTemplateDir
   Dynamic <$> loadTemplatesDynamic [dir, ddir]
 
-wsConnDynamic :: forall m. (MonadUnliftIO m, MonadLoggerIO m) => m (Dynamic m (IO ByteString))
+wsConnDynamic :: forall m. (MonadUnliftIO m, MonadLoggerIO m) => m (Dynamic m (TChan ByteString))
 wsConnDynamic = do
-  value <- newEmptyTMVarIO
-  let getValue = atomically $ takeTMVar value
-      manage :: m ()
+  value <- newBroadcastTChanIO
+  let manage :: m ()
       manage = do
         liftIO $ WS.runServer "127.0.0.1" 9160 \pendingConn -> do
           conn :: WS.Connection <- WS.acceptRequest pendingConn
           WS.withPingThread conn 30 pass $
             forever do
               msg <- WS.receiveData conn
-              atomically $ putTMVar value msg
-  return $ Dynamic (getValue, const manage)
+              atomically $ writeTChan value msg
+  return $ Dynamic (value, const manage)
