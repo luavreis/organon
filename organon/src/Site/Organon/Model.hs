@@ -7,6 +7,7 @@ import Ema.Route.Lib.Extra.StaticRoute qualified as SR
 import Site.Org.Model qualified as Org
 import Site.Org.Render.Types
 import Site.Organon.Cache
+import UnliftIO.STM (TChan)
 
 data Model = Model
   { org :: Org.Model
@@ -16,6 +17,6 @@ data Model = Model
   , cache :: TVar Cache
   , extraOpts :: Object
   , liveServer :: Bool
-  , wsNextMsg :: IO ByteString
+  , wsNextMsg :: TChan ByteString
   }
   deriving (Generic)
