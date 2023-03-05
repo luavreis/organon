@@ -194,14 +194,15 @@ processEntry :: (DocLike a, MonadLogger m, MonadUnliftIO m, MultiWalk MWTag a) =
 processEntry f s = do
   env <- ask
 
-  let tags = getTags s <> filetags env.inhData
+  let tags = getTags s <> env.inhData.filetags
       sectionId = lookup "id" (getProps s)
       level = getLevel s
-      notExclud =
+      noExportTags = env.inhData.exporterSettings.orgExportExcludeTags
+      exclude =
         let p = lookup "roam_exclude" (getProps s)
-         in isNothing p || p == Just "nil"
+         in any (/= "nil") p || or [i == j | j <- tags, i <- noExportTags]
 
-      isEntry = (level == 0 || isJust sectionId) && notExclud
+      isEntry = (level == 0 || isJust sectionId) && not exclude
 
       identifier = Identifier env.path (OrgID <$> sectionId)
       newData =
