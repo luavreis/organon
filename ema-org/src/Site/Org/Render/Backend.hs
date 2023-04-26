@@ -9,10 +9,8 @@ import Data.List qualified as L
 import Data.Text qualified as T
 import Data.Yaml qualified as Yaml
 import Ema.Route.Url (routeUrl)
-import Ondim.Extra.BindJSON (openObject)
-import Ondim.Targets.HTML (HtmlNode (TextNode), fromNodeList)
-import Optics.Core ((%~))
-import Org.Exporters.HTML (HtmlBackend, defHtmlBackend)
+import Ondim.Targets.HTML (HtmlNode, fromNodeList)
+import Org.Exporters.HTML (defHtmlBackend)
 import Org.Types (LinkTarget (..), OrgElement (..), OrgObject (..), srcLinesToText)
 import Relude.Unsafe (fromJust)
 import Site.Org.Model
@@ -21,7 +19,7 @@ import Site.Org.Route
 import System.FilePath (dropExtension, isExtensionOf)
 import Text.XmlHtml qualified as X
 
-backend :: Pages -> RPrism -> HtmlBackend RenderT
+backend :: Pages -> RPrism -> HtmlBackend
 backend p rp = fix \self ->
   let def = defHtmlBackend
       m "o" [e] = callExpansion e (nullObj def)
@@ -33,7 +31,7 @@ backend p rp = fix \self ->
         }
 
 customObjectPipeline ::
-  Pages -> RPrism -> HtmlBackend RenderT -> OrgObject -> Maybe (Ondim [HtmlNode])
+  Pages -> RPrism -> HtmlBackend -> OrgObject -> Maybe (Ondim [HtmlNode])
 customObjectPipeline m rp bk x =
   asum $
     flap
@@ -42,7 +40,7 @@ customObjectPipeline m rp bk x =
       x
 
 customElementPipeline ::
-  Pages -> RPrism -> HtmlBackend RenderT -> OrgElement -> Maybe (Ondim [HtmlNode])
+  Pages -> RPrism -> HtmlBackend -> OrgElement -> Maybe (Ondim [HtmlNode])
 customElementPipeline m rp bk x =
   asum $
     flap
@@ -52,8 +50,8 @@ customElementPipeline m rp bk x =
       x
 
 customSourceBlock ::
-  HtmlBackend RenderT -> OrgElement -> Maybe (Ondim [HtmlNode])
-customSourceBlock bk = \case
+  HtmlBackend -> OrgElement -> Maybe (Ondim [HtmlNode])
+customSourceBlock _bk = \case
   SrcBlock {..} -> do
     e <- L.lookup "expand" srcBlkArguments
     let content = encodeUtf8 $ srcLinesToText srcBlkLines
@@ -74,13 +72,15 @@ customSourceBlock bk = \case
                 TextNode ""
   _ -> Nothing
 
-customLink :: Pages -> RPrism -> HtmlBackend RenderT -> OrgObject -> Maybe (Ondim [HtmlNode])
+customLink ::
+  Pages -> RPrism -> HtmlBackend -> OrgObject -> Maybe (Ondim [HtmlNode])
 customLink m rp bk = \case
   Link tgt descr ->
     expandOrgObject bk <$> (Link <$> resolveTarget m rp tgt ?? descr)
   _ -> Nothing
 
-customFigure :: Pages -> RPrism -> HtmlBackend RenderT -> OrgElement -> Maybe (Ondim [HtmlNode])
+customFigure ::
+  Pages -> RPrism -> HtmlBackend -> OrgElement -> Maybe (Ondim [HtmlNode])
 customFigure m rp bk = \case
   Paragraph aff [Link tgt []] ->
     expandOrgElement bk <$> (Paragraph aff . one <$> (Link <$> resolveTarget m rp tgt ?? []))
