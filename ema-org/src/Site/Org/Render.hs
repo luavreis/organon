@@ -84,21 +84,3 @@ renderPost identifier rp m =
     return $ AssetGenerated Html $ render' $ ly {X.docContent = toNodeList lifted}
   where
     page = fromJust $ Ix.getOne (m.pages Ix.@= identifier)
-
-timeExp :: UTCTime -> Expansion HtmlNode
-timeExp time node = do
-  attrs <- attributes node
-  let defFmt = dateTimeFmt defaultTimeLocale
-      fmt = maybe defFmt toString (L.lookup "fmt" attrs)
-  pure $ one $ TextNode $ toText $ formatTime defaultTimeLocale fmt time
-
-unwrapExp :: Expansion HtmlNode
-unwrapExp node = do
-  child <- liftChildren node
-  pure $
-    foldMap
-      ( \case
-          Element _ _ _ els -> els
-          n@TextNode {} -> [n]
-      )
-      child
