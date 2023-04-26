@@ -13,7 +13,15 @@ import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Ema.Asset (Asset)
 import Ondim.Targets.HTML (HtmlNode, HtmlTag)
 import Optics.Core (Prism')
-import Org.Exporters.Common hiding (Expansion, Filter, Ondim, OndimMS)
+import Org.Exporters.Common hiding (
+  Expansion,
+  ExpansionMap,
+  Filter,
+  GlobalExpansion,
+  Ondim,
+  OndimState,
+  SomeExpansion,
+ )
 import Org.Exporters.Common qualified as EC
 import Site.Org.Route
 import Text.XmlHtml qualified as X
@@ -24,9 +32,12 @@ type Ondim a = EC.Ondim HtmlTag RenderT a
 
 type OndimMS = EC.OndimMS HtmlTag RenderT
 
-type Expansion t = EC.Expansion HtmlTag RenderT t
-
-type Filter t = EC.Filter HtmlTag RenderT t
+type HtmlBackend = EC.HtmlBackend RenderT
+type Expansion t = EC.Expansion RenderT t
+type GlobalExpansion = EC.GlobalExpansion RenderT
+type SomeExpansion = EC.SomeExpansion RenderT
+type ExpansionMap = EC.ExpansionMap RenderT
+type Filter t = EC.Filter RenderT t
 
 type Layouts = Map Text X.Document
 
