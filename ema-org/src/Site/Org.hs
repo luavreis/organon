@@ -33,7 +33,7 @@ instance EmaSite Route where
     pure $ Model <$> pages' ?? opt
     where
       sources = opt.mount
-      include = (OrgFile, "**/*.org") : zip (repeat OtherFile) opt.staticPatterns
+      include = (OrgFile, "**/*.org") : map (OtherFile,) opt.staticPatterns
       exclude = opt.exclude
       handler source OrgFile file = \case
         Refresh _ () -> do
