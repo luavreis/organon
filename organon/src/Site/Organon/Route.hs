@@ -79,7 +79,6 @@ instance EmaSite Route where
                     "query" ## queryExp (rp % _As @Org.Route) model.org
                     "organon:latex" ## renderLaTeXExp model
                     "utils:regex" ## regexExp
-                    "unwrap" ## unwrapExp
                     "portal" ## portalExp
                     "o:parse" ## parseObjectsExp (backend model.org.pages (rp % _As @Org.Route))
             | otherwise -> throwCustom $ "Could not find layout " <> lname
