@@ -9,7 +9,7 @@ import Org.Types
 import Org.Walk
 import Relude.Extra (lookup)
 import Site.Org.Model
-import Site.Org.Options (Options (..), Source (..))
+import Site.Org.Options (Options (..))
 import Site.Org.Utils.Document (isolateSection)
 import System.FilePath (addTrailingPathSeparator, isAbsolute, (</>))
 import UnliftIO (MonadUnliftIO)
@@ -38,8 +38,7 @@ instance DocLike OrgSection where
 
 data PreProcessEnv = PreProcessEnv
   { -- Constant
-    sources :: [Source]
-  , path :: OrgPath
+    path :: OrgPath
   , srcDir :: FilePath
   , relDir :: FilePath
   , opts :: Options
@@ -119,7 +118,7 @@ findLinkSource fp = do
   exists <- doesFileExist trueFp
   if exists
     then do
-      op <- findSource env.sources trueFp
+      op <- findSource env.opts.mount trueFp
       whenNothing_ op $
         lift $
           logWarnNS "findSource" $
