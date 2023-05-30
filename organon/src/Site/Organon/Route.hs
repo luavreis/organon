@@ -10,8 +10,8 @@ import Ema.CLI (isLiveServer)
 import Ema.Route.Generic
 import Ema.Route.Lib.Extra.StaticRoute qualified as SR
 import Generics.SOP qualified as SOP
-import Ondim.Extra (getAttrs, lookupAttr', prefixed)
-import Ondim.Targets.HTML (HtmlNode, HtmlTag)
+import Ondim.Extra (lookupAttr')
+import Ondim.Targets.HTML (HtmlNode (..))
 import Optics.Core
 import Site.Org ()
 import Site.Org.Model qualified
@@ -69,32 +69,40 @@ instance EmaSite Route where
         handleErrors . evalOutput ostate . \case
           AssetOutput x -> x
           PageOutput lname doc
-            | Just layout <- model.layouts !? lname ->
-                doc layout
-                  `bindingText` do
-                    when model.liveServer $ "organon:live-server" ## pure ""
-                    prefixed "asset:" $ forM_ files \file ->
-                      toText file ## pure $ SR.staticRouteUrl (rp % _As @"RouteStatic") model.static file
+            | Just (layout, fp) <- model.layouts !? lname ->
+                doc layout fp
                   `binding` do
+                    when model.liveServer $ "organon:live-server" #@ "" -- TODO get from cli data
+                    "asset" #. forM_ files \file ->
+                      toText file #@ SR.staticRouteUrl (rp % _As @"RouteStatic") model.static file
                     "query" ## queryExp (rp % _As @Org.Route) model.org
                     "organon:latex" ## renderLaTeXExp model
-                    "utils:regex" ## regexExp
+                    "utils:sum" #* \node -> do
+                      nums :: [Int] <- mapMaybe (readMaybe . toString . snd) <$> attributes node
+                      return $ fromMaybe [] $ fromText ?? show (sum nums)
+                    "utils:regex" #* regexExp
                     "portal" ## portalExp
                     "o:parse" ## parseObjectsExp (backend model.org.pages (rp % _As @Org.Route))
-            | otherwise -> throwCustom $ "Could not find layout " <> lname
+                    "org:with-settings" #* withSettingsExp
+            | otherwise -> throwTemplateError $ "Could not find layout " <> lname
         where
           handleErrors = fmap (either (error . show) id)
           files = keys model.static.modelFiles
           ostate = model.ondim
 
 targetFilter :: Text -> Filter HtmlNode
-targetFilter p thunk = do
+targetFilter p _ thunk = do
   nodes <- thunk
   forM nodes \node -> do
-    let id_ = L.lookup "id" $ getAttrs @HtmlTag node
+    attrs <- attributes node
+    let id_ = L.lookup "id" attrs
+        attrs_ = filter (("id" /=) . fst) attrs
+        newNode = case node of
+          Element {} -> node {elementAttrs = attrs_}
+          _ -> node
     if Just p == id_
-      then returnEarly (one node)
-      else return node
+      then returnEarly (one newNode)
+      else return newNode
 
 portalExp :: Expansion HtmlNode
 portalExp node = do
@@ -102,4 +110,4 @@ portalExp node = do
   either id id
     <$> createPortal (liftChildren node)
     `bindingFilters` do
-      "target" ## targetFilter target
+      "target" $# targetFilter target

@@ -20,7 +20,7 @@ makeDataURI (mime, d) = "data:" <> mime <> ";base64," <> encodeBase64 d
 
 specFromModel :: Model -> Ondim LaTeXProcessSpec
 specFromModel m =
-  maybe (throwCustom err) pure $
+  maybe (throwTemplateError err) pure $
     Map.lookup opt.defaultProcess opt.processes
   where
     opt :: LaTeXOptions =
@@ -49,8 +49,8 @@ renderLaTeXExp model node = do
         atomically $ modifyTVar cacheVar $ insertLaTeXCache ckey result
         pure result
   liftChildren node
-    `bindingText` do
-      "latex:datauri" ## pure $ makeDataURI result
-      "latex:mimetype" ## pure $ fst result
+    `binding` do
+      "latex:datauri" #@ makeDataURI result
+      "latex:mimetype" #@ fst result
   where
     cacheVar = model.cache

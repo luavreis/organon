@@ -32,7 +32,7 @@ layoutDynamic dir = do
           let name = fromString $ takeBaseName fp
           pure (singleton name tpl <>)
 
-ondimDynamic :: (MonadUnliftIO m, MonadLoggerIO m) => FilePath -> m (Dynamic m OndimMS)
+ondimDynamic :: (MonadUnliftIO m, MonadLoggerIO m) => FilePath -> m (Dynamic m OndimState)
 ondimDynamic dir = do
   ddir <- liftIO htmlTemplateDir
   Dynamic <$> loadTemplatesDynamic [dir, ddir]
