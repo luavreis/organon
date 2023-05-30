@@ -8,7 +8,7 @@ import Data.Time
 import Ema
 import Ema.Route.Prism (htmlSuffixPrism)
 import Optics.Core
-import Org.Exporters.Processing.OrgData (OrgData)
+import Org.Exporters.Processing.OrgData (OrgData (..))
 import Org.Types (OrgDocument)
 import Site.Org.Meta.Types (MetaMap)
 import Site.Org.Options (Options (..), Source (..))
@@ -16,7 +16,7 @@ import Site.Org.Utils.JSON (FromJSON, ToJSON)
 import System.FilePath (dropExtension, isRelative, makeRelative, normalise, (</>))
 import UnliftIO.Directory (canonicalizePath)
 
-type Pages = Ix.IxSet PostIxs OrgEntry
+type Pages = Ix.IxSet EntryIxs OrgEntry
 
 data Model = Model
   { pages :: Pages
@@ -27,14 +27,6 @@ data Model = Model
 data OrgEntry = OrgEntry
   { identifier :: Identifier
   -- ^ Entry identifier.
-  , ctime :: Maybe UTCTime
-  -- ^ Creation time
-  , mtime :: Maybe UTCTime
-  -- ^ Modification times
-  , tags :: [Text]
-  -- ^ Entry tags.
-  , layout :: Text
-  -- ^ Entry layout
   , document :: OrgDocument
   -- ^ Document for entry.
   , orgData :: OrgData
@@ -55,41 +47,50 @@ data OrgEntry = OrgEntry
 data Identifier = Identifier {path :: OrgPath, orgId :: Maybe OrgID}
   deriving (Eq, Ord, Show, Typeable, Generic, ToJSON, FromJSON)
 
+newtype PathRouteIx = PathRouteIx String
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+routeFromPath :: OrgPath -> String
+routeFromPath path = toString path.source.serveAt </> dropExtension path.relpath
+
 instance IsRoute Identifier where
   type RouteModel Identifier = Model
-  routePrism (Model m o) =
+  routePrism (Model m _) =
     toPrism_ $ htmlSuffixPrism % prism' to' from'
     where
       to' = \case
-        Identifier _ (Just id_) -> toString id_
-        Identifier (OrgPath s fp) _ -> toString s.serveAt </> fp
+        Identifier _ (Just orgId) -> toString orgId
+        Identifier p _ -> routeFromPath p
       from' fp =
         let idRoute = do
               let ix_ :: OrgID = fromString fp
               (.identifier) <$> Ix.getOne (m Ix.@= ix_)
             fpRoute = do
-              ix_ :: OrgPath <- findUrlSource o.mount fp
+              let ix_ = PathRouteIx fp
               x <- (.identifier) <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
               guard (isNothing x.orgId)
               pure x
          in idRoute <|> fpRoute
   routeUniverse m = (.identifier) <$> toList m.pages
 
-instance IsRoute StaticFileIx where
-  type RouteModel StaticFileIx = Model
-  routePrism (Model m o) =
-    toPrism_ $ prism' toFp from'
+newtype StaticFile = StaticFile OrgPath
+  deriving (Eq, Ord, Show, Typeable, Generic)
+
+routeFromStaticFile :: OrgPath -> String
+routeFromStaticFile path = toString path.source.serveAt </> path.relpath
+
+instance IsRoute StaticFile where
+  type RouteModel StaticFile = Model
+  routePrism m =
+    toPrism_ $ prism' to' from'
     where
-      toFp (coerce -> OrgPath s fp) = toString s.serveAt </> fp
-      from' fp = do
-        ix_ <- StaticFileIx <$> findUrlSource o.mount fp
-        guard $ not $ Ix.null (m Ix.@= ix_)
-        return ix_
+      to' = routeFromStaticFile . coerce
+      from' fp = find ((fp ==) . routeFromStaticFile . coerce) (routeUniverse m)
   routeUniverse m =
     toList $ Set.unions $ pageStaticFiles <$> toList m.pages
 
-pageStaticFiles :: OrgEntry -> Set StaticFileIx
-pageStaticFiles page = Set.map (StaticFileIx . fst) page.staticFiles
+pageStaticFiles :: OrgEntry -> Set StaticFile
+pageStaticFiles page = Set.map (StaticFile . fst) page.staticFiles
 
 newtype ParentID = ParentID OrgID
   deriving (Eq, Ord, Show, Typeable, Generic)
@@ -97,22 +98,10 @@ newtype ParentID = ParentID OrgID
 newtype ParentPath = ParentPath OrgPath
   deriving (Eq, Ord, Show, Typeable, Generic)
 
-newtype CTimeIx = CTimeIx UTCTime
-  deriving (Eq, Ord, Show, Typeable, Generic)
-
-newtype MTimeIx = MTimeIx UTCTime
-  deriving (Eq, Ord, Show, Typeable, Generic)
-
-newtype StaticFileIx = StaticFileIx OrgPath
-  deriving (Eq, Ord, Show, Typeable, Generic)
-
 newtype LevelIx = LevelIx Int
   deriving (Eq, Ord, Show, Typeable, Generic)
 
 newtype TagIx = TagIx Text
-  deriving (Eq, Ord, Show, Typeable, Generic)
-
-newtype LinksToIx = LinksToIx (Either OrgPath OrgID)
   deriving (Eq, Ord, Show, Typeable, Generic)
 
 newtype SourceIx = SourceIx Text
@@ -131,21 +120,8 @@ prettyOrgPath path =
     <> path.source.alias
     <> "'"
 
-toRawPath :: OrgPath -> FilePath
-toRawPath (OrgPath src fp) = src.dir </> fp
-
-fromRawPath :: Source -> FilePath -> OrgPath
-fromRawPath source = OrgPath source . dropExtension
-
-findUrlSource :: [Source] -> FilePath -> Maybe OrgPath
-findUrlSource sources fp =
-  asum $
-    sortBy descLength sources <&> \source -> do
-      let mbRel = makeRelative (toString source.serveAt) fp
-      guard (source.serveAt == "" || mbRel /= fp)
-      return (OrgPath source mbRel)
-  where
-    descLength = flip $ comparing (.serveAt)
+toFilePath :: OrgPath -> FilePath
+toFilePath (OrgPath src fp) = src.dir </> fp
 
 findSource :: (MonadIO m) => [Source] -> FilePath -> m (Maybe OrgPath)
 findSource sources trueFp = do
@@ -161,41 +137,40 @@ newtype OrgID = OrgID {idText :: Text}
   deriving stock (Eq, Ord, Show, Typeable, Generic)
   deriving newtype (IsString, ToString, ToText, ToJSON, FromJSON)
 
-type PostIxs =
+type EntryIxs =
   '[ Identifier
    , OrgPath
+   , PathRouteIx
    , SourceIx
    , OrgID
-   , CTimeIx
-   , MTimeIx
    , ParentPath
    , ParentID
    , LevelIx
    , TagIx
    , LinksToIx
-   , StaticFileIx
    ]
 
-instance Ix.Indexable PostIxs OrgEntry where
+instance Ix.Indexable EntryIxs OrgEntry where
   indices =
     Ix.ixList
       (Ix.ixFun $ \x -> [x.identifier])
       (Ix.ixFun $ \x -> [x.identifier.path])
+      (Ix.ixFun $ \x -> [coerce $ routeFromPath x.identifier.path])
       (Ix.ixFun $ \x -> [coerce x.identifier.path.source.serveAt])
       (Ix.ixFun $ \x -> maybeToList x.identifier.orgId)
-      (Ix.ixFun $ \x -> maybeToList $ coerce x.ctime)
-      (Ix.ixFun $ \x -> maybeToList $ coerce x.mtime)
       (Ix.ixFun $ \x -> maybeToList $ coerce $ (.path) <$> x.parent)
       (Ix.ixFun $ \x -> maybeToList $ coerce $ (.orgId) =<< x.parent)
       (Ix.ixFun $ \x -> [coerce x.level])
-      (Ix.ixFun $ \x -> coerce x.tags)
+      (Ix.ixFun $ \x -> coerce x.orgData.filetags)
       (Ix.ixFun $ \x -> coerce $ M.keys x.linksTo)
-      (Ix.ixFun $ \x -> toList $ pageStaticFiles x)
 
 {- | This is like Identifier, but matches information present in links, where
  there is either a path or an ID.
 -}
 type UnresolvedLocation = Either OrgPath OrgID
+
+newtype LinksToIx = LinksToIx UnresolvedLocation
+  deriving (Eq, Ord, Show, Typeable, Generic)
 
 data InternalRef
   = Anchor Text
@@ -230,13 +205,11 @@ instance NFData Identifier
 instance NFData OrgPath
 instance NFData SourceIx
 instance NFData OrgID
-instance NFData CTimeIx
-instance NFData MTimeIx
 instance NFData ParentPath
+instance NFData PathRouteIx
 instance NFData ParentID
 instance NFData LevelIx
 instance NFData TagIx
 instance NFData LinksToIx
-instance NFData StaticFileIx
 instance NFData InternalRef
 instance NFData OrgEntry

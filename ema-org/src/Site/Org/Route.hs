@@ -12,7 +12,7 @@ import Site.Org.Model
 
 data Route
   = Route_Page Identifier
-  | Route_Static StaticFileIx
+  | Route_Static StaticFile
   | Route_Graph
   deriving (Eq, Show, Generic, SOP.Generic, SOP.HasDatatypeInfo)
   deriving
@@ -22,7 +22,7 @@ data Route
             '[ WithModel Model
              , WithSubRoutes
                 '[ Identifier
-                 , StaticFileIx
+                 , StaticFile
                  , FileRoute "graph.json"
                  ]
              ]

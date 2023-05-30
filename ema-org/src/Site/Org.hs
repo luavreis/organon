@@ -47,7 +47,7 @@ instance EmaSite Route where
           pure $ Ix.insertList newPages . deleteAll
         Delete -> pure deleteAll
         where
-          orgPath = fromRawPath source file
+          orgPath = OrgPath source file
           deleteAll m =
             let matching = m Ix.@= orgPath
              in foldr Ix.delete m matching

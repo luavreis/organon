@@ -5,7 +5,8 @@ import Data.Map (keys)
 import Ema (Asset (..), Format (..), routeUrl)
 import Optics.Core
 import Org.Exporters.HTML (renderFragment')
-import Org.Exporters.Processing.OrgData (OrgData (parsedTitle))
+import Org.Exporters.Processing.OrgData (OrgData (keywords))
+import Org.Parser.Definitions (lookupParsedKeyword)
 import Site.Org.Model
 import Site.Org.Render
 import Site.Org.Route
@@ -39,7 +40,7 @@ buildRoamGraph rp m = Graph <$> nodes ?? links
       title <-
         render page $
           expandOrgObjects (backend m rp) $
-            parsedTitle page.orgData
+            lookupParsedKeyword "title" page.orgData.keywords
       return $ Node (route page.identifier) title
 
     nodes = mapM pageToNode (toList m)
