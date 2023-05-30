@@ -12,7 +12,7 @@ import UnliftIO.STM (TChan)
 data Model = Model
   { org :: Org.Model
   , static :: SR.Model
-  , ondim :: OndimMS
+  , ondim :: OndimState
   , layouts :: Layouts
   , cache :: TVar Cache
   , extraOpts :: Object

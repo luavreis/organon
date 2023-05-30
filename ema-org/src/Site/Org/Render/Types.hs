@@ -8,10 +8,11 @@ module Site.Org.Render.Types (
 )
 where
 
+import Control.Monad.Error.Class (MonadError (..))
 import Control.Monad.Logger (MonadLogger (..), MonadLoggerIO (..))
 import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Ema.Asset (Asset)
-import Ondim.Targets.HTML (HtmlNode, HtmlTag)
+import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core (Prism')
 import Org.Exporters.Common hiding (
   Expansion,
@@ -23,14 +24,15 @@ import Org.Exporters.Common hiding (
   SomeExpansion,
  )
 import Org.Exporters.Common qualified as EC
+import Org.Exporters.HTML qualified as EC
 import Site.Org.Route
 import Text.XmlHtml qualified as X
 
 type RenderM m = (MonadIO m, MonadLoggerIO m)
 
-type Ondim a = EC.Ondim HtmlTag RenderT a
+type Ondim a = EC.Ondim RenderT a
 
-type OndimMS = EC.OndimMS HtmlTag RenderT
+type OndimState = EC.OndimState RenderT
 
 type HtmlBackend = EC.HtmlBackend RenderT
 type Expansion t = EC.Expansion RenderT t
@@ -39,7 +41,7 @@ type SomeExpansion = EC.SomeExpansion RenderT
 type ExpansionMap = EC.ExpansionMap RenderT
 type Filter t = EC.Filter RenderT t
 
-type Layouts = Map Text X.Document
+type Layouts = Map Text (X.Document, FilePath)
 
 type RPrism = Prism' FilePath Route
 
@@ -47,7 +49,7 @@ newtype RenderT a = RenderT
   { unRenderT ::
       forall m.
       RenderM m =>
-      EitherT ([HtmlNode], ExporterState) m a
+      EitherT [HtmlNode] m a
   }
 
 liftRenderT :: RenderT a -> Ondim a
@@ -67,6 +69,10 @@ instance Applicative RenderT where
 instance Monad RenderT where
   (RenderT a) >>= f = RenderT $ a >>= unRenderT . f
 
+instance MonadError [HtmlNode] RenderT where
+  throwError e = RenderT $ throwError e
+  catchError (RenderT m) c = RenderT $ catchError m (unRenderT . c)
+
 instance MonadIO RenderT where
   liftIO a = RenderT $ liftIO a
 
@@ -76,9 +82,9 @@ instance MonadLogger RenderT where
 instance MonadLoggerIO RenderT where
   askLoggerIO = liftToRenderT askLoggerIO
 
-runRenderT :: RenderT a -> RenderT (Either ([HtmlNode], ExporterState) a)
+runRenderT :: RenderT a -> RenderT (Either [HtmlNode] a)
 runRenderT (RenderT x) = RenderT $ lift $ runEitherT x
 
 data OndimOutput
   = AssetOutput (Ondim (Asset LByteString))
-  | PageOutput Text (X.Document -> Ondim (Asset LByteString))
+  | PageOutput Text (X.Document -> FilePath -> Ondim (Asset LByteString))
