@@ -5,7 +5,7 @@ module Site.Org.Utils.MonoidalMap where
 import Data.Map qualified as M
 import GHC.Exts (IsList (..))
 
-newtype MonoidalMap k a = MonoidalMap (Map k a)
+newtype MonoidalMap k a = MonoidalMap {getMap :: Map k a}
   deriving (Eq, Ord, Read, Show, Typeable, Generic, Functor, Foldable, Traversable)
   deriving anyclass (NFData)
 

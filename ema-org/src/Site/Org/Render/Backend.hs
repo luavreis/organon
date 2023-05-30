@@ -3,11 +3,9 @@
 
 module Site.Org.Render.Backend (backend) where
 
-import Data.Aeson qualified as Aeson
 import Data.IxSet.Typed qualified as Ix
 import Data.List qualified as L
 import Data.Text qualified as T
-import Data.Yaml qualified as Yaml
 import Ema.Route.Url (routeUrl)
 import Ondim.Targets.HTML (HtmlNode, fromNodeList)
 import Org.Exporters.HTML (defHtmlBackend)
@@ -16,7 +14,7 @@ import Relude.Unsafe (fromJust)
 import Site.Org.Model
 import Site.Org.Render.Types
 import Site.Org.Route
-import System.FilePath (dropExtension, isExtensionOf)
+import Text.Slugify (slugify)
 import Text.XmlHtml qualified as X
 
 backend :: Pages -> RPrism -> HtmlBackend
@@ -60,16 +58,16 @@ customSourceBlock _bk = \case
         parsed <- rightToMaybe $ X.parseHTML "" content
         return $ liftNodes $ fromNodeList $ X.docContent parsed
       else do
-        contentObj :: Aeson.Object <-
-          case srcBlkLang of
-            "json" -> Aeson.decodeStrict content
-            "yaml" -> either (error . show) id $ Yaml.decodeThrow content
-            _ -> Nothing
-        return $
-          openObject @HtmlNode Nothing contentObj $
-            bindKeywords bk "akw:" affKws $
-              callExpansion e $
-                TextNode ""
+        -- contentObj :: Aeson.Object <-
+        --   case srcBlkLang of
+        --     "json" -> Aeson.decodeStrict content
+        --     "yaml" -> either (error . show) id $ Yaml.decodeThrow content
+        --     _ -> Nothing
+        return $ pure []
+  -- openObject @HtmlNode Nothing contentObj $
+  --   bindKeywords bk "akw:" affKws $
+  --     callExpansion e $
+  --       TextNode ""
   _ -> Nothing
 
 customLink ::
@@ -96,24 +94,21 @@ resolveTarget m rp = \case
   (URILink uri (maybeAddHash -> anchor))
     | Just rawOPath <- T.stripPrefix "source:" uri ->
         Just . UnresolvedLink $
-          let ix_ :: OrgPath = removeOrgExt $ fromJust $ readMaybe (toString rawOPath)
+          let ix_ :: OrgPath = fromJust $ readMaybe (toString rawOPath)
               orgRoute = do
                 ident <- (.identifier) <$> Ix.getOne (m Ix.@= LevelIx 0 Ix.@= ix_)
                 pure $ Route_Page ident
-              staticRoute = do
-                let sroute = StaticFileIx ix_
-                guard $ not $ Ix.null (m Ix.@= sroute)
-                pure $ Route_Static sroute
-           in case orgRoute <|> staticRoute of
-                Just finalRoute -> route finalRoute <> anchor
-                Nothing -> do
-                  error $
-                    "This should not happen at this point. An OrgPath link points the "
-                      <> prettyOrgPath ix_
-                      <> " but it does not exist in the model. Please report it as a bug."
+              staticRoute = Route_Static (StaticFile ix_)
+           in route (fromMaybe staticRoute orgRoute) <> anchor
   _ -> Nothing
   where
-    removeOrgExt = #relpath %~ \p -> if "org" `isExtensionOf` p then dropExtension p else p
-    maybeAddHash x = maybe x ("#" <>) (T.stripPrefix "::" x)
+    -- TODO: move this to org-hs
+    maybeAddHash x =
+      fromMaybe x do
+        x' <- T.stripPrefix "::" x
+        return $ "#" <>
+          case T.stripPrefix "*" x' of
+            Just x'' -> "h-" <> slugify x''
+            Nothing -> x'
     breakInternalRef = second maybeAddHash . T.breakOn "::"
     route = routeUrl rp
