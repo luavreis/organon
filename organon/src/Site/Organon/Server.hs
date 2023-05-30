@@ -17,12 +17,11 @@ import Site.Org.Options
 import Site.Org.Route qualified as OR
 import Site.Organon.Model
 import Site.Organon.Route (Route (..))
-import System.FilePath (dropExtension)
 import System.Info qualified as Info
 import Text.Slugify (slugify)
 import UnliftIO (conc, runConc)
 import UnliftIO.Process (callCommand)
-import UnliftIO.STM (readTChan, dupTChan)
+import UnliftIO.STM (dupTChan, readTChan)
 
 runOrganon ::
   SiteArg Route ->
@@ -73,7 +72,7 @@ customEmaWs conn model =
           Just oId -> return (Right (OrgID oId))
           Nothing -> do
             fp <- hoistMaybe $ join $ Map.lookup "file" obj
-            let fp' = dropExtension (toString fp)
+            let fp' = toString fp
             source <- hoistMaybe =<< findSource model.org.options.mount fp'
             lift $ log LevelDebug $ "Signal matches " <> prettyOrgPath source
             return (Left source)
