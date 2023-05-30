@@ -68,5 +68,5 @@ isolateSection section =
     , documentChildren = sectionChildren section
     , documentSections =
         sectionSubsections $
-          walk (shift (2 - sectionLevel section)) section
+          walk (shift (- sectionLevel section)) section
     }
