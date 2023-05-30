@@ -63,6 +63,7 @@ defaultConfig =
           , Org.exporterSettings = defaultExporterSettings
           , Org.parserSettings = defaultParserSettings
           , Org.fileProtocols = ["file", "pdf"]
+          , Org.generatedMeta = mempty
           }
     , templates = "templates"
     , layouts = "layouts"
