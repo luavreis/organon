@@ -7,16 +7,21 @@ import Data.Char (isSpace)
 import Data.Generics.Sum (_As)
 import Data.IxSet.Typed qualified as Ix
 import Data.List qualified as L
+import Data.Map qualified as Map
 import Data.Text qualified as T
-import Ondim.Extra (attributes, ifElse)
+import Ondim.Extra (ifElse)
 import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core (Prism', preview, (%))
-import Org.Exporters.Processing.OrgData (OrgData (parsedTitle))
+import Org.Compare (toAtoms)
+import Org.Exporters.Processing.OrgData (OrgData (..))
+import Org.Parser.Definitions (lookupProperty)
 import Relude.Extra (lookup)
+import Site.Org.Meta.Types (MetaValue (..))
 import Site.Org.Model
 import Site.Org.Options (mount, srcToAliasMap)
 import Site.Org.Render
 import Site.Org.Route
+import Site.Org.Utils.MonoidalMap (MonoidalMap (..))
 import System.FilePattern ((?==))
 import Prelude hiding (takeWhile)
 
@@ -130,22 +135,28 @@ queryExp rp m node = do
 
   ifElse (not (null pages')) node
     `binding` do
-      "q:result" ## \node' ->
+      "q" #. "result" #* \node' ->
         join <$> forM pages' \(p, ref) ->
-          let page = bindPage rp m.pages p (liftChildren @HtmlNode node')
+          let page = bindPage rp m.pages p (liftChildren node')
            in case ref of
                 Just (Anchor ref') ->
-                  page `bindingText` do
-                    "q:target" ## pure ref'
+                  page `binding` do
+                    "q" #. "target" #@ ref'
                 _ -> page
   where
-    sorting s' =
-      let (rev, s) = case T.uncons s' of
-            Just ('-', r) -> (\f x y -> f y x, r)
-            _ -> (id, s')
-       in sortBy $
-            rev case s of
-              "title" -> comparing $ parsedTitle . (.orgData) . fst
-              "created" -> comparing $ (.ctime) . fst
-              "modified" -> comparing $ (.mtime) . fst
-              _ -> comparing $ const ()
+    sorting str =
+      let (rev, s) = case T.uncons str of
+            Just ('-', r) -> (flip, r)
+            _ -> (id, str)
+       in sortBy . rev $
+            if
+                | Just kw <- T.stripPrefix "kw:" s ->
+                    comparing $ Map.lookup kw . (.orgData.keywords) . fst
+                | Just prop <- T.stripPrefix "prop:" s ->
+                    comparing $ lookupProperty prop . (.document) . fst
+                | Just meta <- T.stripPrefix "meta:" s ->
+                    comparing $ \(page, _) -> do
+                      MetaObjects objs <- Map.lookup meta page.meta.getMap
+                      return (foldMap toAtoms objs)
+                | otherwise ->
+                    comparing $ const ()
