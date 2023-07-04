@@ -9,7 +9,7 @@ import Data.IxSet.Typed qualified as Ix
 import Data.List qualified as L
 import Data.Map qualified as Map
 import Data.Text qualified as T
-import Ondim.Extra (ifElse)
+import Ondim.Extra (listExp)
 import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core (Prism', preview, (%))
 import Org.Compare (toAtoms)
@@ -133,17 +133,14 @@ queryExp rp m node = do
       doTake . doSort . doLinksTo . doRoute . doTags . doFiles . doSources $
         m.pages
 
-  ifElse (not (null pages')) node
-    `binding` do
-      "q" #. "result" #* \node' ->
-        join <$> forM pages' \(p, ref) ->
-          let page = liftChildren node' `binding` pageExp rp m.pages p
-           in case ref of
-                Just (Anchor ref') ->
-                  page `binding` do
-                    "q" #. "target" #@ ref'
-                _ -> page
+  liftChildren node `binding` do
+    "query.result" #. listExp pageWithRefExp pages'
   where
+    pageWithRefExp (page, ref) = namespace do
+      "page" #. pageExp rp m.pages page
+      case ref of
+        Just (Anchor anchor) -> "target" #@ anchor
+        _noAnchor -> pass
     sorting str =
       let (rev, s) = case T.uncons str of
             Just ('-', r) -> (flip, r)
