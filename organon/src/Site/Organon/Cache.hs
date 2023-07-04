@@ -1,6 +1,5 @@
 module Site.Organon.Cache (
   Cache (..),
-  cache0,
   cacheDynamic,
 )
 where

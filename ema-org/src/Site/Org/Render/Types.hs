@@ -24,8 +24,7 @@ import Org.Exporters.Common hiding (
   SomeExpansion,
  )
 import Org.Exporters.Common qualified as EC
-import Org.Exporters.HTML qualified as EC
-import Site.Org.Route
+import Site.Org.Route (Route)
 import Text.XmlHtml qualified as X
 
 type RenderM m = (MonadIO m, MonadLoggerIO m)
@@ -34,7 +33,7 @@ type Ondim a = EC.Ondim RenderT a
 
 type OndimState = EC.OndimState RenderT
 
-type HtmlBackend = EC.HtmlBackend RenderT
+type HtmlBackend = EC.ExportBackend RenderT
 type Expansion t = EC.Expansion RenderT t
 type GlobalExpansion = EC.GlobalExpansion RenderT
 type SomeExpansion = EC.SomeExpansion RenderT
@@ -53,7 +52,7 @@ newtype RenderT a = RenderT
   }
 
 liftRenderT :: RenderT a -> Ondim a
-liftRenderT = lift . lift
+liftRenderT = lift
 
 liftToRenderT :: (forall m. RenderM m => m a) -> RenderT a
 liftToRenderT x = RenderT $ lift x
@@ -87,4 +86,4 @@ runRenderT (RenderT x) = RenderT $ lift $ runEitherT x
 
 data OndimOutput
   = AssetOutput (Ondim (Asset LByteString))
-  | PageOutput Text (X.Document -> FilePath -> Ondim (Asset LByteString))
+  | PageOutput Text (X.Document -> Ondim (Asset LByteString))

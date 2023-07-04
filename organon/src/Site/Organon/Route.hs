@@ -11,10 +11,9 @@ import Ema.Route.Generic
 import Ema.Route.Lib.Extra.StaticRoute qualified as SR
 import Generics.SOP qualified as SOP
 import Ondim.Extra (lookupAttr')
-import Ondim.Targets.HTML (HtmlNode (..))
+import Ondim.Targets.HTML (HtmlNode (..), bindDefaults)
 import Optics.Core
 import Site.Org ()
-import Site.Org.Model qualified
 import Site.Org.Render
 import Site.Org.Route qualified as Org
 import Site.Organon.Config
@@ -23,6 +22,8 @@ import Site.Organon.Extra.LaTeX
 import Site.Organon.Extra.Query
 import Site.Organon.Extra.Regex
 import Site.Organon.Model
+import Ondim.Extra.Exceptions (prettyException)
+import Control.Monad.Logger (logErrorN)
 
 data Route
   = RouteStatic (SR.StaticRoute "assets")
@@ -64,30 +65,35 @@ instance EmaSite Route where
         m (SiteOutput Route)
       ondimOutput p m r = renderWithLayout =<< siteOutput p m r
 
+      globalExps = do
+        when model.liveServer $ "organon:live-server" #@ "" -- TODO get from cli data
+        "asset" #. forM_ files \file ->
+          toText file #@ SR.staticRouteUrl (rp % _As @"RouteStatic") model.static file
+        "query" ## queryExp (rp % _As @Org.Route) model.org
+        "organon:latex" ## renderLaTeXExp model
+        "utils:sum" #* \node -> do
+          nums :: [Int] <- mapMaybe (readMaybe . toString . snd) <$> attributes node
+          return $ fromMaybe [] $ fromText ?? show (sum nums)
+        "utils:regex" #* regexExp
+        "portal" ## portalExp
+        where
+          files = keys model.static.modelFiles
+
       renderWithLayout :: RenderM m => OndimOutput -> m (Asset LByteString)
       renderWithLayout =
-        handleErrors . evalOutput ostate . \case
+        either handleErrors return <=< evalOutput ostate . \case
           AssetOutput x -> x
           PageOutput lname doc
             | Just (layout, fp) <- model.layouts !? lname ->
-                doc layout fp
-                  `binding` do
-                    when model.liveServer $ "organon:live-server" #@ "" -- TODO get from cli data
-                    "asset" #. forM_ files \file ->
-                      toText file #@ SR.staticRouteUrl (rp % _As @"RouteStatic") model.static file
-                    "query" ## queryExp (rp % _As @Org.Route) model.org
-                    "organon:latex" ## renderLaTeXExp model
-                    "utils:sum" #* \node -> do
-                      nums :: [Int] <- mapMaybe (readMaybe . toString . snd) <$> attributes node
-                      return $ fromMaybe [] $ fromText ?? show (sum nums)
-                    "utils:regex" #* regexExp
-                    "portal" ## portalExp
-                    "o:parse" ## parseObjectsExp (backend model.org.pages (rp % _As @Org.Route))
-                    "org:with-settings" #* withSettingsExp
+                withSite (FileDefinition fp) $
+                  bindDefaults $
+                    doc layout `binding` globalExps
             | otherwise -> throwTemplateError $ "Could not find layout " <> lname
         where
-          handleErrors = fmap (either (error . show) id)
-          files = keys model.static.modelFiles
+          handleErrors e = do
+            let msg = prettyException e
+            logErrorN msg
+            return $ AssetGenerated Html $ "<pre>" <> encodeUtf8 msg <> "</pre>"
           ostate = model.ondim
 
 targetFilter :: Text -> Filter HtmlNode

@@ -26,11 +26,9 @@ common common-options
     , ema-org
     , filepath
     , filepattern
-    , fsnotify             >=0.4
     , generic-optics
     , generics-sop
     , ixset-typed
-    , map-syntax
     , monad-logger
     , monad-logger-extras
     , mtl
@@ -45,7 +43,7 @@ common common-options
     , time
     , transformers         >=0.5
     , transformers-either
-    , unionmount           >=0.2.1
+    , unionmount           >=0.2.0
     , unix
     , unliftio
     , websockets
@@ -100,4 +98,4 @@ executable organon
   hs-source-dirs: app
   main-is:        Main.hs
   build-depends:  organon
-  ghc-options:    -threaded -j8 -rtsopts -fprint-potential-instances
+  ghc-options:    -threaded -j8 -rtsopts

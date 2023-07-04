@@ -14,27 +14,25 @@ import Data.Map (singleton)
 import Ema.Dynamic (Dynamic (..))
 import Network.WebSockets qualified as WS
 import Ondim.Targets.HTML.Load (loadTemplatesDynamic)
-import Org.Exporters.HTML (htmlTemplateDir)
-import Site.Org.Render.Types
-import Site.Organon.Cache
+import Site.Org.Render.Types (Layouts, OndimState, templateDir)
+import Site.Organon.Cache (cacheDynamic)
 import System.FilePath (takeBaseName, (</>))
 import System.UnionMount qualified as UM
 import Text.XmlHtml qualified as X
-import UnliftIO (MonadUnliftIO, TChan, writeTChan, newBroadcastTChanIO)
+import UnliftIO (MonadUnliftIO, TChan, newBroadcastTChanIO, writeTChan)
 
 layoutDynamic :: (MonadUnliftIO m, MonadLoggerIO m) => FilePath -> m (Dynamic m Layouts)
 layoutDynamic dir = do
-  Dynamic
-    <$> UM.mount dir [((), "**/*.html")] [] mempty \() fp _fa ->
-      X.parseHTML fp <$> readFileBS (dir </> fp) >>= \case
-        Left e -> logErrorNS "Template Loading" (toText e) >> liftIO (fail e)
-        Right tpl -> do
-          let name = fromString $ takeBaseName fp
-          pure (singleton name tpl <>)
+  Dynamic <$> UM.mount dir [((), "**/*.html")] [] mempty \() fp _fa ->
+    X.parseHTML fp <$> readFileBS (dir </> fp) >>= \case
+      Left e -> logErrorNS "Template Loading" (toText e) >> liftIO (fail e)
+      Right tpl -> do
+        let name = fromString $ takeBaseName fp
+        pure (singleton name (tpl, fp) <>)
 
 ondimDynamic :: (MonadUnliftIO m, MonadLoggerIO m) => FilePath -> m (Dynamic m OndimState)
 ondimDynamic dir = do
-  ddir <- liftIO htmlTemplateDir
+  ddir <- liftIO templateDir
   Dynamic <$> loadTemplatesDynamic [dir, ddir]
 
 wsConnDynamic :: forall m. (MonadUnliftIO m, MonadLoggerIO m) => m (Dynamic m (TChan ByteString))

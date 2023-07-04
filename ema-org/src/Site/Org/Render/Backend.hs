@@ -1,87 +1,92 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 module Site.Org.Render.Backend (backend) where
 
 import Data.IxSet.Typed qualified as Ix
-import Data.List qualified as L
 import Data.Text qualified as T
 import Ema.Route.Url (routeUrl)
-import Ondim.Targets.HTML (HtmlNode, fromNodeList)
 import Org.Exporters.HTML (defHtmlBackend)
-import Org.Types (LinkTarget (..), OrgElement (..), OrgObject (..), srcLinesToText)
+import Org.Exporters.Processing (OrgData)
+import Org.Types (LinkTarget (..), OrgElement (..), OrgObject (..))
 import Relude.Unsafe (fromJust)
-import Site.Org.Model
-import Site.Org.Render.Types
-import Site.Org.Route
+import Site.Org.Model (
+  LevelIx (LevelIx),
+  OrgEntry (identifier),
+  OrgID (OrgID),
+  OrgPath,
+  Pages,
+  StaticFile (StaticFile),
+ )
+import Site.Org.Render.Types (
+  ExpansionMap,
+  ExportBackend (customElement, customObject),
+  HtmlBackend,
+  RPrism,
+  elementExp,
+  objectExp,
+ )
+import Site.Org.Route (Route (Route_Page, Route_Static))
 import Text.Slugify (slugify)
-import Text.XmlHtml qualified as X
 
 backend :: Pages -> RPrism -> HtmlBackend
-backend p rp = fix \self ->
+backend p rp =
   let def = defHtmlBackend
-      m "o" [e] = callExpansion e (nullObj def)
-      m _ _ = pure []
    in def
-        { macro = m
-        , customElement = customElementPipeline p rp self
-        , customObject = customObjectPipeline p rp self
+        { customElement = customElementPipeline p rp
+        , customObject = customObjectPipeline p rp
         }
 
 customObjectPipeline ::
-  Pages -> RPrism -> HtmlBackend -> OrgObject -> Maybe (Ondim [HtmlNode])
-customObjectPipeline m rp bk x =
+  Pages ->
+  RPrism ->
+  HtmlBackend ->
+  OrgData ->
+  OrgObject ->
+  Maybe ExpansionMap
+customObjectPipeline m rp bk odata x =
   asum $
     flap
-      [ customLink m rp bk
+      [ customLink m rp bk odata
       ]
       x
 
 customElementPipeline ::
-  Pages -> RPrism -> HtmlBackend -> OrgElement -> Maybe (Ondim [HtmlNode])
-customElementPipeline m rp bk x =
+  Pages ->
+  RPrism ->
+  HtmlBackend ->
+  OrgData ->
+  OrgElement ->
+  Maybe ExpansionMap
+customElementPipeline m rp bk odata x =
   asum $
     flap
-      [ customSourceBlock bk
-      , customFigure m rp bk
+      [ customFigure m rp bk odata
       ]
       x
 
-customSourceBlock ::
-  HtmlBackend -> OrgElement -> Maybe (Ondim [HtmlNode])
-customSourceBlock _bk = \case
-  SrcBlock {..} -> do
-    e <- L.lookup "expand" srcBlkArguments
-    let content = encodeUtf8 $ srcLinesToText srcBlkLines
-    if e == "t" && srcBlkLang == "html"
-      then do
-        parsed <- rightToMaybe $ X.parseHTML "" content
-        return $ liftNodes $ fromNodeList $ X.docContent parsed
-      else do
-        -- contentObj :: Aeson.Object <-
-        --   case srcBlkLang of
-        --     "json" -> Aeson.decodeStrict content
-        --     "yaml" -> either (error . show) id $ Yaml.decodeThrow content
-        --     _ -> Nothing
-        return $ pure []
-  -- openObject @HtmlNode Nothing contentObj $
-  --   bindKeywords bk "akw:" affKws $
-  --     callExpansion e $
-  --       TextNode ""
-  _ -> Nothing
-
 customLink ::
-  Pages -> RPrism -> HtmlBackend -> OrgObject -> Maybe (Ondim [HtmlNode])
-customLink m rp bk = \case
+  Pages ->
+  RPrism ->
+  HtmlBackend ->
+  OrgData ->
+  OrgObject ->
+  Maybe ExpansionMap
+customLink m rp bk odata = \case
   Link tgt descr ->
-    expandOrgObject bk <$> (Link <$> resolveTarget m rp tgt ?? descr)
+    objectExp bk odata <$> (Link <$> resolveTarget m rp tgt ?? descr)
   _ -> Nothing
 
 customFigure ::
-  Pages -> RPrism -> HtmlBackend -> OrgElement -> Maybe (Ondim [HtmlNode])
-customFigure m rp bk = \case
+  Pages ->
+  RPrism ->
+  HtmlBackend ->
+  OrgData ->
+  OrgElement ->
+  Maybe ExpansionMap
+customFigure m rp bk odata = \case
   Paragraph aff [Link tgt []] ->
-    expandOrgElement bk <$> (Paragraph aff . one <$> (Link <$> resolveTarget m rp tgt ?? []))
+    elementExp bk odata
+      <$> (Paragraph aff . one <$> (Link <$> resolveTarget m rp tgt ?? []))
   _ -> Nothing
 
 resolveTarget :: Pages -> RPrism -> LinkTarget -> Maybe LinkTarget
@@ -106,9 +111,10 @@ resolveTarget m rp = \case
     maybeAddHash x =
       fromMaybe x do
         x' <- T.stripPrefix "::" x
-        return $ "#" <>
-          case T.stripPrefix "*" x' of
-            Just x'' -> "h-" <> slugify x''
-            Nothing -> x'
+        return $
+          "#"
+            <> case T.stripPrefix "*" x' of
+              Just x'' -> "h-" <> slugify x''
+              Nothing -> x'
     breakInternalRef = second maybeAddHash . T.breakOn "::"
     route = routeUrl rp

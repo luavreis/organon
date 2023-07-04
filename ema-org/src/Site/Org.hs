@@ -5,14 +5,22 @@ module Site.Org (Route, Model (..)) where
 import Control.Monad.Logger (MonadLogger, logDebugN)
 import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as Map
-import Ema
+import Ema (Asset (AssetStatic), Dynamic (..), EmaSite (..))
 import Org.Parser (parseOrgIO)
-import Site.Org.Graph
-import Site.Org.Model
-import Site.Org.Options
-import Site.Org.Process
-import Site.Org.Render
-import Site.Org.Route
+import Site.Org.Model (
+  Model (..),
+  OrgPath (OrgPath),
+  Pages,
+  StaticFile (StaticFile),
+  prettyOrgPath,
+ )
+import Site.Org.Options (
+  Options (exclude, mount, parserSettings, staticPatterns),
+  Source (dir),
+ )
+import Site.Org.Process (loadOrgFile)
+import Site.Org.Render (OndimOutput (AssetOutput), renderPost)
+import Site.Org.Route (Route (..))
 import System.FilePath ((</>))
 import System.FilePattern (FilePattern)
 import System.UnionMount (FileAction (..))
@@ -57,8 +65,6 @@ instance EmaSite Route where
         pure id
   siteOutput rp m =
     pure . \case
-      Route_Graph ->
-        renderGraph rp m
       Route_Static ix ->
         let OrgPath s fp = coerce ix
          in AssetOutput $ pure $ AssetStatic (s.dir </> fp)
