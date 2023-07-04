@@ -22,15 +22,16 @@ import Site.Org.Meta (metaMapExp)
 import Site.Org.Model (
   Identifier (orgId, path),
   Model (pages),
-  OrgEntry (document, identifier, meta, orgData),
+  OrgEntry (..),
   OrgID (idText),
   Pages,
-  toFilePath,
+  toFilePath, lookupOrgLocation, linksTo,
  )
 import Site.Org.Render.Backend
 import Site.Org.Render.Types
 import Site.Org.Route (Route (Route_Page))
 import Text.XmlHtml qualified as X
+import Ondim.Extra.Expansions (listExp)
 
 createPortal :: Ondim [HtmlNode] -> Ondim (Either [HtmlNode] [HtmlNode])
 createPortal = tryError
@@ -52,8 +53,10 @@ pageExp rp pgs page = do
     "route" #@ router $ Route_Page page.identifier
     "routeRaw" #@ toText $ review rp $ Route_Page page.identifier
     "filepath" #@ toText $ toFilePath page.identifier.path
+    "links-to" #. listExp (namespace . pageExp rp pgs) linksTo
     for_ page.identifier.orgId \i -> "id" #@ i.idText
   where
+    linksTo = mapMaybe (lookupOrgLocation pgs) $ Map.keys page.linksTo
     bk = backend pgs rp
     router = routeUrl rp
 
