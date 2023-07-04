@@ -137,7 +137,7 @@ queryExp rp m node = do
     `binding` do
       "q" #. "result" #* \node' ->
         join <$> forM pages' \(p, ref) ->
-          let page = bindPage rp m.pages p (liftChildren node')
+          let page = liftChildren node' `binding` pageExp rp m.pages p
            in case ref of
                 Just (Anchor ref') ->
                   page `binding` do

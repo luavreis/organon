@@ -11,3 +11,4 @@ package org-exporters
 --     type: git
 --     location: https://github.com/lucasvreis/org-parser.git
 --     tag: d311c27f60789817c3ae0a3ed74713abad4ba00d
+allow-newer: monad-logger-extras:mtl

@@ -9,63 +9,72 @@ module Site.Org.Render (
 where
 
 import Control.Monad.Except (tryError)
-import Control.Monad.Trans.Either
+import Control.Monad.Trans.Either (left, runEitherT)
 import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as Map
-import Ema
+import Ema (Asset (AssetGenerated), Format (Html), routeUrl)
 import Ondim.Targets.HTML (HtmlNode (..), fromNodeList, toNodeList)
-import Optics.Core
-import Org.Exporters.HTML (evalOndim, render')
-import Org.Exporters.Processing (initialOrgData)
+import Optics.Core (Prism', review)
+import Org.Exporters.HTML (render')
 import Org.Types (OrgDocument (..))
 import Relude.Unsafe (fromJust)
-import Site.Org.Meta
-import Site.Org.Model
+import Site.Org.Meta (metaMapExp)
+import Site.Org.Model (
+  Identifier (orgId, path),
+  Model (pages),
+  OrgEntry (document, identifier, meta, orgData),
+  OrgID (idText),
+  Pages,
+  toFilePath,
+ )
 import Site.Org.Render.Backend
 import Site.Org.Render.Types
-import Site.Org.Route
+import Site.Org.Route (Route (Route_Page))
 import Text.XmlHtml qualified as X
 
 createPortal :: Ondim [HtmlNode] -> Ondim (Either [HtmlNode] [HtmlNode])
 createPortal = tryError
 
 returnEarly :: [HtmlNode] -> Ondim a
-returnEarly nodes = lift $ lift $ RenderT $ left nodes
+returnEarly nodes = lift $ RenderT $ left nodes
 
-bindPage ::
+pageExp ::
   RPrism ->
   Pages ->
   OrgEntry ->
-  Ondim a ->
-  Ondim a
-bindPage rp pgs page node =
-  bindDocument bk page.orgData page.document node
-    `binding` do
-      "page" #. do
-        "meta" #. metaMapExp bk page.meta
-        "route" #@ router $ Route_Page page.identifier
-        "routeRaw" #@ toText $ review rp $ Route_Page page.identifier
-        "filepath" #@ toText $ toFilePath page.identifier.path
-        for_ page.identifier.orgId \i -> "id" #@ i.idText
+  ExpansionMap
+pageExp rp pgs page = do
+  documentExp bk page.orgData page.document
+  "doc:parse:objs" #* parserExpObjs bk page.orgData
+  "doc:parse:elms" #* parserExpElms bk page.orgData
+  "page" #. do
+    "meta" #. metaMapExp bk page.orgData page.meta
+    "route" #@ router $ Route_Page page.identifier
+    "routeRaw" #@ toText $ review rp $ Route_Page page.identifier
+    "filepath" #@ toText $ toFilePath page.identifier.path
+    for_ page.identifier.orgId \i -> "id" #@ i.idText
   where
     bk = backend pgs rp
     router = routeUrl rp
 
 evalOutput :: RenderM m => OndimState -> Ondim a -> m (Either OndimException a)
 evalOutput ostate content = do
-  let RenderT out = evalOndim ostate initialOrgData content
+  let RenderT out = evalOndimTWith ostate content
   collapse <$> runEitherT out
   where
     collapse = fromRight (error "")
 
 renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
 renderPost identifier rp m =
-  PageOutput layout \ly fp -> do
+  PageOutput layout \ly -> do
     lifted <-
-      bindPage rp m.pages page $
-        withSite (FileDefinition fp) $
-          liftNodes (fromNodeList $ X.docContent ly)
-    return $ AssetGenerated Html $ render' $ ly {X.docContent = toNodeList lifted}
+      liftNodes (fromNodeList $ X.docContent ly)
+        `binding` pageExp rp m.pages page
+    return $
+      AssetGenerated Html $
+        render' ly {X.docContent = toNodeList lifted}
   where
     page = fromJust $ Ix.getOne (m.pages Ix.@= identifier)
-    layout = fromMaybe "org-page" $ Map.lookup "layout" page.document.documentProperties
+    layout =
+      fromMaybe "org-page" $
+        Map.lookup "layout" page.document.documentProperties
