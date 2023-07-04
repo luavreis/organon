@@ -24,14 +24,14 @@ renderLaTeX ::
   LaTeXProcessSpec ->
   -- | Contents
   Text ->
-  RenderT (Text, ByteString)
+  RenderT (Maybe (Text, ByteString))
 renderLaTeX path process txt = do
   logger <- askLoggerIO
   liftIO $ (`runLoggingT` logger) do
-    pipeline `catch` \(_ :: IOException) -> do
+    (Just <$> pipeline) `catch` \(_ :: IOException) -> do
       logErrorNS "LaTeX Rendering" ("Failed to render LaTeX in file " <> toText path)
       logErrorNS "LaTeX Rendering" (T.strip $ "LaTeX content:\n" <> finalText)
-      pure (process.imageMIMEType, "")
+      pure Nothing
   where
     pipeline :: LoggingT IO (Text, ByteString)
     pipeline =
