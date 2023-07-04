@@ -46,15 +46,14 @@ pageExp ::
   ExpansionMap
 pageExp rp pgs page = do
   documentExp bk page.orgData page.document
-  "doc:parse:objs" #* parserExpObjs bk page.orgData
-  "doc:parse:elms" #* parserExpElms bk page.orgData
-  "page" #. do
-    "meta" #. metaMapExp bk page.orgData page.meta
-    "route" #@ router $ Route_Page page.identifier
-    "routeRaw" #@ toText $ review rp $ Route_Page page.identifier
-    "filepath" #@ toText $ toFilePath page.identifier.path
-    "links-to" #. listExp (namespace . pageExp rp pgs) linksTo
-    for_ page.identifier.orgId \i -> "id" #@ i.idText
+  "parse:objs" #* parserExpObjs bk page.orgData
+  "parse:elms" #* parserExpElms bk page.orgData
+  "meta" #. metaMapExp bk page.orgData page.meta
+  "route" #@ router $ Route_Page page.identifier
+  "routeRaw" #@ toText $ review rp $ Route_Page page.identifier
+  "filepath" #@ toText $ toFilePath page.identifier.path
+  "links-to" #. listExp (namespace . pageExp rp pgs) linksTo
+  for_ page.identifier.orgId \i -> "id" #@ i.idText
   where
     linksTo = mapMaybe (lookupOrgLocation pgs) $ Map.keys page.linksTo
     bk = backend pgs rp
@@ -72,7 +71,8 @@ renderPost identifier rp m =
   PageOutput layout \ly -> do
     lifted <-
       liftNodes (fromNodeList $ X.docContent ly)
-        `binding` pageExp rp m.pages page
+        `binding` do
+          "page" #. pageExp rp m.pages page
     return $
       AssetGenerated Html $
         render' ly {X.docContent = toNodeList lifted}
