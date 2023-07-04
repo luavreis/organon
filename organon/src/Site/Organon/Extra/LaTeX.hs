@@ -46,8 +46,9 @@ renderLaTeXExp model node = do
       Nothing -> do
         lift $ logInfoNS "organon:latex" "Cache miss; calling LaTeX instead."
         result <- liftRenderT $ renderLaTeX filepath spec txt
-        atomically $ modifyTVar cacheVar $ insertLaTeXCache ckey result
-        pure result
+        whenJust result $
+          atomically . modifyTVar cacheVar . insertLaTeXCache ckey
+        return $ fromMaybe ("", "") result
   liftChildren node
     `binding` do
       "latex:datauri" #@ makeDataURI result
