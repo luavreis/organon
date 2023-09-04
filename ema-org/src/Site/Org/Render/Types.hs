@@ -10,14 +10,11 @@ where
 
 import Control.Monad.Error.Class (MonadError (..))
 import Control.Monad.Logger (MonadLogger (..), MonadLoggerIO (..))
-import Control.Monad.Trans.Either (EitherT, runEitherT)
-import Ema.Asset (Asset)
 import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core (Prism')
 import Org.Exporters.Common hiding (
   Expansion,
   ExpansionMap,
-  Filter,
   GlobalExpansion,
   Ondim,
   OndimState,
@@ -25,7 +22,6 @@ import Org.Exporters.Common hiding (
  )
 import Org.Exporters.Common qualified as EC
 import Site.Org.Route (Route)
-import Text.XmlHtml qualified as X
 
 type RenderM m = (MonadIO m, MonadLoggerIO m)
 
@@ -38,24 +34,20 @@ type Expansion t = EC.Expansion RenderT t
 type GlobalExpansion = EC.GlobalExpansion RenderT
 type SomeExpansion = EC.SomeExpansion RenderT
 type ExpansionMap = EC.ExpansionMap RenderT
-type Filter t = EC.Filter RenderT t
-
-type Layouts = Map Text (X.Document, FilePath)
 
 type RPrism = Prism' FilePath Route
 
 newtype RenderT a = RenderT
   { unRenderT ::
       forall m.
-      RenderM m =>
-      EitherT [HtmlNode] m a
+      RenderM m => m a
   }
 
 liftRenderT :: RenderT a -> Ondim a
 liftRenderT = lift
 
 liftToRenderT :: (forall m. RenderM m => m a) -> RenderT a
-liftToRenderT x = RenderT $ lift x
+liftToRenderT = RenderT
 
 instance Functor RenderT where
   fmap f (RenderT a) = RenderT $ f <$> a
@@ -69,8 +61,8 @@ instance Monad RenderT where
   (RenderT a) >>= f = RenderT $ a >>= unRenderT . f
 
 instance MonadError [HtmlNode] RenderT where
-  throwError e = RenderT $ throwError e
-  catchError (RenderT m) c = RenderT $ catchError m (unRenderT . c)
+  throwError = throwError
+  catchError (RenderT m) c = catchError m (unRenderT . c)
 
 instance MonadIO RenderT where
   liftIO a = RenderT $ liftIO a
@@ -80,10 +72,3 @@ instance MonadLogger RenderT where
 
 instance MonadLoggerIO RenderT where
   askLoggerIO = liftToRenderT askLoggerIO
-
-runRenderT :: RenderT a -> RenderT (Either [HtmlNode] a)
-runRenderT (RenderT x) = RenderT $ lift $ runEitherT x
-
-data OndimOutput
-  = AssetOutput (Ondim (Asset LByteString))
-  | PageOutput Text (X.Document -> Ondim (Asset LByteString))

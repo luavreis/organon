@@ -5,9 +5,9 @@ module Site.Org.Render.Backend (backend) where
 import Data.IxSet.Typed qualified as Ix
 import Data.Text qualified as T
 import Ema.Route.Url (routeUrl)
-import Org.Exporters.HTML (defHtmlBackend)
+import Org.Exporters.HTML (defBackend)
 import Org.Exporters.Processing (OrgData)
-import Org.Types (LinkTarget (..), OrgElement (..), OrgObject (..))
+import Org.Types (LinkTarget (..), OrgObject (..))
 import Relude.Unsafe (fromJust)
 import Site.Org.Model (
   LevelIx (LevelIx),
@@ -19,22 +19,19 @@ import Site.Org.Model (
  )
 import Site.Org.Render.Types (
   ExpansionMap,
-  ExportBackend (customElement, customObject),
+  ExportBackend (customObject),
   HtmlBackend,
   RPrism,
-  elementExp,
   objectExp,
  )
 import Site.Org.Route (Route (Route_Page, Route_Static))
-import Text.Slugify (slugify)
+import Org.Exporters.Processing.InternalLinks (sectionTitleToAnchor)
 
 backend :: Pages -> RPrism -> HtmlBackend
 backend p rp =
-  let def = defHtmlBackend
-   in def
-        { customElement = customElementPipeline p rp
-        , customObject = customObjectPipeline p rp
-        }
+  defBackend
+    { customObject = customObjectPipeline p rp
+    }
 
 customObjectPipeline ::
   Pages ->
@@ -50,20 +47,6 @@ customObjectPipeline m rp bk odata x =
       ]
       x
 
-customElementPipeline ::
-  Pages ->
-  RPrism ->
-  HtmlBackend ->
-  OrgData ->
-  OrgElement ->
-  Maybe ExpansionMap
-customElementPipeline m rp bk odata x =
-  asum $
-    flap
-      [ customFigure m rp bk odata
-      ]
-      x
-
 customLink ::
   Pages ->
   RPrism ->
@@ -74,19 +57,6 @@ customLink ::
 customLink m rp bk odata = \case
   Link tgt descr ->
     objectExp bk odata <$> (Link <$> resolveTarget m rp tgt ?? descr)
-  _ -> Nothing
-
-customFigure ::
-  Pages ->
-  RPrism ->
-  HtmlBackend ->
-  OrgData ->
-  OrgElement ->
-  Maybe ExpansionMap
-customFigure m rp bk odata = \case
-  Paragraph aff [Link tgt []] ->
-    elementExp bk odata
-      <$> (Paragraph aff . one <$> (Link <$> resolveTarget m rp tgt ?? []))
   _ -> Nothing
 
 resolveTarget :: Pages -> RPrism -> LinkTarget -> Maybe LinkTarget
@@ -111,10 +81,6 @@ resolveTarget m rp = \case
     maybeAddHash x =
       fromMaybe x do
         x' <- T.stripPrefix "::" x
-        return $
-          "#"
-            <> case T.stripPrefix "*" x' of
-              Just x'' -> "h-" <> slugify x''
-              Nothing -> x'
+        return $ "#" <> maybe x' sectionTitleToAnchor (T.stripPrefix "*" x')
     breakInternalRef = second maybeAddHash . T.breakOn "::"
     route = routeUrl rp

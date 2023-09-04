@@ -36,13 +36,11 @@ common common-options
     , org-exporters
     , org-parser
     , relude
-    , slugify
     , time
     , transformers         >=0.5
     , transformers-either
     , unionmount           >=0.2.0
     , unliftio
-    , xmlhtml
     , yaml
 
   default-extensions:

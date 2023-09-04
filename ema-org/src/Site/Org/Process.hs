@@ -12,7 +12,7 @@ import Data.Text qualified as T
 import Data.Time (UTCTime)
 import Optics.Core
 import Org.Exporters.Processing
-import Org.Parser (evalOrgMaybe)
+import Org.Parser (parseOrgMaybe)
 import Org.Parser.Objects (plainMarkupContext, standardSet)
 import Org.Types
 import Org.Walk
@@ -127,7 +127,7 @@ listenBacklinks = censor (\(x, _, z) -> (x, mempty, z)) . listens (\(_, b, _) ->
 -- those null references and replace them with a reference to itself.
 
 processElement :: Monad m => WalkM (ProcessM m) -> OrgElement -> ProcessM m OrgElement
-processElement f elm@(Keyword _ _) = do
+processElement f elm@(OrgElement _ (Keyword _ _)) = do
   (elm', blks) <- listenBacklinks (f elm)
   let blks' = NES.map (const $ Just MetaProperty) <$> blks
   tellBacklinks blks'
@@ -139,9 +139,9 @@ processElement f elm =
       let blks' = NES.map (const $ Just MetaProperty) <$> blks
       tellBacklinks blks'
       modify (#meta %~ (m <>))
-      return $ GreaterBlock mempty (Special "meta") []
+      return $ OrgElement mempty Comment
     Nothing -> do
-      (elm', blks) <- listenBacklinks $ f elm
+      (el'@(OrgElement _ eld), blks) <- listenBacklinks $ f elm
       if any (Nothing `NES.member`) blks
         then do
           modify (#anchorCounter %~ (+ 1))
@@ -157,8 +157,8 @@ processElement f elm =
                     then NES.singleton (Just (Anchor anchor))
                     else s
           tellBacklinks newBlks
-          return $ GreaterBlock (Map.singleton "portal-target" $ ValueKeyword anchor) (Special "portal") [elm']
-        else tellBacklinks blks $> elm'
+          return $ OrgElement (Map.singleton "portal-target" $ ValueKeyword anchor) eld
+        else tellBacklinks blks $> el'
 
 -- | Process links to other Org files and register the backlinks.
 processLink :: (MonadUnliftIO m, MonadLogger m) => OrgObject -> ProcessM m OrgObject
@@ -187,6 +187,7 @@ processTarget t = do
               tellBacklink (Left opath)
     _ -> pure ()
 
+-- TODO use ondim
 getGenMeta :: (MonadLogger m, MonadUnliftIO m) => ProcessM m MetaMap
 getGenMeta = do
   props <- asks (.inhProps)
@@ -201,7 +202,7 @@ getGenMeta = do
       sh cmd = (shell cmd) {cwd = Just dir, env = Just env}
   MonoidalMap . Map.mapMaybe id <$> forM gen \cmd -> do
     out <- toText <$> readCreateProcess (sh cmd) ""
-    return $ MetaObjects . toList <$> evalOrgMaybe popts parser out
+    return $ MetaObjects . toList <$> parseOrgMaybe popts parser out
   where
     parser = plainMarkupContext standardSet
 

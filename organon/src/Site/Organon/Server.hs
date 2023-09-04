@@ -18,10 +18,10 @@ import Site.Org.Route qualified as OR
 import Site.Organon.Model
 import Site.Organon.Route (Route (..))
 import System.Info qualified as Info
-import Text.Slugify (slugify)
 import UnliftIO (conc, runConc)
 import UnliftIO.Process (callCommand)
 import UnliftIO.STM (dupTChan, readTChan)
+import Org.Exporters.Processing.InternalLinks (sectionTitleToAnchor)
 
 runOrganon ::
   SiteArg Route ->
@@ -78,7 +78,7 @@ customEmaWs conn model =
             return (Left source)
         entry <- hoistMaybe $ lookupOrgLocation model.org.pages loc
         let pagePath = routeUrl rp (RouteContent $ OR.Route_Page entry.identifier)
-            anchor' = maybe "" slugify anchor
+            anchor' = maybe "" sectionTitleToAnchor anchor
         liftIO $ WS.sendTextData conn $ "SWITCH " <> pagePath <> "#" <> anchor'
       followRedirect
     rp = fromPrism_ $ routePrism @Route model

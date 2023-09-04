@@ -33,7 +33,7 @@ renderLaTeXExp ::
   Model ->
   Expansion HtmlNode
 renderLaTeXExp model node = do
-  filepath <- toString <$> callTextData "page:filepath"
+  filepath <- toString @Text <$> callText "page:filepath"
   txt <- fromMaybe "" <$> lookupAttr "text" node
   additionalPreamble <- maybe "" ("\n" <>) <$> lookupAttr "preamble" node
   spec' <- specFromModel model

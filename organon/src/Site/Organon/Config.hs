@@ -6,14 +6,13 @@ module Site.Organon.Config where
 import Data.Aeson.KeyMap qualified as KM
 import Data.Yaml as Y
 import Org.Exporters.Processing (defaultExporterSettings)
-import Org.Parser.Definitions (OrgOptions (..), defaultOrgOptions)
 import Site.Org.Options qualified as Org
 import Site.Org.Utils.JSON
+import Site.Org.Parsing.Options (parsingOptions)
 
 data Config = Config
   { orgFiles :: Org.Options
   , templates :: FilePath
-  , layouts :: FilePath
   , cacheFile :: FilePath
   , extraOptions :: Object
   }
@@ -42,15 +41,6 @@ adjustConfig (toJSON -> v1) v2 =
     adjust (Object x) (Object y) = Object $ KM.unionWith adjust x y
     adjust _ y = y
 
-defaultParserSettings :: OrgOptions
-defaultParserSettings =
-  def
-    { orgElementParsedKeywords = orgElementParsedKeywords def ++ ["transclude", "excerpt"]
-    , orgElementAffiliatedKeywords = orgElementAffiliatedKeywords def ++ ["meta"]
-    }
-  where
-    def = defaultOrgOptions
-
 defaultConfig :: Config
 defaultConfig =
   Config
@@ -61,12 +51,11 @@ defaultConfig =
           , Org.staticPatterns = ["**/*.png", "**/*.jpg", "**/*.svg"]
           , Org.exclude = defExclude
           , Org.exporterSettings = defaultExporterSettings
-          , Org.parserSettings = defaultParserSettings
+          , Org.parserSettings = parsingOptions
           , Org.fileProtocols = ["file", "pdf"]
           , Org.generatedMeta = mempty
           }
     , templates = "templates"
-    , layouts = "layouts"
     , cacheFile = "site.cache"
     , extraOptions = mempty
     }

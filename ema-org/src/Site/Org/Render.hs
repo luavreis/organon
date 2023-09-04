@@ -8,14 +8,12 @@ module Site.Org.Render (
 )
 where
 
-import Control.Monad.Except (tryError)
-import Control.Monad.Trans.Either (left, runEitherT)
+import Control.Monad.Trans.Either (runEitherT)
 import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as Map
 import Ema (Asset (AssetGenerated), Format (Html), routeUrl)
-import Ondim.Targets.HTML (HtmlNode (..), fromNodeList, toNodeList)
+import Ondim.Extra.Expansions (listExp)
 import Optics.Core (Prism', review)
-import Org.Exporters.HTML (render')
 import Org.Types (OrgDocument (..))
 import Relude.Unsafe (fromJust)
 import Site.Org.Meta (metaMapExp)
@@ -25,19 +23,14 @@ import Site.Org.Model (
   OrgEntry (..),
   OrgID (idText),
   Pages,
-  toFilePath, lookupOrgLocation, linksTo,
+  linksTo,
+  lookupOrgLocation,
+  toFilePath,
  )
 import Site.Org.Render.Backend
 import Site.Org.Render.Types
 import Site.Org.Route (Route (Route_Page))
-import Text.XmlHtml qualified as X
-import Ondim.Extra.Expansions (listExp)
-
-createPortal :: Ondim [HtmlNode] -> Ondim (Either [HtmlNode] [HtmlNode])
-createPortal = tryError
-
-returnEarly :: [HtmlNode] -> Ondim a
-returnEarly nodes = lift $ RenderT $ left nodes
+import Ondim.Targets.HTML (HtmlDocument)
 
 pageExp ::
   RPrism ->
@@ -66,18 +59,15 @@ evalOutput ostate content = do
   where
     collapse = fromRight (error "")
 
-renderPost :: Identifier -> Prism' FilePath Route -> Model -> OndimOutput
-renderPost identifier rp m =
-  PageOutput layout \ly -> do
-    lifted <-
-      liftNodes (fromNodeList $ X.docContent ly)
-        `binding` do
-          "page" #. pageExp rp m.pages page
-    return $
-      AssetGenerated Html $
-        render' ly {X.docContent = toNodeList lifted}
+renderPost :: Identifier -> Prism' FilePath Route -> Model -> Ondim (Asset LByteString)
+renderPost identifier rp m = do
+  lPage :: [HtmlDocument] <-
+    callTemplate layout
+      `binding` do
+        "page" #. pageExp rp m.pages page
+  AssetGenerated Html <$> renderNodeOrError lPage
   where
     page = fromJust $ Ix.getOne (m.pages Ix.@= identifier)
     layout =
-      fromMaybe "org-page" $
+      fromMaybe "org-page.html" $
         Map.lookup "layout" page.document.documentProperties

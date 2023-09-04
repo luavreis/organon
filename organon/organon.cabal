@@ -39,7 +39,6 @@ common common-options
     , org-parser
     , regex-pcre-builtin
     , relude
-    , slugify
     , time
     , transformers         >=0.5
     , transformers-either
