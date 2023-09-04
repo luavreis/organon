@@ -1,0 +1,25 @@
+name: Release binaries
+
+on:
+  # Trigger the workflow on the new 'v*' tag created
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: build
+    uses: ./.github/workflows/build.yml
+  release:
+    name: release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all workflow run artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      - name: '${{ github.ref_name }}'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: '**/*'
