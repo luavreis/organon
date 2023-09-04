@@ -17,7 +17,7 @@ import UnliftIO.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, 
 
 class DocLike a where
   getLevel :: a -> Int
-  getTags :: a -> Tags
+  getTags :: a -> [Tag]
   getProps :: a -> Properties
   getTitle :: a -> Maybe [OrgObject]
   toDoc :: a -> OrgDocument

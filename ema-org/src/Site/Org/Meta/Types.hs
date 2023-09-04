@@ -1,12 +1,12 @@
 module Site.Org.Meta.Types where
 
-import Org.Parser.Definitions (ListItem (..), ListType (..), OrgElement (..), OrgObject (..))
+import Org.Types (ListItem (..), ListType (..), OrgElement (..), OrgObject (..), OrgElementData (..))
 import Relude.Extra.Map (member)
 import Site.Org.Utils.MonoidalMap (MonoidalMap)
 
 elementToMetaMap :: OrgElement -> Maybe MetaMap
 elementToMetaMap = \case
-  PlainList a Descriptive is
+  OrgElement a (PlainList Descriptive is)
     | "meta" `member` a ->
         Just $ fromList $ map itemToValue is
   _ -> Nothing
@@ -18,11 +18,11 @@ elementToMetaMap = \case
           [Plain x] -> x
           _ -> ""
         val = case els of
-          [PlainList _ Descriptive is] ->
+          [OrgElement _ (PlainList Descriptive is)] ->
             MetaMap $ fromList $ map itemToValue is
-          [PlainList _ _ is] ->
+          [OrgElement _ (PlainList _ is)] ->
             MetaList $ map (snd . itemToValue) is
-          [Paragraph _ os] -> MetaObjects os
+          [OrgElement _ (Paragraph os)] -> MetaObjects os
           _ -> MetaObjects []
 
 type MetaMap = MonoidalMap Text MetaValue

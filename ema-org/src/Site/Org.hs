@@ -6,7 +6,7 @@ import Control.Monad.Logger (MonadLogger, logDebugN)
 import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as Map
 import Ema (Asset (AssetStatic), Dynamic (..), EmaSite (..))
-import Org.Parser (parseOrgIO)
+import Org.Parser (parseOrgDocIO)
 import Site.Org.Model (
   Model (..),
   OrgPath (OrgPath),
@@ -19,7 +19,7 @@ import Site.Org.Options (
   Source (dir),
  )
 import Site.Org.Process (loadOrgFile)
-import Site.Org.Render (OndimOutput (AssetOutput), renderPost)
+import Site.Org.Render (renderPost, Ondim)
 import Site.Org.Route (Route (..))
 import System.FilePath ((</>))
 import System.FilePattern (FilePattern)
@@ -33,7 +33,7 @@ data FileType = OrgFile | OtherFile
 
 instance EmaSite Route where
   type SiteArg Route = Options
-  type SiteOutput Route = OndimOutput
+  type SiteOutput Route = Ondim (Asset LByteString)
   siteInput _ opt = do
     pages' :: Dynamic m Pages <-
       mconcat <<$>> sequenceA <$> forM sources \source ->
@@ -48,7 +48,7 @@ instance EmaSite Route where
           logDebugN $ "Loading " <> prettyOrgPath orgPath
 
           newPages <-
-            parseOrgIO opt.parserSettings absfp
+            parseOrgDocIO opt.parserSettings absfp
               >>= loadOrgFile opt orgPath
               >>= evaluate . force
 
@@ -67,7 +67,7 @@ instance EmaSite Route where
     pure . \case
       Route_Static ix ->
         let OrgPath s fp = coerce ix
-         in AssetOutput $ pure $ AssetStatic (s.dir </> fp)
+         in pure $ AssetStatic (s.dir </> fp)
       Route_Page identifier ->
         renderPost identifier rp m
 

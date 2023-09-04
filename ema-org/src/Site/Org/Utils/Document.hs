@@ -8,7 +8,7 @@ import Org.Walk (walk)
 walkOrgInContextM ::
   forall m.
   (Monad m) =>
-  (Tags -> Properties -> [OrgElement] -> m [OrgElement]) ->
+  ([Tag] -> Properties -> [OrgElement] -> m [OrgElement]) ->
   (OrgDocument, OrgData) ->
   m OrgDocument
 walkOrgInContextM f (doc, datum) =
@@ -21,7 +21,7 @@ walkOrgInContextM f (doc, datum) =
   where
     docTags = filetags datum
     docProps = documentProperties doc
-    doSection :: Tags -> Properties -> OrgSection -> m OrgSection
+    doSection :: [Tag] -> Properties -> OrgSection -> m OrgSection
     doSection tags properties section = do
       let inhTags = sectionTags section <> tags
           inhProps = sectionProperties section <> properties
@@ -33,7 +33,7 @@ walkOrgInContextM f (doc, datum) =
         section
 
 walkOrgInContext ::
-  (Tags -> Properties -> [OrgElement] -> [OrgElement]) ->
+  ([Tag] -> Properties -> [OrgElement] -> [OrgElement]) ->
   (OrgDocument, OrgData) ->
   OrgDocument
 walkOrgInContext f = runIdentity . walkOrgInContextM (\t p -> Identity . f t p)
@@ -41,7 +41,7 @@ walkOrgInContext f = runIdentity . walkOrgInContextM (\t p -> Identity . f t p)
 queryOrgInContext ::
   forall m.
   (Monoid m) =>
-  (Tags -> Properties -> OrgSection -> m) ->
+  ([Tag] -> Properties -> OrgSection -> m) ->
   (OrgDocument, OrgData) ->
   m
 queryOrgInContext f (doc, datum) =
@@ -49,7 +49,7 @@ queryOrgInContext f (doc, datum) =
   where
     docTags = filetags datum
     docProps = documentProperties doc
-    doSection :: Tags -> Properties -> OrgSection -> m
+    doSection :: [Tag] -> Properties -> OrgSection -> m
     doSection tags properties section = do
       let inhTags = sectionTags section <> tags
           inhProps = sectionProperties section <> properties

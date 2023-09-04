@@ -9,12 +9,12 @@ import Data.IxSet.Typed qualified as Ix
 import Data.List qualified as L
 import Data.Map qualified as Map
 import Data.Text qualified as T
-import Ondim.Extra (listExp)
+import Ondim.Extra.Expansions (listExp)
 import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core (Prism', preview, (%))
 import Org.Compare (toAtoms)
 import Org.Exporters.Processing.OrgData (OrgData (..))
-import Org.Parser.Definitions (lookupProperty)
+import Org.Types (lookupProperty)
 import Relude.Extra (lookup)
 import Site.Org.Meta.Types (MetaValue (..))
 import Site.Org.Model

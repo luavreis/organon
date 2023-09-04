@@ -13,7 +13,6 @@ data Model = Model
   { org :: Org.Model
   , static :: SR.Model
   , ondim :: OndimState
-  , layouts :: Layouts
   , cache :: TVar Cache
   , extraOpts :: Object
   , liveServer :: Bool
