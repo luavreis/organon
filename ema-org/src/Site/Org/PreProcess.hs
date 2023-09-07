@@ -11,7 +11,7 @@ import Relude.Extra (lookup)
 import Site.Org.Model
 import Site.Org.Options (Options (..))
 import Site.Org.Utils.Document (isolateSection)
-import System.FilePath (addTrailingPathSeparator, isAbsolute, (</>))
+import System.FilePath (addTrailingPathSeparator, isAbsolute, takeDirectory, (</>))
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, getHomeDirectory, makeAbsolute)
 
@@ -39,8 +39,6 @@ instance DocLike OrgSection where
 data PreProcessEnv = PreProcessEnv
   { -- Constant
     path :: OrgPath
-  , srcDir :: FilePath
-  , relDir :: FilePath
   , opts :: Options
   , -- Inherited
     attachDir :: Maybe FilePath
@@ -105,16 +103,16 @@ processEntry f s = do
   local childEnv $ f s
 
 findLinkSource :: (MonadIO m, MonadLogger m) => FilePath -> PreProcessM m (Maybe OrgPath)
-findLinkSource fp = do
+findLinkSource rawLinkFp = do
   env <- ask
   -- HACK: improvised tilde expansion
   userDir <- getHomeDirectory
-  let fp' = toString $ T.replace "~/" (toText $ addTrailingPathSeparator userDir) (toText fp)
+  let tildeExpandedLinkFp = toString $ T.replace "~/" (toText $ addTrailingPathSeparator userDir) (toText rawLinkFp)
   trueFp <-
     canonicalizePath
-      if isAbsolute fp'
-        then fp'
-        else env.srcDir </> env.relDir </> fp'
+      if isAbsolute tildeExpandedLinkFp
+        then tildeExpandedLinkFp
+        else takeDirectory (toFilePath env.path) </> tildeExpandedLinkFp
   exists <- doesFileExist trueFp
   if exists
     then do
@@ -139,7 +137,7 @@ getAttachDir key = do
 
   possibleDirs <-
     mapM makeAbsolute $
-      (env.srcDir </>) . (env.opts.orgAttachDir </>)
+      (takeDirectory (toFilePath env.path) </>) . (env.opts.orgAttachDir </>)
         <$> [ orgAttachIdTSFolderFormat
             , orgAttachIdUUIDFolderFormat
             , rid
