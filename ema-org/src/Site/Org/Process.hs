@@ -23,7 +23,7 @@ import Site.Org.Model
 import Site.Org.Options
 import Site.Org.PreProcess
 import Site.Org.Utils.MonoidalMap
-import System.FilePath (isExtensionOf, splitDirectories, takeDirectory, takeFileName)
+import System.FilePath (isExtensionOf, takeDirectory, takeFileName)
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Directory (getModificationTime)
 import UnliftIO.Process (CreateProcess (..), readCreateProcess, shell)
@@ -76,9 +76,8 @@ loadOrgFile opts path doc0 = do
         gatherSettings doc0
         pure <$> withCurrentData (pruneDoc doc0)
   doc' <- runReaderT (walkPreProcess doc) (PreProcessEnv {..})
-  let (doc'', datum') = continuePipeline datum do
+  let (doc'', inhData) = continuePipeline datum do
         getCompose $ resolveLinks doc'
-      inhData = datum' & #filetags %~ (<> fpTags)
   (e, _, _) <- snd <$> execRWST (walkProcess doc'') (ProcessEnv {..}) (ProcessSt {..})
   pure e
   where
@@ -86,12 +85,6 @@ loadOrgFile opts path doc0 = do
     anchorCounter = 0
     parent = Nothing
     attachDir = Nothing
-    srcDir = path.source.dir
-    relDir = takeDirectory path.relpath
-    fpTags =
-      if relDir == "."
-        then []
-        else toText <$> splitDirectories relDir
     inhProps = mempty
 
 walkProcess :: (MonadUnliftIO m, MonadLogger m) => WalkM (ProcessM m)
