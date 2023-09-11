@@ -32,14 +32,20 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/lucasvreis/ema.git
-  tag: 69cca0360bbeb2fe2c7bfee296f318fe73d3c115
+  tag: 320af1b4ae49a52fed3b0f941bda2da0baac1b95
   subdir: ema
 
 source-repository-package
   type: git
   location: https://github.com/lucasvreis/ema.git
-  tag: 69cca0360bbeb2fe2c7bfee296f318fe73d3c115
+  tag: 320af1b4ae49a52fed3b0f941bda2da0baac1b95
   subdir: ema-generics
+
+source-repository-package
+  type: git
+  location: https://github.com/lucasvreis/ema.git
+  tag: 320af1b4ae49a52fed3b0f941bda2da0baac1b95
+  subdir: ema-extra
 
 source-repository-package
   type: git
