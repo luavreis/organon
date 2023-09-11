@@ -47,6 +47,10 @@ pageExp rp pgs page = do
   "filepath" #@ toText $ toFilePath page.identifier.path
   "links-to" #. listExp (namespace . pageExp rp pgs) linksTo
   for_ page.identifier.orgId \i -> "id" #@ i.idText
+  fromMaybe pass do
+    p <- page.parent
+    parent <- Ix.getOne $ pgs Ix.@= p
+    return $ "parent" #. pageExp rp pgs parent
   where
     linksTo = mapMaybe (lookupOrgLocation pgs) $ Map.keys page.linksTo
     bk = backend pgs rp
