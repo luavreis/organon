@@ -30,11 +30,10 @@ runOrganon input = do
   cli <- CLI.cliAction
   result <- snd <$> runSiteWithServerOpts @Route emaServerOptions cli input
   case result of
-    CLI.Run _ :=> Identity () ->
+    RunResult () ->
       flip runLoggerLoggingT (CLI.getLogger cli) $
         CLI.crash "ema" "Live server unexpectedly stopped"
-    CLI.Generate _ :=> Identity _ ->
-      pass
+    GenerateResult _ -> pass
 
 emaServerOptions :: EmaServerOptions Route
 emaServerOptions = EmaServerOptions "" customEmaWs
