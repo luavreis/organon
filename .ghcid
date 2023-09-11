@@ -1,2 +1,3 @@
---restart="src/ema-org"
+--restart="ema-org"
+--restart="organon/src"
 --command="cabal repl organon/app/Main.hs" --warnings -T ":main run --host 0.0.0.0 --port 8000 --verbose"
