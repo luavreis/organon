@@ -5,10 +5,45 @@ package ondim
   flags: -with-pandoc
 
 package org-exporters
-  flags: +engrave-faces -pandoc
+  flags: -pandoc
 
--- source-repository-package
---     type: git
---     location: https://github.com/lucasvreis/org-parser.git
---     tag: d311c27f60789817c3ae0a3ed74713abad4ba00d
+source-repository-package
+  type: git
+  location: https://github.com/maralorn/monad-logger-extras.git
+  tag: 55d414352e740a5ecacf313732074d9b4cf2a6b3
+
+source-repository-package
+  type: git
+  location: https://github.com/lucasvreis/org-mode-hs.git
+  tag: main
+  subdir: org-parser
+
+source-repository-package
+  type: git
+  location: https://github.com/lucasvreis/org-mode-hs.git
+  tag: main
+  subdir: org-exporters
+
+source-repository-package
+  type: git
+  location: https://github.com/lucasvreis/ondim.git
+  tag: main
+
+source-repository-package
+  type: git
+  location: https://github.com/lucasvreis/ema.git
+  tag: 69cca0360bbeb2fe2c7bfee296f318fe73d3c115
+  subdir: ema
+
+source-repository-package
+  type: git
+  location: https://github.com/lucasvreis/ema.git
+  tag: 69cca0360bbeb2fe2c7bfee296f318fe73d3c115
+  subdir: ema-generics
+
+source-repository-package
+  type: git
+  location: https://github.com/lucasvreis/lvar.git
+  tag: c5fa739cc019f59b1962b7a72dfc0fb7f2b1a20e
+
 allow-newer: monad-logger-extras:mtl
