@@ -2,9 +2,9 @@
 
 module Site.Organon.Route (Route (..)) where
 
+import Control.Monad.Logger (logErrorN)
 import Data.Generics.Sum.Any
-import Data.List qualified as L
-import Data.Map (keys, (!?))
+import Data.Map (keys)
 import Ema
 import Ema.CLI (isLiveServer)
 import Ema.Route.Generic
@@ -57,16 +57,16 @@ instance EmaSite Route where
       ondimOutput p m r = render =<< siteOutput p m r
 
       globalExps = do
-        when model.liveServer $ "organon:live-server" #@ "" -- TODO get from cli data
         "asset" #. forM_ files \file ->
           toText file #@ SR.staticRouteUrl (rp % _As @"RouteStatic") model.static file
-        "query" ## queryExp (rp % _As @Org.Route) model.org
-        "organon:latex" ## renderLaTeXExp model
-        "utils:sum" #* \node -> do
-          nums :: [Int] <- mapMaybe (readMaybe . toString . snd) <$> attributes node
-          return $ fromMaybe [] $ fromText ?? show (sum nums)
-        "utils:regex" #* regexExp
-        "portal" ## portalExp
+        when model.liveServer $ "live-server" #@ ""
+        "utils" #. do
+          "query" ## queryExp (rp % _As @Org.Route) model.org
+          "latex" ## renderLaTeXExp model
+          "sum" #* \node -> do
+            nums :: [Int] <- mapMaybe (readMaybe . toString . snd) <$> attributes node
+            return $ fromMaybe [] $ castFrom (Proxy @Text) ?? show (sum nums)
+          "match" #* regexExp
         where
           files = keys model.static.modelFiles
 
