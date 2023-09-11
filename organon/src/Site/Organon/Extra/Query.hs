@@ -89,7 +89,7 @@ queryExp rp m node = do
   let
     route = T.break (== '#') <$> L.lookup "route" attrs
     routePath = fst <$> route
-    routeAnchor = Anchor . T.drop 1 . snd <$> route
+    routeAnchor = Anchor <$> (T.stripPrefix "#" . snd =<< route)
     parse' x =
       parseQuery <$> L.lookup x attrs
     doRoute =
