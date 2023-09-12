@@ -9,7 +9,7 @@ import Org.Types
 import Org.Walk
 import Relude.Extra (lookup)
 import Site.Org.Model
-import Site.Org.Options (Options (..))
+import Site.Org.Options (Options (..), Source (..))
 import Site.Org.Utils.Document (isolateSection)
 import System.FilePath (addTrailingPathSeparator, isAbsolute, takeDirectory, (</>))
 import UnliftIO (MonadUnliftIO)
@@ -40,6 +40,7 @@ data PreProcessEnv = PreProcessEnv
   { -- Constant
     path :: OrgPath
   , opts :: Options
+  , srcOpts :: Source
   , -- Inherited
     attachDir :: Maybe FilePath
   , inhProps :: Properties
@@ -137,7 +138,7 @@ getAttachDir key = do
 
   possibleDirs <-
     mapM makeAbsolute $
-      (takeDirectory (toFilePath env.path) </>) . (env.opts.orgAttachDir </>)
+      (takeDirectory (toFilePath env.path) </>) . (env.srcOpts.orgAttachDir </>)
         <$> [ orgAttachIdTSFolderFormat
             , orgAttachIdUUIDFolderFormat
             , rid

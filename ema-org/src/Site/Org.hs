@@ -49,7 +49,7 @@ instance EmaSite Route where
 
           newPages <-
             parseOrgDocIO opt.parserSettings absfp
-              >>= loadOrgFile opt orgPath
+              >>= loadOrgFile opt source orgPath
               >>= evaluate . force
 
           pure $ Ix.insertList newPages . deleteAll

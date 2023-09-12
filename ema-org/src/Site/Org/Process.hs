@@ -62,11 +62,12 @@ loadOrgFile ::
   forall m.
   (MonadUnliftIO m, MonadLogger m) =>
   Options ->
+  Source ->
   -- | Source filepath
   OrgPath ->
   OrgDocument ->
   m [OrgEntry]
-loadOrgFile opts path doc0 = do
+loadOrgFile opts srcOpts path doc0 = do
   let odata0 =
         initialOrgData
           { exporterSettings = opts.exporterSettings

@@ -46,8 +46,7 @@ defaultConfig =
   Config
     { orgFiles =
         Org.Options
-          { Org.orgAttachDir = "data"
-          , Org.mount = [Org.Source "" "content" "content"]
+          { Org.mount = [Org.Source "" "content" "content" "data"]
           , Org.staticPatterns = ["**/*.png", "**/*.jpg", "**/*.svg"]
           , Org.exclude = defExclude
           , Org.exporterSettings = defaultExporterSettings

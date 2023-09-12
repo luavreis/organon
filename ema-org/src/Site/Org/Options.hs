@@ -5,7 +5,12 @@ import Org.Parser (OrgOptions)
 import Site.Org.Utils.JSON
 import System.FilePattern (FilePattern)
 
-data Source = Source {serveAt :: Text, dir :: FilePath, alias :: Text}
+data Source = Source
+  { serveAt :: Text
+  , dir :: FilePath
+  , alias :: Text
+  , orgAttachDir :: FilePath
+  }
   deriving (Eq, Ord, Show, Read, Generic, NFData)
 
 srcToAliasMap :: [Source] -> Map Text Text
@@ -22,7 +27,6 @@ data Options = Options
   { mount :: [Source]
   , staticPatterns :: [FilePattern]
   , exclude :: [FilePattern]
-  , orgAttachDir :: FilePath
   , exporterSettings :: ExporterSettings
   , parserSettings :: OrgOptions
   , fileProtocols :: [Text]
