@@ -3,7 +3,6 @@
 module Site.Organon.Server (runOrganon) where
 
 import Control.Monad.Logger
-import Control.Monad.Logger.Extras (runLoggerLoggingT)
 import Data.Aeson (decodeStrict)
 import Data.Map qualified as Map
 import Data.Text qualified as T
@@ -16,9 +15,7 @@ import Site.Org.Options
 import Site.Org.Route qualified as OR
 import Site.Organon.Model
 import Site.Organon.Route (Route (..))
-import System.Info qualified as Info
 import UnliftIO (conc, runConc)
-import UnliftIO.Process (callCommand)
 import UnliftIO.STM (dupTChan, readTChan)
 import Org.Exporters.Processing.InternalLinks (sectionTitleToAnchor)
 
@@ -48,16 +45,7 @@ customEmaWs conn model =
     customMessage = do
       msg <- liftIO $ WS.receiveData conn
       log LevelDebug $ "<~~ " <> show msg
-      if
-          | Just fp <- T.stripPrefix "#!open:" msg -> do
-              log LevelInfo $ "Opening file " <> fp
-              case Info.os of
-                "darwin" -> callCommand $ "open " ++ toString fp
-                "mingw32" -> callCommand $ "start " ++ toString fp
-                "linux" -> callCommand $ "xdg-open " ++ toString fp
-                _ -> log LevelError "Opening files in this OS is not supported."
-              customMessage
-          | otherwise -> pure msg
+      pure msg
 
     followRedirect = do
       c <- atomically $ dupTChan model.wsNextMsg
