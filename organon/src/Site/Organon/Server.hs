@@ -5,7 +5,6 @@ module Site.Organon.Server (runOrganon) where
 import Control.Monad.Logger
 import Control.Monad.Logger.Extras (runLoggerLoggingT)
 import Data.Aeson (decodeStrict)
-import Data.Dependent.Sum (DSum (..))
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Ema
