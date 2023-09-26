@@ -106,7 +106,7 @@ listenBacklinks :: (Monad m) => ProcessM m a -> ProcessM m (a, Backlinks)
 listenBacklinks = censor (\(x, _, z) -> (x, mempty, z)) . listens (\(_, b, _) -> b)
 
 -- processLink first writes backlinks with null internal references to the
--- writer state. Then, if processBlock finds any of those backlinks with
+-- writer state. Then, if processElement finds any of those backlinks with
 -- null references in its children, it replaces those null references with a
 -- new anchor and creates a div around the block to receive that anchor.
 
@@ -115,6 +115,7 @@ listenBacklinks = censor (\(x, _, z) -> (x, mempty, z)) . listens (\(_, b, _) ->
 -- those null references and replace them with a reference to itself.
 
 processElement :: Monad m => WalkM (ProcessM m) -> OrgElement -> ProcessM m OrgElement
+processElement f elm@(OrgElement _ (Keyword _ _)) = f elm -- pass-through
 processElement f elm = do
   (el'@(OrgElement _ eld), blks) <- listenBacklinks $ f elm
   if any (Nothing `NES.member`) blks
@@ -132,7 +133,7 @@ processElement f elm = do
                 then NES.singleton (Just (Anchor anchor))
                 else s
       tellBacklinks newBlks
-      return $ OrgElement (Map.singleton "portal-target" $ ValueKeyword anchor) eld
+      return $ OrgElement (Map.singleton "name" $ ValueKeyword anchor) eld
     else tellBacklinks blks $> el'
 
 -- | Process links to other Org files and register the backlinks.
