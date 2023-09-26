@@ -10,7 +10,6 @@ import Ema.Route.Prism (htmlSuffixPrism)
 import Optics.Core
 import Org.Exporters.Processing.OrgData (OrgData (..))
 import Org.Types (OrgDocument)
-import Site.Org.Meta.Types (MetaMap)
 import Site.Org.Options (Options (..), Source (..))
 import Site.Org.Utils.JSON (FromJSON, ToJSON)
 import System.FilePath (dropExtension, isRelative, makeRelative, normalise, (</>))
@@ -31,8 +30,6 @@ data OrgEntry = OrgEntry
   -- ^ Document for entry.
   , orgData :: OrgData
   -- ^ Export data for entry.
-  , meta :: MetaMap
-  -- ^ Vulpea-style metadata
   , level :: Int
   -- ^ Original level of entry, 0 means file-level.
   , parent :: Maybe Identifier
@@ -174,7 +171,6 @@ newtype LinksToIx = LinksToIx UnresolvedLocation
 
 data InternalRef
   = Anchor Text
-  | MetaProperty
   | LineRange Int Int
   deriving (Eq, Ord, Show, Typeable, Generic)
 

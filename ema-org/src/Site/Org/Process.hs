@@ -12,21 +12,17 @@ import Data.Text qualified as T
 import Data.Time (UTCTime)
 import Optics.Core
 import Org.Exporters.Processing
-import Org.Parser (parseOrgMaybe)
-import Org.Parser.Objects (plainMarkupContext, standardSet)
 import Org.Types
 import Org.Walk
 import Relude.Extra (lookup)
 import Relude.Unsafe (fromJust)
-import Site.Org.Meta.Types
 import Site.Org.Model
 import Site.Org.Options
 import Site.Org.PreProcess
 import Site.Org.Utils.MonoidalMap
-import System.FilePath (isExtensionOf, takeDirectory, takeFileName)
+import System.FilePath (isExtensionOf)
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Directory (getModificationTime)
-import UnliftIO.Process (CreateProcess (..), readCreateProcess, shell)
 import Prelude hiding (ask, asks, get, gets, local, modify)
 
 type Backlinks = MonoidalMap UnresolvedLocation (NES.NESet (Maybe InternalRef))
@@ -45,9 +41,8 @@ data ProcessEnv = ProcessEnv
   }
   deriving (Generic)
 
-data ProcessSt = ProcessSt
+newtype ProcessSt = ProcessSt
   { anchorCounter :: Int
-  , meta :: MetaMap
   }
   deriving (Generic)
 
@@ -82,7 +77,6 @@ loadOrgFile opts srcOpts path doc0 = do
   (e, _, _) <- snd <$> execRWST (walkProcess doc'') (ProcessEnv {..}) (ProcessSt {..})
   pure e
   where
-    meta = mempty
     anchorCounter = 0
     parent = Nothing
     attachDir = Nothing
@@ -121,38 +115,25 @@ listenBacklinks = censor (\(x, _, z) -> (x, mempty, z)) . listens (\(_, b, _) ->
 -- those null references and replace them with a reference to itself.
 
 processElement :: Monad m => WalkM (ProcessM m) -> OrgElement -> ProcessM m OrgElement
-processElement f elm@(OrgElement _ (Keyword _ _)) = do
-  (elm', blks) <- listenBacklinks (f elm)
-  let blks' = NES.map (const $ Just MetaProperty) <$> blks
-  tellBacklinks blks'
-  return elm'
-processElement f elm =
-  case elementToMetaMap elm of
-    Just m -> do
-      blks <- snd <$> listenBacklinks (f elm)
-      let blks' = NES.map (const $ Just MetaProperty) <$> blks
-      tellBacklinks blks'
-      modify (#meta %~ (m <>))
-      return $ OrgElement mempty Comment
-    Nothing -> do
-      (el'@(OrgElement _ eld), blks) <- listenBacklinks $ f elm
-      if any (Nothing `NES.member`) blks
-        then do
-          modify (#anchorCounter %~ (+ 1))
-          n <- gets (.anchorCounter)
-          let anchor = "bltarget" <> show n
-              -- Here, we keep only the outermost backlinks.
-              -- That is, if there is a backlink just below this element
-              -- (so it does not have an anchor yet), we throw away all
-              -- the backlinks to the same file and keep just that one.
-              newBlks =
-                blks <&> \s ->
-                  if Nothing `NES.member` s
-                    then NES.singleton (Just (Anchor anchor))
-                    else s
-          tellBacklinks newBlks
-          return $ OrgElement (Map.singleton "portal-target" $ ValueKeyword anchor) eld
-        else tellBacklinks blks $> el'
+processElement f elm = do
+  (el'@(OrgElement _ eld), blks) <- listenBacklinks $ f elm
+  if any (Nothing `NES.member`) blks
+    then do
+      modify (#anchorCounter %~ (+ 1))
+      n <- gets (.anchorCounter)
+      let anchor = "bltarget" <> show n
+          -- Here, we keep only the outermost backlinks.
+          -- That is, if there is a backlink just below this element
+          -- (so it does not have an anchor yet), we throw away all
+          -- the backlinks to the same file and keep just that one.
+          newBlks =
+            blks <&> \s ->
+              if Nothing `NES.member` s
+                then NES.singleton (Just (Anchor anchor))
+                else s
+      tellBacklinks newBlks
+      return $ OrgElement (Map.singleton "portal-target" $ ValueKeyword anchor) eld
+    else tellBacklinks blks $> el'
 
 -- | Process links to other Org files and register the backlinks.
 processLink :: (MonadUnliftIO m, MonadLogger m) => OrgObject -> ProcessM m OrgObject
@@ -181,25 +162,6 @@ processTarget t = do
               tellBacklink (Left opath)
     _ -> pure ()
 
--- TODO use ondim
-getGenMeta :: (MonadLogger m, MonadUnliftIO m) => ProcessM m MetaMap
-getGenMeta = do
-  props <- asks (.inhProps)
-  op <- asks (.path)
-  gen <- asks (.opts.generatedMeta)
-  popts <- asks (.inhData.parserOptions)
-  let filepath = takeFileName op.relpath
-      dir = takeDirectory $ toFilePath op
-      env =
-        ("filepath", filepath)
-          : [("prop_" ++ toString k, toString v) | (k, v) <- Map.toList props]
-      sh cmd = (shell cmd) {cwd = Just dir, env = Just env}
-  MonoidalMap . Map.mapMaybe id <$> forM gen \cmd -> do
-    out <- toText <$> readCreateProcess (sh cmd) ""
-    return $ MetaObjects . toList <$> parseOrgMaybe popts parser out
-  where
-    parser = plainMarkupContext standardSet
-
 processEntry :: (DocLike a, MonadLogger m, MonadUnliftIO m, MultiWalk MWTag a) => WalkM (ProcessM m) -> a -> ProcessM m a
 processEntry f s = do
   env <- ask
@@ -227,26 +189,16 @@ processEntry f s = do
           & #inhProps %~ (<> getProps s)
 
   local (const childEnv) do
-    oldMeta <- gets (.meta)
-
     (subProcessedDoc, (_, subBacklinks, subFiles)) <- listen (f s)
-
-    newMeta <- gets (.meta)
-    -- Aggregate meta only from /children/ and not from /subsections/:
-    -- this line will reset the metas to the value before the section.
-    -- this means subsections doesn't affect the metas from parent's POV.
-    modify (#meta .~ oldMeta)
 
     let doc = toDoc subProcessedDoc & #documentProperties .~ childEnv.inhProps
 
     when isEntry do
-      genMeta <- getGenMeta
       tellEntry $
         OrgEntry
           { identifier = identifier
           , document = doc
           , orgData = newData
-          , meta = newMeta <> genMeta
           , level = level
           , parent = env.parent
           , staticFiles = subFiles

@@ -52,7 +52,6 @@ defaultConfig =
           , Org.exporterSettings = defaultExporterSettings
           , Org.parserSettings = parsingOptions
           , Org.fileProtocols = ["file", "pdf"]
-          , Org.generatedMeta = mempty
           }
     , templates = "templates"
     , cacheFile = "site.cache"

@@ -30,7 +30,6 @@ data Options = Options
   , exporterSettings :: ExporterSettings
   , parserSettings :: OrgOptions
   , fileProtocols :: [Text]
-  , generatedMeta :: Map Text String
   }
   deriving (Eq, Ord, Show, Generic, NFData)
 

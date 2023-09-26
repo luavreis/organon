@@ -74,8 +74,6 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Site.Org
-    Site.Org.Meta
-    Site.Org.Meta.Types
     Site.Org.Model
     Site.Org.Options
     Site.Org.Parsing.Options

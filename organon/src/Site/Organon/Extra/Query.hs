@@ -12,16 +12,13 @@ import Data.Text qualified as T
 import Ondim.Extra.Expansions (listExp)
 import Ondim.Targets.HTML (HtmlNode)
 import Optics.Core (Prism', preview, (%))
-import Org.Compare (toAtoms)
 import Org.Exporters.Processing.OrgData (OrgData (..))
 import Org.Types (lookupProperty)
 import Relude.Extra (lookup)
-import Site.Org.Meta.Types (MetaValue (..))
 import Site.Org.Model
 import Site.Org.Options (mount, srcToAliasMap)
 import Site.Org.Render
 import Site.Org.Route
-import Site.Org.Utils.MonoidalMap (MonoidalMap (..))
 import System.FilePattern ((?==))
 import Prelude hiding (takeWhile)
 
@@ -151,9 +148,5 @@ queryExp rp m node = do
                     comparing $ Map.lookup kw . (.orgData.keywords) . fst
                 | Just prop <- T.stripPrefix "prop:" s ->
                     comparing $ lookupProperty prop . (.document) . fst
-                | Just meta <- T.stripPrefix "meta:" s ->
-                    comparing $ \(page, _) -> do
-                      MetaObjects objs <- Map.lookup meta page.meta.getMap
-                      return (foldMap toAtoms objs)
                 | otherwise ->
                     comparing $ const ()

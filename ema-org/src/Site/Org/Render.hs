@@ -16,7 +16,6 @@ import Ondim.Extra.Expansions (listExp)
 import Optics.Core (Prism', review)
 import Org.Types (OrgDocument (..))
 import Relude.Unsafe (fromJust)
-import Site.Org.Meta (metaMapExp)
 import Site.Org.Model (
   Identifier (orgId, path),
   Model (pages),
@@ -41,7 +40,6 @@ pageExp rp pgs page = do
   documentExp bk page.orgData page.document
   "parse:objs" #* parserExpObjs bk page.orgData
   "parse:elms" #* parserExpElms bk page.orgData
-  "meta" #. metaMapExp bk page.orgData page.meta
   "route" #@ router $ Route_Page page.identifier
   "routeRaw" #@ toText $ review rp $ Route_Page page.identifier
   "filepath" #@ toText $ toFilePath page.identifier.path
