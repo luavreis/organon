@@ -3,7 +3,7 @@
 
 module Site.Org.Process (loadOrgFile) where
 
-import Control.Monad.Logger (MonadLogger, logDebugN)
+import Control.Monad.Logger (MonadLogger, logDebugN, logWarnNS)
 import Control.Monad.Trans.RWS.CPS
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -15,15 +15,35 @@ import Org.Exporters.Processing
 import Org.Types
 import Org.Walk
 import Relude.Extra (lookup)
-import Relude.Unsafe (fromJust)
 import Site.Org.Model
 import Site.Org.Options
-import Site.Org.PreProcess
+import Site.Org.Utils.Document (isolateSection)
 import Site.Org.Utils.MonoidalMap
-import System.FilePath (isExtensionOf)
+import System.FilePath (addTrailingPathSeparator, isAbsolute, isExtensionOf, takeDirectory, (</>))
 import UnliftIO (MonadUnliftIO)
-import UnliftIO.Directory (getModificationTime)
+import UnliftIO.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, getHomeDirectory, getModificationTime, makeAbsolute)
 import Prelude hiding (ask, asks, get, gets, local, modify)
+
+class DocLike a where
+  getLevel :: a -> Int
+  getTags :: a -> [Tag]
+  getProps :: a -> Properties
+  getTitle :: a -> Maybe [OrgObject]
+  toDoc :: a -> OrgDocument
+
+instance DocLike OrgDocument where
+  getLevel _ = 0
+  getTags _ = []
+  getProps = documentProperties
+  getTitle _ = Nothing
+  toDoc = id
+
+instance DocLike OrgSection where
+  getLevel = sectionLevel
+  getTags = sectionTags
+  getProps = sectionProperties
+  getTitle = Just . sectionTitle
+  toDoc = isolateSection
 
 type Backlinks = MonoidalMap UnresolvedLocation (NES.NESet (Maybe InternalRef))
 
@@ -34,10 +54,12 @@ data ProcessEnv = ProcessEnv
   { -- Constant
     path :: OrgPath
   , opts :: Options
+  , srcOpts :: Source
   , -- Inherited
     parent :: Maybe Identifier
   , inhData :: OrgData
   , inhProps :: Properties
+  , attachDir :: Maybe FilePath
   }
   deriving (Generic)
 
@@ -68,13 +90,12 @@ loadOrgFile opts srcOpts path doc0 = do
           { exporterSettings = opts.exporterSettings
           , parserOptions = opts.parserSettings
           }
-      (doc, datum) = continuePipeline odata0 do
+      (prunedDoc, datum) = continuePipeline odata0 do
         gatherSettings doc0
         pure <$> withCurrentData (pruneDoc doc0)
-  doc' <- runReaderT (walkPreProcess doc) (PreProcessEnv {..})
-  let (doc'', inhData) = continuePipeline datum do
-        getCompose $ resolveLinks doc'
-  (e, _, _) <- snd <$> execRWST (walkProcess doc'') (ProcessEnv {..}) (ProcessSt {..})
+  let (docWithResolvedLinks, inhData) = continuePipeline datum do
+        getCompose $ resolveLinks prunedDoc
+  (e, _, _) <- snd <$> execRWST (walkProcess docWithResolvedLinks) (ProcessEnv {..}) (ProcessSt {..})
   pure e
   where
     anchorCounter = 0
@@ -85,7 +106,7 @@ loadOrgFile opts srcOpts path doc0 = do
 walkProcess :: (MonadUnliftIO m, MonadLogger m) => WalkM (ProcessM m)
 walkProcess = buildMultiW \f l ->
   l
-    .> processLink
+    .> processLink f
     .> processElement f
     .> processEntry @OrgSection f
     .> processEntry @OrgDocument f
@@ -137,23 +158,30 @@ processElement f elm = do
     else tellBacklinks blks $> el'
 
 -- | Process links to other Org files and register the backlinks.
-processLink :: (MonadUnliftIO m, MonadLogger m) => OrgObject -> ProcessM m OrgObject
-processLink l = do
-  case l of
-    (Link t _) -> processTarget t
-    _ -> pure ()
-  return l
+processLink :: (MonadUnliftIO m, MonadLogger m) => WalkM (ProcessM m) -> OrgObject -> ProcessM m OrgObject
+processLink f = \case
+  (Link t c) -> Link <$> processTarget t <*> mapM f c
+  l -> f l
 
-processTarget :: (MonadUnliftIO m, MonadLogger m) => LinkTarget -> ProcessM m ()
+processTarget :: (MonadUnliftIO m, MonadLogger m) => LinkTarget -> ProcessM m LinkTarget
 processTarget t = do
+  env <- ask
   case t of
     -- ID link to another Org file
-    (URILink "id" (T.breakOn "::" -> (uid, _))) ->
+    (URILink "id" (T.breakOn "::" -> (uid, _))) -> do
       tellBacklink (Right (OrgID uid))
-    -- File link to another file.
-    (URILink uri _)
-      | Just sAlias <- T.stripPrefix "source:" uri -> do
-          let opath = fromJust $ readMaybe (toString sAlias)
+      return t
+    (URILink "attachment" att)
+      | Just aDir <- env.attachDir ->
+          fromMaybe t <$> findTarget (toText $ aDir </> toString att)
+    (URILink protocol fp)
+      | protocol `elem` env.opts.fileProtocols ->
+          fromMaybe t <$> findTarget fp
+    _ -> return t
+  where
+    findTarget (T.breakOn "::" -> (fp, anchor)) =
+      findLinkSource (toString fp) >>= \case
+        Just opath -> do
           if "org" `isExtensionOf` opath.relpath
             then do
               tellBacklink (Left opath)
@@ -161,33 +189,46 @@ processTarget t = do
               lift $ logDebugN $ "Adding file " <> prettyOrgPath opath
               getModificationTime (toFilePath opath) >>= tellFile opath
               tellBacklink (Left opath)
-    _ -> pure ()
+          let uri = "source:" <> show opath
+          return $ Just $ URILink uri anchor
+        Nothing -> return Nothing
 
 processEntry :: (DocLike a, MonadLogger m, MonadUnliftIO m, MultiWalk MWTag a) => WalkM (ProcessM m) -> a -> ProcessM m a
 processEntry f s = do
   env <- ask
 
   let tags = getTags s <> env.inhData.filetags
-      sectionId = lookup "id" (getProps s)
+      entryId = lookup "id" (getProps s)
       level = getLevel s
       noExportTags = env.inhData.exporterSettings.orgExportExcludeTags
       exclude =
         let p = lookup "roam_exclude" (getProps s)
          in any (/= "nil") p || or [i == j | j <- tags, i <- noExportTags]
 
-      isEntry = (level == 0 || isJust sectionId) && not exclude
+      isEntry = (level == 0 || isJust entryId) && not exclude
 
-      identifier = Identifier env.path (OrgID <$> sectionId)
+      identifier = Identifier env.path (OrgID <$> entryId)
       newData =
         env.inhData
           & #filetags .~ tags
           & #keywords %~ maybe id (Map.insert "title" . ParsedKeyword) (getTitle s)
 
+      -- For org-attach
+      updatedEntryId =
+        if entryId /= lookup "id" env.inhProps
+          then entryId
+          else Nothing
+
+  newAttachDir <- foldMapM getAttachDir updatedEntryId
+
+  lift $ whenJust newAttachDir $ logDebugN . ("Using attach dir: " <>) . show
+
   let childEnv =
         env
-          & #parent %~ bool id (const $ Just identifier) isEntry
+          & bool id (#parent ?~ identifier) isEntry
           & #inhData .~ newData
           & #inhProps %~ (<> getProps s)
+          & maybe id (#attachDir ?~) newAttachDir
 
   local (const childEnv) do
     (subProcessedDoc, (_, subBacklinks, subFiles)) <- listen (f s)
@@ -207,3 +248,48 @@ processEntry f s = do
           }
 
     return subProcessedDoc
+
+findLinkSource :: (MonadIO m, MonadLogger m) => FilePath -> ProcessM m (Maybe OrgPath)
+findLinkSource rawLinkFp = do
+  env <- ask
+  -- HACK: improvised tilde expansion
+  userDir <- getHomeDirectory
+  let tildeExpandedLinkFp = toString $ T.replace "~/" (toText $ addTrailingPathSeparator userDir) (toText rawLinkFp)
+  trueFp <-
+    canonicalizePath
+      if isAbsolute tildeExpandedLinkFp
+        then tildeExpandedLinkFp
+        else takeDirectory (toFilePath env.path) </> tildeExpandedLinkFp
+  exists <- doesFileExist trueFp
+  if exists
+    then do
+      op <- findSource env.opts.mount trueFp
+      whenNothing_ op $
+        lift $
+          logWarnNS "findSource" $
+            "File " <> show trueFp <> " linked from " <> prettyOrgPath env.path <> " exists but does not belong to a declared source."
+      return op
+    else do
+      lift $
+        logWarnNS "findSource" $
+          "File " <> show trueFp <> " linked from " <> prettyOrgPath env.path <> " does not exist."
+      return Nothing
+
+getAttachDir :: MonadIO m => Text -> ProcessM m (Maybe FilePath)
+getAttachDir key = do
+  env <- ask
+  let rid = toString key
+      orgAttachIdTSFolderFormat = take 6 rid </> drop 6 rid
+      orgAttachIdUUIDFolderFormat = take 2 rid </> drop 2 rid
+
+  possibleDirs <-
+    mapM makeAbsolute $
+      (takeDirectory (toFilePath env.path) </>) . (env.srcOpts.orgAttachDir </>)
+        <$> [ orgAttachIdTSFolderFormat
+            , orgAttachIdUUIDFolderFormat
+            , rid
+            ]
+
+  findM doesDirectoryExist possibleDirs
+  where
+    findM p = foldr (\x -> ifM (p x) (pure $ Just x)) (pure Nothing)
