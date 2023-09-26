@@ -8,7 +8,6 @@ module Site.Org.Render (
 )
 where
 
-import Control.Monad.Trans.Either (runEitherT)
 import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as Map
 import Ema (Asset (AssetGenerated), Format (Html), routeUrl)
@@ -53,13 +52,6 @@ pageExp rp pgs page = do
     linksTo = mapMaybe (lookupOrgLocation pgs) $ Map.keys page.linksTo
     bk = backend pgs rp
     router = routeUrl rp
-
-evalOutput :: RenderM m => OndimState -> Ondim a -> m (Either OndimException a)
-evalOutput ostate content = do
-  let RenderT out = evalOndimTWith ostate content
-  collapse <$> runEitherT out
-  where
-    collapse = fromRight (error "")
 
 renderPost :: Identifier -> Prism' FilePath Route -> Model -> Ondim (Asset LByteString)
 renderPost identifier rp m = do

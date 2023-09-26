@@ -70,10 +70,9 @@ instance EmaSite Route where
         where
           files = keys model.static.modelFiles
 
-      render :: RenderM m => Ondim (Asset LByteString) -> m (Asset LByteString)
       render res =
         either handleErrors return
-          =<< evalOutput ostate (res `binding` globalExps)
+          =<< unRenderT (evalOndimTWith ostate (res `binding` globalExps))
         where
           handleErrors e = do
             let msg = prettyException e
