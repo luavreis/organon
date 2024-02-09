@@ -186,7 +186,7 @@ processTarget t = do
             then do
               tellBacklink (Left opath)
             else do
-              lift $ logDebugN $ "Adding file " <> prettyOrgPath opath
+              lift $ logDebugN $ "Adding " <> prettyOrgPath opath
               getModificationTime (toFilePath opath) >>= tellFile opath
               tellBacklink (Left opath)
           let uri = "source:" <> show opath
