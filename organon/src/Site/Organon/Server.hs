@@ -5,7 +5,6 @@ module Site.Organon.Server (runOrganon) where
 import Control.Monad.Logger
 import Data.Aeson (decodeStrict)
 import Data.Map qualified as Map
-import Data.Text qualified as T
 import Ema
 import Ema.CLI qualified as CLI
 import Ema.Server (EmaServerOptions (..), EmaWsHandler)
@@ -18,6 +17,7 @@ import Site.Organon.Route (Route (..))
 import UnliftIO (conc, runConc)
 import UnliftIO.STM (dupTChan, readTChan)
 import Org.Exporters.Processing.InternalLinks (sectionTitleToAnchor)
+import Control.Monad.Logger.Extras (runLoggerLoggingT)
 
 runOrganon ::
   SiteArg Route ->
