@@ -90,12 +90,10 @@ loadOrgFile opts srcOpts path doc0 = do
           { exporterSettings = opts.exporterSettings
           , parserOptions = opts.parserSettings
           }
-      (prunedDoc, datum) = continuePipeline odata0 do
+      (prunedDoc, inhData) = continuePipeline odata0 do
         gatherSettings doc0
         pure <$> withCurrentData (pruneDoc doc0)
-  let (docWithResolvedLinks, inhData) = continuePipeline datum do
-        getCompose $ resolveLinks prunedDoc
-  (e, _, _) <- snd <$> execRWST (walkProcess docWithResolvedLinks) (ProcessEnv {..}) (ProcessSt {..})
+  (e, _, _) <- snd <$> execRWST (walkProcess prunedDoc) (ProcessEnv {..}) (ProcessSt {..})
   pure e
   where
     anchorCounter = 0
@@ -233,14 +231,16 @@ processEntry f s = do
   local (const childEnv) do
     (subProcessedDoc, (_, subBacklinks, subFiles)) <- listen (f s)
 
-    let doc = toDoc subProcessedDoc & #documentProperties .~ childEnv.inhProps
+    let processedDoc = toDoc subProcessedDoc & #documentProperties .~ childEnv.inhProps
+        (resolvedDoc, resolvedData) = continuePipeline newData do
+          getCompose $ resolveLinks processedDoc
 
     when isEntry do
       tellEntry $
         OrgEntry
           { identifier = identifier
-          , document = doc
-          , orgData = newData
+          , document = resolvedDoc
+          , orgData = resolvedData
           , level = level
           , parent = env.parent
           , staticFiles = subFiles
